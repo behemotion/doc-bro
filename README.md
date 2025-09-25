@@ -102,9 +102,109 @@ docbro serve --port 8000
 
 ## 🤖 MCP Server Integration
 
+DocBro provides a Model Context Protocol (MCP) server that allows AI coding assistants like Claude Code, Claude Desktop, and Cursor to search your crawled documentation directly.
+
+### For Claude Code
+
+Claude Code supports MCP servers through configuration. Add DocBro to your MCP configuration:
+
+#### 1. Install DocBro MCP Server
+```bash
+# Install DocBro globally if not already done
+uvx install git+https://github.com/yourusername/local-doc-bro
+
+# Verify installation
+docbro --version
+```
+
+#### 2. Configure MCP Client
+
+Create or update your MCP configuration file at `~/.config/mcp/config.json`:
+
+```json
+{
+  "mcpServers": {
+    "docbro": {
+      "command": "docbro",
+      "args": ["serve", "--port", "8765", "--host", "127.0.0.1"],
+      "env": {
+        "DOCBRO_LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}
+```
+
+#### 3. Alternative Configuration Methods
+
+**Option A: Using UVX command (Recommended)**
+```json
+{
+  "mcpServers": {
+    "docbro": {
+      "command": "uvx",
+      "args": ["run", "docbro", "serve", "--port", "8765"],
+      "env": {
+        "DOCBRO_LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}
+```
+
+**Option B: Direct Python execution**
+```json
+{
+  "mcpServers": {
+    "docbro": {
+      "command": "python",
+      "args": ["-m", "src.cli.main", "serve", "--port", "8765"],
+      "cwd": "/path/to/local-doc-bro",
+      "env": {
+        "PYTHONPATH": "/path/to/local-doc-bro",
+        "DOCBRO_LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}
+```
+
+#### 4. Start and Test MCP Server
+
+```bash
+# Test the server manually
+docbro serve --port 8765
+
+# In another terminal, test the connection
+curl http://localhost:8765/health
+```
+
+You should see a health check response indicating the server is running.
+
+#### 5. Available MCP Endpoints
+
+Once configured, Claude Code can access these DocBro functions:
+
+- **`/mcp/projects`** - List all crawled documentation projects
+- **`/mcp/search`** - Search across documentation with RAG
+- **`/mcp/connect`** - Establish MCP session
+- **`/health`** - Server health check
+
+#### 6. Usage in Claude Code
+
+After configuration, you can ask Claude Code to:
+
+```
+"Search the Python documentation for async/await examples"
+"Find Flask routing documentation"
+"Look up Django model field types in the docs"
+```
+
+Claude Code will automatically use the DocBro MCP server to search your local documentation.
+
 ### For Claude Desktop
 
-Add to your Claude Desktop config:
+Add to your Claude Desktop config (`~/Library/Application\ Support/Claude/claude_desktop_config.json` on macOS):
 
 ```json
 {
@@ -115,6 +215,101 @@ Add to your Claude Desktop config:
     }
   }
 }
+```
+
+### For Cursor
+
+Add to Cursor's MCP configuration:
+
+```json
+{
+  "mcpServers": {
+    "docbro": {
+      "command": "docbro",
+      "args": ["serve", "--port", "8766"]
+    }
+  }
+}
+```
+
+### Advanced MCP Configuration
+
+#### Custom Server Settings
+```json
+{
+  "mcpServers": {
+    "docbro": {
+      "command": "docbro",
+      "args": [
+        "serve",
+        "--port", "8765",
+        "--host", "127.0.0.1"
+      ],
+      "env": {
+        "DOCBRO_LOG_LEVEL": "DEBUG",
+        "DOCBRO_QDRANT_URL": "http://localhost:6333",
+        "DOCBRO_REDIS_URL": "redis://localhost:6379",
+        "DOCBRO_OLLAMA_URL": "http://localhost:11434"
+      }
+    }
+  }
+}
+```
+
+#### Multiple Project Configurations
+```json
+{
+  "mcpServers": {
+    "docbro-python": {
+      "command": "docbro",
+      "args": ["serve", "--port", "8765"]
+    },
+    "docbro-js": {
+      "command": "docbro",
+      "args": ["serve", "--port", "8766"]
+    }
+  }
+}
+```
+
+### MCP Troubleshooting
+
+#### Check MCP Server Status
+```bash
+# Verify DocBro is installed and accessible
+docbro --version
+
+# Test server startup
+docbro serve --port 8765 --host 127.0.0.1
+
+# Check health endpoint
+curl http://127.0.0.1:8765/health
+```
+
+#### Common Issues
+
+**Server won't start:**
+```bash
+# Check if port is already in use
+lsof -i :8765
+
+# Try a different port
+docbro serve --port 8766
+```
+
+**Connection refused:**
+- Verify DocBro is installed globally: `which docbro`
+- Check the command path in your MCP config
+- Ensure all required services (Qdrant, Redis, Ollama) are running: `docbro status`
+
+**No documentation found:**
+```bash
+# List available projects
+docbro list
+
+# Crawl some documentation first
+docbro create python-docs --url https://docs.python.org/3/
+docbro crawl python-docs --max-pages 50
 ```
 
 ## 🔧 Advanced Configuration

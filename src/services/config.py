@@ -11,7 +11,7 @@ import logging
 import platformdirs
 from packaging import version
 
-from ..models.installation import InstallationContext, ServiceStatus, PackageMetadata
+from src.models.installation import InstallationContext, ServiceStatus, PackageMetadata
 
 logger = logging.getLogger(__name__)
 

@@ -13,13 +13,13 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
-from ..lib.config import DocBroConfig
-from ..lib.logging import get_component_logger
-from ..services.database import DatabaseManager
-from ..services.vector_store import VectorStoreService
-from ..services.embeddings import EmbeddingService
-from ..services.rag import RAGSearchService
-from ..models import Project, ProjectStatus
+from src.core.config import DocBroConfig
+from src.core.lib_logger import get_component_logger
+from src.services.database import DatabaseManager
+from src.services.vector_store import VectorStoreService
+from src.services.embeddings import EmbeddingService
+from src.services.rag import RAGSearchService
+from src.models import Project, ProjectStatus
 
 
 # Security

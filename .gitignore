@@ -77,3 +77,6 @@ temp/
 
 # Docker
 docker-compose.override.yml
+
+# Test files
+test*.py

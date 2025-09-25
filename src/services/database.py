@@ -10,9 +10,9 @@ import uuid
 import json
 import logging
 
-from ..models import Project, ProjectStatus, CrawlSession, CrawlStatus, Page, PageStatus
-from ..lib.config import DocBroConfig
-from ..lib.logging import get_component_logger
+from src.models import Project, ProjectStatus, CrawlSession, CrawlStatus, Page, PageStatus
+from src.core.config import DocBroConfig
+from src.core.lib_logger import get_component_logger
 
 
 class DatabaseError(Exception):

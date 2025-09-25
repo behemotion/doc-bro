@@ -8,8 +8,8 @@ from typing import List, Optional, Dict, Any, Union
 import httpx
 import logging
 
-from ..lib.config import DocBroConfig
-from ..lib.logging import get_component_logger
+from src.core.config import DocBroConfig
+from src.core.lib_logger import get_component_logger
 
 
 class EmbeddingError(Exception):
