@@ -1,4 +1,4 @@
-# [PROJECT_NAME] Constitution
+# DocBro Constitution
 <!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
 
 ## Core Principles

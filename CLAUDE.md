@@ -32,6 +32,8 @@ DocBro is a documentation crawler and search tool with RAG (Retrieval-Augmented 
 - **pytest 8.x** - Test framework with async support
 - Python 3.11+ + Qdrant (vector database), Ollama (embeddings), MCP protocol server, Click (CLI), BeautifulSoup4 (web crawling) (001-local-doc-bro)
 - Qdrant vector database for embeddings, SQLite for metadata, local filesystem for project managemen (001-local-doc-bro)
+- Python 3.13 (as clarified) + uv/uvx tool, Click (CLI), existing DocBro dependencies (003-uv-command-install)
+- Local filesystem for config/data, GitHub releases for distribution (003-uv-command-install)
 
 ## Project Structure
 ```
@@ -168,9 +170,9 @@ DOCBRO_LOG_LEVEL=INFO
 - **Async Testing**: pytest-asyncio for async code
 
 ## Recent Changes
+- 003-uv-command-install: Added Python 3.13 (as clarified) + uv/uvx tool, Click (CLI), existing DocBro dependencies
 - 001-local-doc-bro: Added Python 3.11+ + Qdrant (vector database), Ollama (embeddings), MCP protocol server, Click (CLI), BeautifulSoup4 (web crawling)
 - Implemented complete core functionality (90% feature complete)
-- Added full async/await support throughout
 
 ## Next Steps (Remaining 10%)
 - [ ] Add more sophisticated crawling strategies

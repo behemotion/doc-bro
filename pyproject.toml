@@ -4,17 +4,18 @@ build-backend = "hatchling.build"
 
 [project]
 name = "docbro"
-version = "0.1.0"
-description = "Documentation web crawler with vector database and RAG search capabilities"
+version = "1.0.0"
+description = "Documentation crawler and search tool with RAG capabilities and MCP server integration"
 readme = "README.md"
 requires-python = ">=3.13"
 license = {text = "MIT"}
 authors = [
     {name = "DocBro Contributors"}
 ]
-keywords = ["documentation", "crawler", "vector-database", "rag", "search"]
+keywords = ["documentation", "crawler", "rag", "search", "mcp", "uvx", "uv"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
@@ -40,6 +41,8 @@ dependencies = [
     "python-multipart>=0.0.6",
     "websockets>=11.0",
     "ollama>=0.1.7",
+    "platformdirs>=3.0.0",
+    "packaging>=23.0",
 ]
 
 [project.optional-dependencies]
@@ -55,7 +58,10 @@ dev = [
 ]
 
 [project.scripts]
-docbro = "src.cli.main:main"
+docbro = "src.cli.main:cli"
+
+[project.entry-points."console_scripts"]
+docbro = "src.cli.main:cli"
 
 [project.urls]
 Homepage = "https://github.com/yourusername/docbro"
