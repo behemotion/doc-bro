@@ -28,10 +28,10 @@ class TestStatusCommand:
     def test_status_checks_service_health(self):
         """Test that status checks health of all services."""
         result = self.runner.invoke(main, ["status"])
-        # When implemented, should check Qdrant, Redis, Ollama connectivity
+        # When implemented, should check Qdrant, Ollama connectivity
         # For now, should fail
         assert result.exit_code != 0 or any(service in result.output.lower()
-                                          for service in ["qdrant", "redis", "ollama"])
+                                          for service in ["qdrant", "ollama"])
 
     def test_status_shows_project_count(self):
         """Test that status shows project statistics."""

@@ -29,7 +29,7 @@ class TestServiceStatus:
 
     def test_service_name_validation(self):
         """Test that name must be one of supported services."""
-        supported_services = ["docker", "ollama", "redis", "qdrant"]
+        supported_services = ["docker", "ollama", "qdrant"]
 
         for service_name in supported_services:
             status = ServiceStatus(
@@ -71,7 +71,6 @@ class TestServiceStatus:
         test_cases = [
             ("docker", "unix:///var/run/docker.sock"),
             ("ollama", "http://localhost:11434"),
-            ("redis", "redis://localhost:6379"),
             ("qdrant", "http://localhost:6333")
         ]
 
@@ -120,10 +119,10 @@ class TestServiceStatus:
     def test_json_serialization(self):
         """Test that ServiceStatus can be serialized to/from JSON."""
         original = ServiceStatus(
-            name="redis",
+            name="qdrant",
             available=True,
-            version="7.2.0",
-            endpoint="redis://localhost:6379",
+            version="1.7.0",
+            endpoint="http://localhost:6333",
             last_checked=datetime(2025, 1, 25, 10, 30, 0),
             error_message=None,
             setup_completed=True
@@ -132,7 +131,7 @@ class TestServiceStatus:
         # Serialize to JSON
         json_data = original.model_dump(mode='json')
         assert isinstance(json_data, dict)
-        assert json_data["name"] == "redis"
+        assert json_data["name"] == "qdrant"
         assert json_data["available"] is True
         assert json_data["version"] == "7.2.0"
 

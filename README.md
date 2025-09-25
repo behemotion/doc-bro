@@ -28,7 +28,7 @@ The setup wizard will check these for you, but you'll need:
 
 - **Python 3.13+** - Core runtime
 - **UV** - Package installer ([install here](https://docs.astral.sh/uv/getting-started/installation/))
-- **Docker** - For Qdrant and Redis services
+- **Docker** - For Qdrant service
 - **Ollama** - For local embeddings ([install here](https://ollama.com/))
 
 ## 🛠️ Installation
@@ -48,7 +48,7 @@ docbro status
 
 The setup wizard will:
 - ✅ Validate Python 3.13+ installation
-- ✅ Check for Docker, Ollama, Redis, and Qdrant
+- ✅ Check for Docker, Ollama, and Qdrant
 - ✅ Provide installation guidance for missing services
 - ✅ Create configuration directories
 - ✅ Set up installation metadata
@@ -254,7 +254,6 @@ Add to Cursor's MCP configuration:
       "env": {
         "DOCBRO_LOG_LEVEL": "DEBUG",
         "DOCBRO_QDRANT_URL": "http://localhost:6333",
-        "DOCBRO_REDIS_URL": "redis://localhost:6379",
         "DOCBRO_OLLAMA_URL": "http://localhost:11434"
       }
     }
@@ -306,7 +305,7 @@ docbro serve --port 8766
 **Connection refused:**
 - Verify DocBro is installed globally: `which docbro`
 - Check the command path in your MCP config
-- Ensure all required services (Qdrant, Redis, Ollama) are running: `docbro status`
+- Ensure all required services (Qdrant, Ollama) are running: `docbro status`
 
 **No documentation found:**
 ```bash
@@ -330,7 +329,6 @@ DocBro uses XDG-compliant directories for configuration:
 
 ```bash
 DOCBRO_QDRANT_URL=http://localhost:6333
-DOCBRO_REDIS_URL=redis://localhost:6379
 DOCBRO_OLLAMA_URL=http://localhost:11434
 DOCBRO_EMBEDDING_MODEL=mxbai-embed-large
 DOCBRO_LOG_LEVEL=INFO
@@ -341,7 +339,6 @@ DOCBRO_LOG_LEVEL=INFO
 Built with:
 - **Python 3.13+** with async/await
 - **Qdrant** - Vector database
-- **Redis** - Cache and queue
 - **Ollama** - Local embeddings
 - **SQLite** - Metadata storage
 - **FastAPI** - MCP server

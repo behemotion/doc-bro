@@ -28,16 +28,14 @@ class DocBroConfig(PydanticBaseSettings):
 
     # Service deployment configuration
     qdrant_deployment: ServiceDeployment = Field(default=ServiceDeployment.DOCKER, env="DOCBRO_QDRANT_DEPLOYMENT")
-    redis_deployment: ServiceDeployment = Field(default=ServiceDeployment.DOCKER, env="DOCBRO_REDIS_DEPLOYMENT")
+    # Redis removed - no longer supported
     ollama_deployment: ServiceDeployment = Field(default=ServiceDeployment.LOCAL, env="DOCBRO_OLLAMA_DEPLOYMENT")
 
     # Qdrant configuration
     qdrant_url: str = Field(default="http://localhost:6333", env="DOCBRO_QDRANT_URL")
     qdrant_api_key: Optional[str] = Field(default=None, env="DOCBRO_QDRANT_API_KEY")
 
-    # Redis configuration
-    redis_url: str = Field(default="redis://localhost:6380", env="DOCBRO_REDIS_URL")
-    redis_password: Optional[str] = Field(default=None, env="DOCBRO_REDIS_PASSWORD")
+    # Redis removed - configuration no longer supported
 
     # Ollama configuration
     ollama_url: str = Field(default="http://localhost:11434", env="DOCBRO_OLLAMA_URL")
@@ -79,6 +77,11 @@ class DocBroConfig(PydanticBaseSettings):
     def __init__(self, **kwargs):
         """Initialize configuration and create data directory."""
         super().__init__(**kwargs)
+
+        # Check for Redis configuration and reject it
+        if os.getenv("DOCBRO_REDIS_URL") or os.getenv("DOCBRO_REDIS_PASSWORD"):
+            raise ValueError("Redis configuration detected but no longer supported")
+
         self.data_dir.mkdir(parents=True, exist_ok=True)
         (self.data_dir / "logs").mkdir(exist_ok=True)
         (self.data_dir / "cache").mkdir(exist_ok=True)
@@ -117,14 +120,7 @@ class DocBroConfig(PydanticBaseSettings):
         except Exception:
             availability["qdrant"] = False
 
-        # Check Redis
-        try:
-            from redis import Redis
-            client = Redis.from_url(self.redis_url)
-            client.ping()
-            availability["redis"] = True
-        except Exception:
-            availability["redis"] = False
+        # Redis removed - no longer checking for Redis availability
 
         # Check Ollama
         try:
@@ -149,11 +145,11 @@ class DocBroConfig(PydanticBaseSettings):
         """Get the effective deployment strategy after auto-detection."""
         if all(
             dep != ServiceDeployment.AUTO
-            for dep in [self.qdrant_deployment, self.redis_deployment, self.ollama_deployment]
+            for dep in [self.qdrant_deployment, self.ollama_deployment]
         ):
             return {
                 "qdrant": self.qdrant_deployment,
-                "redis": self.redis_deployment,
+                # Redis removed - no longer part of deployment strategy
                 "ollama": self.ollama_deployment,
             }
 
@@ -173,16 +169,7 @@ class DocBroConfig(PydanticBaseSettings):
         else:
             strategy["qdrant"] = self.qdrant_deployment
 
-        # Redis strategy
-        if self.redis_deployment == ServiceDeployment.AUTO:
-            if availability.get("docker", False):
-                strategy["redis"] = ServiceDeployment.DOCKER
-            elif availability.get("redis", False):
-                strategy["redis"] = ServiceDeployment.LOCAL
-            else:
-                strategy["redis"] = ServiceDeployment.DOCKER  # Default fallback
-        else:
-            strategy["redis"] = self.redis_deployment
+        # Redis removed - no longer part of deployment strategy
 
         # Ollama strategy (prefer local for better performance)
         if self.ollama_deployment == ServiceDeployment.AUTO:

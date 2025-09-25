@@ -10,14 +10,12 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 import pytest_asyncio
 from qdrant_client import QdrantClient
-from redis import Redis
 from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 # Test configuration
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 TEST_QDRANT_URL = "http://localhost:6333"
-TEST_REDIS_URL = "redis://localhost:6379"
 TEST_OLLAMA_URL = "http://localhost:11434"
 
 
@@ -48,16 +46,6 @@ def mock_qdrant_client() -> MagicMock:
     return mock_client
 
 
-@pytest.fixture
-def mock_redis_client() -> MagicMock:
-    """Mock Redis client for testing."""
-    mock_client = MagicMock(spec=Redis)
-    mock_client.ping.return_value = True
-    mock_client.get.return_value = None
-    mock_client.set.return_value = True
-    mock_client.lpush.return_value = 1
-    mock_client.rpop.return_value = None
-    return mock_client
 
 
 @pytest.fixture
@@ -166,22 +154,8 @@ def skip_if_no_qdrant(qdrant_available: bool) -> None:
         pytest.skip("Qdrant is not available")
 
 
-@pytest.fixture
-def redis_available() -> bool:
-    """Check if Redis service is available."""
-    try:
-        client = Redis.from_url(TEST_REDIS_URL)
-        client.ping()
-        return True
-    except Exception:
-        return False
 
 
-@pytest.fixture
-def skip_if_no_redis(redis_available: bool) -> None:
-    """Skip test if Redis is not available."""
-    if not redis_available:
-        pytest.skip("Redis is not available")
 
 
 @pytest.fixture
@@ -239,12 +213,3 @@ async def integration_qdrant_client(docker_services):
             client.delete_collection(collection.name)
 
 
-@pytest_asyncio.fixture
-async def integration_redis_client(docker_services):
-    """Real Redis client for integration tests."""
-    client = Redis.from_url(TEST_REDIS_URL, decode_responses=True)
-    yield client
-
-    # Cleanup test keys
-    for key in client.scan_iter("test:*"):
-        client.delete(key)

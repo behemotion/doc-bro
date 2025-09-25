@@ -11,7 +11,6 @@ import docker
 import httpx
 from docker.errors import DockerException, NotFound
 from docker.models.containers import Container
-from redis import Redis
 from qdrant_client import QdrantClient
 from qdrant_client.http.exceptions import ResponseHandlingException
 
@@ -40,24 +39,22 @@ class DockerServiceManager:
     def get_service_containers(self) -> Dict[str, Optional[Container]]:
         """Get containers for DocBro services."""
         if not self.is_docker_available():
-            return {"qdrant": None, "redis": None}
+            return {"qdrant": None}
 
         try:
             client = docker.from_env()
-            containers = {"qdrant": None, "redis": None}
+            containers = {"qdrant": None}
 
             # Look for containers by name patterns
             for container in client.containers.list():
                 name = container.name.lower()
                 if "qdrant" in name:
                     containers["qdrant"] = container
-                elif "redis" in name:
-                    containers["redis"] = container
 
             return containers
         except DockerException as e:
             logger.error(f"Failed to get Docker containers: {e}")
-            return {"qdrant": None, "redis": None}
+            return {"qdrant": None}
 
     def start_services(self, services: Optional[List[str]] = None) -> bool:
         """Start Docker services using docker-compose."""
@@ -125,8 +122,6 @@ class DockerServiceManager:
 
             if strategy["qdrant"] == ServiceDeployment.DOCKER:
                 required_services.append("qdrant")
-            if strategy["redis"] == ServiceDeployment.DOCKER:
-                required_services.append("redis")
 
             if all(health_status.get(service, False) for service in required_services):
                 logger.info("All required Docker services are healthy")
@@ -156,17 +151,6 @@ class ServiceHealthChecker:
         except Exception as e:
             return False, f"Unexpected error: {e}"
 
-    async def check_redis(self) -> Tuple[bool, str]:
-        """Check Redis service health."""
-        try:
-            client = Redis.from_url(self.config.redis_url, socket_timeout=5)
-            result = client.ping()
-            if result:
-                return True, "Healthy"
-            else:
-                return False, "Ping failed"
-        except Exception as e:
-            return False, f"Connection failed: {e}"
 
     async def check_ollama(self) -> Tuple[bool, str]:
         """Check Ollama service health."""
@@ -206,7 +190,6 @@ class ServiceHealthChecker:
         """Check health of all services."""
         tasks = {
             "qdrant": self.check_qdrant(),
-            "redis": self.check_redis(),
             "ollama": self.check_ollama(),
             "database": self.check_database(),
         }
@@ -274,20 +257,6 @@ class ServiceConnectionManager:
 
         return self._connections["qdrant"]
 
-    async def get_redis_client(self) -> Redis:
-        """Get Redis client with connection validation."""
-        if "redis" not in self._connections:
-            client = Redis.from_url(self.config.redis_url, decode_responses=True)
-
-            # Validate connection
-            try:
-                client.ping()
-                self._connections["redis"] = client
-            except Exception as e:
-                logger.error(f"Failed to connect to Redis: {e}")
-                raise ConnectionError(f"Redis connection failed: {e}")
-
-        return self._connections["redis"]
 
     async def get_ollama_client(self) -> httpx.AsyncClient:
         """Get Ollama HTTP client with connection validation."""

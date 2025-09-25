@@ -143,56 +143,6 @@ class ServiceDetectionService:
                 setup_completed=False
             )
 
-    async def check_redis(self, endpoint: str = "redis://localhost:6379") -> ServiceStatus:
-        """Check Redis availability via connection attempt."""
-        try:
-            import redis.asyncio as redis
-
-            # Parse endpoint
-            if endpoint.startswith("redis://"):
-                url = endpoint
-            else:
-                url = f"redis://{endpoint}"
-
-            client = redis.from_url(url, socket_timeout=self.timeout)
-
-            # Try to ping Redis
-            await client.ping()
-            info = await client.info()
-            version = info.get("redis_version", "unknown")
-
-            await client.aclose()
-
-            return ServiceStatus(
-                name="redis",
-                available=True,
-                version=version,
-                endpoint=endpoint,
-                last_checked=datetime.now(),
-                error_message=None,
-                setup_completed=True
-            )
-
-        except ImportError:
-            return ServiceStatus(
-                name="redis",
-                available=False,
-                version=None,
-                endpoint=endpoint,
-                last_checked=datetime.now(),
-                error_message="Redis Python client not available",
-                setup_completed=False
-            )
-        except Exception as e:
-            return ServiceStatus(
-                name="redis",
-                available=False,
-                version=None,
-                endpoint=endpoint,
-                last_checked=datetime.now(),
-                error_message=f"Redis check failed: {str(e)}",
-                setup_completed=False
-            )
 
     async def check_qdrant(self, endpoint: str = "http://localhost:6333") -> ServiceStatus:
         """Check Qdrant availability via HTTP health endpoint."""
@@ -267,7 +217,6 @@ class ServiceDetectionService:
         if endpoints is None:
             endpoints = {
                 "ollama": "http://localhost:11434",
-                "redis": "redis://localhost:6379",
                 "qdrant": "http://localhost:6333"
             }
 
@@ -278,11 +227,10 @@ class ServiceDetectionService:
 
         # Check HTTP/async services
         ollama_task = self.check_ollama(endpoints.get("ollama", "http://localhost:11434"))
-        redis_task = self.check_redis(endpoints.get("redis", "redis://localhost:6379"))
         qdrant_task = self.check_qdrant(endpoints.get("qdrant", "http://localhost:6333"))
 
-        ollama_status, redis_status, qdrant_status = await asyncio.gather(
-            ollama_task, redis_task, qdrant_task, return_exceptions=True
+        ollama_status, qdrant_status = await asyncio.gather(
+            ollama_task, qdrant_task, return_exceptions=True
         )
 
         # Handle any exceptions from async tasks
@@ -298,19 +246,6 @@ class ServiceDetectionService:
             )
         else:
             results["ollama"] = ollama_status
-
-        if isinstance(redis_status, Exception):
-            results["redis"] = ServiceStatus(
-                name="redis",
-                available=False,
-                version=None,
-                endpoint=endpoints.get("redis"),
-                last_checked=datetime.now(),
-                error_message=f"Redis check exception: {str(redis_status)}",
-                setup_completed=False
-            )
-        else:
-            results["redis"] = redis_status
 
         if isinstance(qdrant_status, Exception):
             results["qdrant"] = ServiceStatus(
