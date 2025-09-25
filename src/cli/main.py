@@ -500,41 +500,14 @@ def serve(ctx: click.Context, host: str, port: int):
 
 
 
-@main.command()
-@click.option("--skip-checks", is_flag=True, help="Skip service detection checks")
-@click.pass_context
-def setup(ctx: click.Context, skip_checks: bool):
-    """Run the interactive setup wizard."""
-    async def _setup():
-        wizard = SetupWizardService()
+# Import wizard commands
+from .wizard import setup as wizard_setup, wizard_group
 
-        try:
-            # Check if setup is required
-            if not wizard.check_setup_required():
-                console = Console()
-                console.print("[yellow]DocBro is already set up![/yellow]")
+# Add the wizard setup command to main CLI
+main.add_command(wizard_setup, name="setup")
 
-                if not Confirm.ask("Would you like to run setup again?", default=False):
-                    console.print("Setup cancelled.")
-                    return
-
-                # Clear existing configuration for re-setup
-                config_service = ConfigService()
-                config_path = config_service.installation_config_path
-                if config_path.exists():
-                    config_path.unlink()
-
-            # Run interactive setup
-            context = await wizard.run_interactive_setup()
-
-        except click.Abort:
-            pass  # User cancelled, already handled
-        except Exception as e:
-            console = Console()
-            console.print(f"[red]✗ Setup failed: {e}[/red]")
-            raise click.ClickException(str(e))
-
-    run_async(_setup())
+# Also add the wizard group for advanced wizard commands
+main.add_command(wizard_group, name="wizard")
 
 
 @main.command("version")
@@ -681,6 +654,16 @@ def status(ctx: click.Context, install: bool):
                 await app.cleanup()
 
     run_async(_status())
+
+
+# Import and register system-check command
+from .system_check import system_check
+main.add_command(system_check)
+
+
+# Import and register services command group
+from .service_commands import get_services_command_group
+main.add_command(get_services_command_group())
 
 
 # Create an alias for backward compatibility with tests

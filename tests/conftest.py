@@ -3,20 +3,23 @@
 import asyncio
 import os
 import tempfile
+import subprocess
+import shutil
 from pathlib import Path
-from typing import AsyncGenerator, Generator
-from unittest.mock import AsyncMock, MagicMock
+from typing import AsyncGenerator, Generator, Dict, Any
+from unittest.mock import AsyncMock, MagicMock, patch, Mock
+from datetime import datetime
 
 import pytest
 import pytest_asyncio
 from qdrant_client import QdrantClient
-from sqlalchemy import create_engine
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 # Test configuration
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 TEST_QDRANT_URL = "http://localhost:6333"
 TEST_OLLAMA_URL = "http://localhost:11434"
+TEST_UV_VERSION = "0.4.0"
+TEST_PYTHON_VERSION = "3.13.1"
+TEST_DOCBRO_VERSION = "0.2.1"
 
 
 @pytest.fixture(scope="session")
@@ -46,26 +49,42 @@ def mock_qdrant_client() -> MagicMock:
     return mock_client
 
 
+@pytest.fixture
+def mock_installation_environment() -> Generator[Dict[str, Any], None, None]:
+    """Mock environment for UV installation testing."""
+    mock_env = {
+        "mock_uv_available": True,
+        "mock_uv_version": TEST_UV_VERSION,
+        "mock_python_version": TEST_PYTHON_VERSION,
+        "mock_docbro_version": TEST_DOCBRO_VERSION,
+        "mock_install_path": "/home/user/.local/bin/docbro",
+    }
+    yield mock_env
 
 
 @pytest.fixture
-async def async_db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Create an async database session for testing."""
-    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+def mock_uv_commands(mock_installation_environment):
+    """Mock UV command execution for testing."""
+    with patch('subprocess.run') as mock_run, \
+         patch('shutil.which') as mock_which:
 
-    # Import models to create tables
-    from src.models import project, page, embedding, crawl_session, query_result, agent_session
+        # Mock UV installation detection
+        mock_which.side_effect = lambda cmd: {
+            'uv': '/home/user/.local/bin/uv' if mock_installation_environment['mock_uv_available'] else None,
+            'docbro': mock_installation_environment['mock_install_path']
+        }.get(cmd)
 
-    # Create all tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        # Mock UV version command
+        mock_run.return_value = Mock(
+            returncode=0,
+            stdout=f"uv {mock_installation_environment['mock_uv_version']}",
+            stderr=""
+        )
 
-    # Create session
-    async with AsyncSession(engine) as session:
-        yield session
-
-    # Clean up
-    await engine.dispose()
+        yield {
+            'mock_run': mock_run,
+            'mock_which': mock_which
+        }
 
 
 @pytest.fixture
@@ -153,9 +172,24 @@ def skip_if_no_qdrant(qdrant_available: bool) -> None:
     if not qdrant_available:
         pytest.skip("Qdrant is not available")
 
+@pytest.fixture
+def mock_temp_directories():
+    """Mock temporary directories for installation testing."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        mock_dirs = {
+            "config_dir": temp_path / ".config" / "docbro",
+            "data_dir": temp_path / ".local" / "share" / "docbro",
+            "cache_dir": temp_path / ".cache" / "docbro"
+        }
 
+        # Create directories
+        for dir_path in mock_dirs.values():
+            dir_path.mkdir(parents=True, exist_ok=True)
+            # Set permissions (700 - user only)
+            dir_path.chmod(0o700)
 
-
+        yield mock_dirs
 
 
 @pytest.fixture
@@ -174,6 +208,114 @@ def skip_if_no_ollama(ollama_available: bool) -> None:
     """Skip test if Ollama is not available."""
     if not ollama_available:
         pytest.skip("Ollama is not available")
+
+
+@pytest.fixture
+def mock_installation_context():
+    """Mock InstallationContext for testing."""
+    from src.models.installation import InstallationContext
+
+    return InstallationContext(
+        install_method="uvx",
+        install_date=datetime.now(),
+        version=TEST_DOCBRO_VERSION,
+        python_version=TEST_PYTHON_VERSION,
+        uv_version=TEST_UV_VERSION,
+        install_path=Path("/home/user/.local/bin/docbro"),
+        is_global=True,
+        user_data_dir=Path.home() / ".local" / "share" / "docbro",
+        config_dir=Path.home() / ".config" / "docbro",
+        cache_dir=Path.home() / ".cache" / "docbro"
+    )
+
+
+@pytest.fixture
+def mock_service_status():
+    """Mock ServiceStatus for testing."""
+    from src.models.installation import ServiceStatus
+
+    def _create_status(name: str, available: bool = True, version: str = None):
+        return ServiceStatus(
+            name=name,
+            available=available,
+            version=version,
+            last_checked=datetime.now(),
+            error_message=None if available else f"{name} not available",
+            setup_completed=available  # Add the required setup_completed field
+        )
+
+    return _create_status
+
+
+@pytest_asyncio.fixture
+async def mock_async_service_detection():
+    """Mock async service detection for testing."""
+    from src.services.detection import ServiceDetectionService
+    from src.models.installation import ServiceStatus
+
+    with patch.object(ServiceDetectionService, 'check_all_services') as mock_check:
+        mock_services = {
+            "docker": ServiceStatus(
+                name="docker",
+                available=True,
+                version="24.0.0",
+                last_checked=datetime.now(),
+                error_message=None,
+                setup_completed=True
+            ),
+            "ollama": ServiceStatus(
+                name="ollama",
+                available=True,
+                version="0.1.7",
+                last_checked=datetime.now(),
+                error_message=None,
+                setup_completed=True
+            ),
+            "qdrant": ServiceStatus(
+                name="qdrant",
+                available=True,
+                version="1.13.0",
+                last_checked=datetime.now(),
+                error_message=None,
+                setup_completed=True
+            )
+        }
+
+        mock_check.return_value = mock_services
+        yield mock_check
+
+
+@pytest.fixture
+def uv_installation_validator():
+    """Fixture for UV installation validation testing."""
+    class UVInstallationValidator:
+        def __init__(self):
+            self.validation_results = {
+                "uv_available": True,
+                "uv_version_valid": True,
+                "python_version_valid": True,
+                "docbro_installed": True,
+                "docbro_version_valid": True,
+                "config_directory_exists": True,
+                "data_directory_exists": True,
+                "cache_directory_exists": True
+            }
+
+        def validate_installation(self) -> Dict[str, bool]:
+            """Validate UV installation completeness."""
+            return self.validation_results.copy()
+
+        def set_validation_failure(self, component: str):
+            """Set a specific validation component to fail."""
+            if component in self.validation_results:
+                self.validation_results[component] = False
+
+        def reset_validations(self):
+            """Reset all validations to pass."""
+            for key in self.validation_results:
+                self.validation_results[key] = True
+
+    return UVInstallationValidator()
 
 
 # Docker compose fixtures for integration tests
