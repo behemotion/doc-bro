@@ -5,8 +5,8 @@ import pytest_asyncio
 from qdrant_client import QdrantClient
 from redis import Redis
 
-from src.lib.docker_utils import DockerServiceManager, ServiceHealthChecker
-from src.lib.config import DocBroConfig
+from src.core.docker_utils import DockerServiceManager, ServiceHealthChecker
+from src.core.config import DocBroConfig
 
 
 class TestDockerIntegration:

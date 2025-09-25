@@ -68,8 +68,14 @@ cd local-doc-bro
 
 ### 1. Create a Documentation Project
 ```bash
+# Basic usage
 docbro create python-docs --url https://docs.python.org/3/ --depth 2
+
+# URLs with special characters MUST be quoted
+docbro create github-docs --url "https://github.com/astral-sh/uv?tab=readme-ov-file" --depth 2
 ```
+
+**⚠️ Important:** URLs containing special characters (?, &, *, [, ]) must be quoted to prevent shell interpretation.
 
 ### 2. Crawl Documentation
 ```bash

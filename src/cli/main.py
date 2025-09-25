@@ -158,17 +158,34 @@ def main(ctx: click.Context, config_file: Optional[str], verbose: bool):
 
 @main.command()
 @click.argument("name")
-@click.option("--url", "-u", required=True, help="Source URL to crawl")
+@click.option("--url", "-u", required=True, help="Source URL to crawl (quote URLs with special characters)")
 @click.option("--depth", "-d", default=2, type=int, help="Maximum crawl depth")
 @click.option("--model", "-m", default="mxbai-embed-large", help="Embedding model")
 @click.pass_context
 def create(ctx: click.Context, name: str, url: str, depth: int, model: str):
-    """Create a new documentation project."""
+    """Create a new documentation project.
+
+    Note: URLs with special characters (?, &, etc.) must be quoted:
+    docbro create myproject -u "https://example.com?param=value"
+    """
     async def _create():
         app = get_app()
         await app.initialize()
 
         try:
+            # Check if URL looks suspicious (might have been affected by shell glob expansion)
+            if url and not url.startswith(('http://', 'https://', 'file://')):
+                app.console.print("[yellow]⚠ Warning: URL doesn't start with http://, https://, or file://[/yellow]")
+                app.console.print("[yellow]  If your URL contains special characters (?, &, *, [, ]), you must quote it:[/yellow]")
+                app.console.print('[yellow]  Example: docbro create myproject -u "https://example.com?param=value"[/yellow]')
+
+            # Additional check for common shell expansion issues
+            import os
+            if url and os.path.exists(url) and not url.startswith('file://'):
+                app.console.print("[yellow]⚠ Warning: URL appears to be a local file path.[/yellow]")
+                app.console.print("[yellow]  This might be due to shell glob expansion of special characters.[/yellow]")
+                app.console.print('[yellow]  Try quoting your URL: docbro create myproject -u "YOUR_URL_HERE"[/yellow]')
+
             project = await app.db_manager.create_project(
                 name=name,
                 source_url=url,
@@ -182,6 +199,11 @@ def create(ctx: click.Context, name: str, url: str, depth: int, model: str):
             app.console.print(f"  Depth: {project.crawl_depth}")
 
         except Exception as e:
+            # Check for common URL-related errors
+            error_msg = str(e).lower()
+            if 'invalid url' in error_msg or 'url' in error_msg:
+                app.console.print("[yellow]Tip: If your URL contains special characters, make sure to quote it:[/yellow]")
+                app.console.print('[yellow]     docbro create myproject -u "https://example.com?param=value"[/yellow]')
             app.console.print(f"[red]✗ Failed to create project: {e}[/red]")
             raise click.ClickException(str(e))
         finally:
@@ -660,6 +682,9 @@ def status(ctx: click.Context, install: bool):
 
     run_async(_status())
 
+
+# Create an alias for backward compatibility with tests
+cli = main
 
 if __name__ == "__main__":
     main()
