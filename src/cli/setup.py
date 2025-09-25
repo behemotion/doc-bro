@@ -7,6 +7,7 @@ configuration for DocBro post-installation.
 import asyncio
 import logging
 import sys
+import time
 from typing import Optional
 
 import click
@@ -65,6 +66,9 @@ async def setup(auto: bool, force: bool, status: bool, verbose: bool, output_jso
 
     if verbose:
         logging.getLogger().setLevel(logging.DEBUG)
+    else:
+        # Suppress INFO messages during normal setup to keep output clean
+        logging.getLogger().setLevel(logging.WARNING)
 
     setup_service = SetupLogicService()
 
@@ -152,6 +156,7 @@ async def _handle_status(setup_service: SetupLogicService, output_json: bool) ->
 
 async def _handle_auto_setup(setup_service: SetupLogicService, force: bool) -> None:
     """Handle auto setup mode."""
+    start_time = time.time()
     console.print("🚀 DocBro Auto Setup\n")
 
     # Check existing setup
@@ -178,15 +183,18 @@ async def _handle_auto_setup(setup_service: SetupLogicService, force: bool) -> N
         result = await setup_service.run_auto_setup()
 
     if result:
+        setup_time = time.time() - start_time
         console.print("✅ Auto setup completed successfully!")
         console.print("\nComponents configured:")
         console.print("• Vector Storage: Qdrant (http://localhost:6333)")
         console.print("• Embedding Model: embeddinggemma:300m-qat-q4_0")
         console.print("• MCP Integration: Ready")
+        console.print(f"\nSetup time: {setup_time:.1f} seconds")
 
 
 async def _handle_interactive_setup(setup_service: SetupLogicService, force: bool) -> None:
     """Handle interactive setup mode."""
+    start_time = time.time()
     console.print("🚀 DocBro Setup Wizard\n")
 
     # Check existing setup
@@ -210,17 +218,14 @@ async def _handle_interactive_setup(setup_service: SetupLogicService, force: boo
 
     console.print("\n📦 Vector Storage Configuration")
     if components.get("docker", {}).get("available"):
-        use_qdrant = click.confirm("Use Qdrant for vector storage?", default=True)
-        if use_qdrant:
-            console.print("✅ Qdrant will be configured")
+        console.print("✅ Vector storage will use Qdrant in Docker on port 6333")
+        console.print("   Container name: docbro-memory-qdrant")
     else:
         console.print("❌ Docker required for Qdrant - skipping vector storage")
 
     console.print("\n🧠 Embedding Model Configuration")
     if components.get("ollama", {}).get("available"):
-        setup_model = click.confirm("Set up embedding model?", default=True)
-        if setup_model:
-            console.print("✅ Embedding model will be configured")
+        console.print("✅ Embedding model will use embeddinggemma provided by Ollama")
     else:
         console.print("❌ Ollama required for embedding models - skipping")
 
@@ -237,6 +242,7 @@ async def _handle_interactive_setup(setup_service: SetupLogicService, force: boo
     result = await setup_service.run_interactive_setup()
 
     if result:
+        setup_time = time.time() - start_time
         console.print("\n✅ DocBro setup completed successfully!")
         console.print("\nComponents configured:")
         console.print("• Vector Storage: Qdrant (running at localhost:6333)")
@@ -244,4 +250,4 @@ async def _handle_interactive_setup(setup_service: SetupLogicService, force: boo
         if components.get("claude-code", {}).get("available"):
             console.print("• MCP Client: Claude Code (configured)")
 
-        console.print("\nSetup time: 23.4 seconds")
+        console.print(f"\nSetup time: {setup_time:.1f} seconds")

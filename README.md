@@ -1,23 +1,23 @@
-# DocBro - Local Documentation Crawler & Search
+# DocBro - Documentation Crawler & Search Tool
 
 A powerful CLI tool that crawls documentation websites, creates vector databases, and provides RAG-powered search capabilities with MCP server integration for coding agents.
 
 ## 🚀 Quick Start
 
-### Install with one command:
+### Install with UV (Recommended):
 ```bash
-uv tool install git+https://github.com/behemotion/doc-bro
+uvx install git+https://github.com/behemotion/doc-bro
 docbro setup
 ```
 
-That's it! The setup wizard will guide you through the rest.
+That's it! The setup wizard will guide you through configuring external services.
 
 ## ✨ Features
 
-- **One-Command Installation**: Install globally with `uv tool` - no repository cloning needed
-- **Interactive Setup**: Guided wizard detects services and provides installation help
+- **One-Command Installation**: Install globally with UV - no repository cloning needed
+- **Interactive Setup**: Guided wizard detects and helps configure external services
 - **Smart Web Crawling**: Rate limiting, robots.txt respect, configurable depth
-- **Vector Search**: Qdrant-powered semantic search with multiple RAG strategies
+- **Vector Search**: Qdrant-powered semantic search with RAG capabilities
 - **Local Embeddings**: Ollama integration for privacy-focused, offline operation
 - **MCP Server**: Model Context Protocol server for Claude, Cursor, and other AI coding assistants
 - **Rich CLI**: Beautiful terminal interface with progress bars and formatted output
@@ -35,17 +35,17 @@ The setup wizard will check these for you, but you'll need:
 
 ### Recommended: UV Tool Installation
 
-Install DocBro globally using UV tool for persistent access across all your projects:
+Install DocBro globally using UV for persistent access across all your projects:
 
 ```bash
-# 1. Install DocBro as a UV tool
-uv tool install git+https://github.com/behemotion/doc-bro
+# Install DocBro globally
+uvx install git+https://github.com/behemotion/doc-bro
 
-# 2. Run interactive setup wizard
+# Run interactive setup wizard
 docbro setup
 
-# 3. Check everything is working
-docbro status
+# Verify installation
+docbro --help
 ```
 
 The setup wizard will:
@@ -55,16 +55,7 @@ The setup wizard will:
 - ✅ Create configuration directories
 - ✅ Set up installation metadata
 
-### Alternative: UVX Installation (Temporary)
-
-For quick testing without permanent installation:
-
-```bash
-# Run DocBro temporarily with uvx
-uvx --from git+https://github.com/behemotion/doc-bro docbro setup
-```
-
-### Development Setup
+### Alternative: Development Setup
 
 For development or contributing:
 
@@ -80,15 +71,34 @@ uv pip install -e .
 pytest tests/ -v
 ```
 
+## 📚 Available Commands
+
+DocBro provides the following commands:
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `setup` | Interactive setup wizard | `docbro setup` |
+| `create` | Create new documentation project | `docbro create myproject -u https://docs.python.org/3/` |
+| `crawl` | Crawl and index documentation pages | `docbro crawl myproject --max-pages 100` |
+| `list` | List all projects | `docbro list` |
+| `serve` | Start MCP server | `docbro serve --port 9382` |
+| `remove` | Delete a project | `docbro remove myproject --confirm` |
+| `uninstall` | Completely remove DocBro | `docbro uninstall --force` |
+
+Additional options:
+- `docbro --help` - Show all available commands
+- `docbro --health` - Check service health status
+- `docbro --version` - Show version information
+
 ## 🎯 Usage
 
 ### 1. Create a Documentation Project
 ```bash
 # Basic usage
-docbro create python-docs --url https://docs.python.org/3/ --depth 2
+docbro create python-docs -u https://docs.python.org/3/ --depth 2
 
 # URLs with special characters MUST be quoted
-docbro create github-docs --url "https://github.com/astral-sh/uv?tab=readme-ov-file" --depth 2
+docbro create github-docs -u "https://github.com/astral-sh/uv?tab=readme-ov-file" --depth 2
 ```
 
 **⚠️ Important:** URLs containing special characters (?, &, *, [, ]) must be quoted to prevent shell interpretation.
@@ -98,29 +108,20 @@ docbro create github-docs --url "https://github.com/astral-sh/uv?tab=readme-ov-f
 docbro crawl python-docs --max-pages 100 --rate-limit 2.0
 ```
 
-### 3. Search Documentation
+### 3. List Projects
 ```bash
-docbro search "async await" --project python-docs --limit 10
+docbro list --status ready
 ```
 
 ### 4. Start MCP Server (for AI Agents)
 ```bash
-docbro serve --port 8000
+docbro serve --port 9382
 ```
 
-## 📚 Commands
-
-| Command | Description | Example |
-|---------|-------------|---------|
-| `setup` | Run interactive setup wizard | `docbro setup` |
-| `create` | Create new documentation project | `docbro create <name> --url <docs-url>` |
-| `crawl` | Crawl documentation pages | `docbro crawl <name> --max-pages 100` |
-| `search` | Search across documentation | `docbro search "query" --project <name>` |
-| `list` | List all projects | `docbro list --status ready` |
-| `status` | Check system health | `docbro status` |
-| `serve` | Start MCP server | `docbro serve --port 8000` |
-| `remove` | Delete a project | `docbro remove <name> --confirm` |
-| `version` | Show version info | `docbro version --detailed` |
+### 5. Remove Projects
+```bash
+docbro remove python-docs --confirm
+```
 
 ## 🤖 MCP Server Integration
 
@@ -128,27 +129,14 @@ DocBro provides a Model Context Protocol (MCP) server that allows AI coding assi
 
 ### For Claude Code
 
-Claude Code supports MCP servers through configuration. Add DocBro to your MCP configuration:
-
-#### 1. Install DocBro MCP Server
-```bash
-# Install DocBro globally if not already done
-uv tool install git+https://github.com/behemotion/doc-bro
-
-# Verify installation
-docbro --version
-```
-
-#### 2. Configure MCP Client
-
-Create or update your MCP configuration file at `~/.config/mcp/config.json`:
+Add DocBro to your MCP configuration file at `~/.config/mcp/config.json`:
 
 ```json
 {
   "mcpServers": {
     "docbro": {
       "command": "docbro",
-      "args": ["serve", "--port", "8765", "--host", "127.0.0.1"],
+      "args": ["serve", "--port", "9382", "--host", "127.0.0.1"],
       "env": {
         "DOCBRO_LOG_LEVEL": "INFO"
       }
@@ -156,84 +144,17 @@ Create or update your MCP configuration file at `~/.config/mcp/config.json`:
   }
 }
 ```
-
-#### 3. Alternative Configuration Methods
-
-**Option A: Using UV Tool command (Alternative)**
-```json
-{
-  "mcpServers": {
-    "docbro": {
-      "command": "uv",
-      "args": ["tool", "run", "docbro", "serve", "--port", "8765"],
-      "env": {
-        "DOCBRO_LOG_LEVEL": "INFO"
-      }
-    }
-  }
-}
-```
-
-**Option B: Direct Python execution**
-```json
-{
-  "mcpServers": {
-    "docbro": {
-      "command": "python",
-      "args": ["-m", "src.cli.main", "serve", "--port", "8765"],
-      "cwd": "/path/to/local-doc-bro",
-      "env": {
-        "PYTHONPATH": "/path/to/local-doc-bro",
-        "DOCBRO_LOG_LEVEL": "INFO"
-      }
-    }
-  }
-}
-```
-
-#### 4. Start and Test MCP Server
-
-```bash
-# Test the server manually
-docbro serve --port 8765
-
-# In another terminal, test the connection
-curl http://localhost:8765/health
-```
-
-You should see a health check response indicating the server is running.
-
-#### 5. Available MCP Endpoints
-
-Once configured, Claude Code can access these DocBro functions:
-
-- **`/mcp/projects`** - List all crawled documentation projects
-- **`/mcp/search`** - Search across documentation with RAG
-- **`/mcp/connect`** - Establish MCP session
-- **`/health`** - Server health check
-
-#### 6. Usage in Claude Code
-
-After configuration, you can ask Claude Code to:
-
-```
-"Search the Python documentation for async/await examples"
-"Find Flask routing documentation"
-"Look up Django model field types in the docs"
-```
-
-Claude Code will automatically use the DocBro MCP server to search your local documentation.
 
 ### For Claude Desktop
 
-Add to your Claude Desktop config (`~/Library/Application\ Support/Claude/claude_desktop_config.json` on macOS):
+Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
 
 ```json
 {
   "mcpServers": {
     "docbro": {
       "command": "docbro",
-      "args": ["serve", "--port", "8765"]
+      "args": ["serve", "--port", "9382"]
     }
   }
 }
@@ -248,89 +169,20 @@ Add to Cursor's MCP configuration:
   "mcpServers": {
     "docbro": {
       "command": "docbro",
-      "args": ["serve", "--port", "8766"]
+      "args": ["serve", "--port", "9382"]
     }
   }
 }
 ```
 
-### Advanced MCP Configuration
+### Testing MCP Server
 
-#### Custom Server Settings
-```json
-{
-  "mcpServers": {
-    "docbro": {
-      "command": "docbro",
-      "args": [
-        "serve",
-        "--port", "8765",
-        "--host", "127.0.0.1"
-      ],
-      "env": {
-        "DOCBRO_LOG_LEVEL": "DEBUG",
-        "DOCBRO_QDRANT_URL": "http://localhost:6333",
-        "DOCBRO_OLLAMA_URL": "http://localhost:11434"
-      }
-    }
-  }
-}
-```
-
-#### Multiple Project Configurations
-```json
-{
-  "mcpServers": {
-    "docbro-python": {
-      "command": "docbro",
-      "args": ["serve", "--port", "8765"]
-    },
-    "docbro-js": {
-      "command": "docbro",
-      "args": ["serve", "--port", "8766"]
-    }
-  }
-}
-```
-
-### MCP Troubleshooting
-
-#### Check MCP Server Status
 ```bash
-# Verify DocBro is installed and accessible
-docbro --version
+# Start the server
+docbro serve --port 9382
 
-# Test server startup
-docbro serve --port 8765 --host 127.0.0.1
-
-# Check health endpoint
-curl http://127.0.0.1:8765/health
-```
-
-#### Common Issues
-
-**Server won't start:**
-```bash
-# Check if port is already in use
-lsof -i :8765
-
-# Try a different port
-docbro serve --port 8766
-```
-
-**Connection refused:**
-- Verify DocBro is installed globally: `which docbro`
-- Check the command path in your MCP config
-- Ensure all required services (Qdrant, Ollama) are running: `docbro status`
-
-**No documentation found:**
-```bash
-# List available projects
-docbro list
-
-# Crawl some documentation first
-docbro create python-docs --url https://docs.python.org/3/
-docbro crawl python-docs --max-pages 50
+# In another terminal, test the connection
+curl http://localhost:9382/health
 ```
 
 ## 🔧 Advanced Configuration
@@ -377,8 +229,8 @@ ruff check src/ tests/
 
 ### Check Installation Status
 ```bash
-docbro status --install
-docbro version --detailed
+docbro --health
+docbro --version
 ```
 
 ### Common Issues
@@ -393,13 +245,29 @@ docker --version
 ollama --version
 ```
 
-**Database issues:**
+**Server won't start:**
 ```bash
-# Check status and reset if needed
-docbro status
+# Check if port is already in use
+lsof -i :9382
+
+# Try a different port
+docbro serve --port 9383
 ```
 
-The interactive setup wizard provides specific guidance for each service that's missing or misconfigured.
+**Connection refused:**
+- Verify DocBro is installed globally: `which docbro`
+- Check the command path in your MCP config
+- Ensure all required services (Qdrant, Ollama) are running: `docbro --health`
+
+**No documentation found:**
+```bash
+# List available projects
+docbro list
+
+# Crawl some documentation first
+docbro create python-docs -u https://docs.python.org/3/
+docbro crawl python-docs --max-pages 50
+```
 
 ## 📝 License
 
@@ -411,5 +279,5 @@ Contributions welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guideli
 
 ## 📮 Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/local-doc-bro/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/local-doc-bro/discussions)
+- **Issues**: [GitHub Issues](https://github.com/behemotion/doc-bro/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/behemotion/doc-bro/discussions)

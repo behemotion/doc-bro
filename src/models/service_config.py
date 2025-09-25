@@ -244,7 +244,7 @@ class ServiceConfiguration(BaseModel):
             ServiceName.QDRANT: 6333,
             ServiceName.OLLAMA: 11434
         }
-        return defaults.get(self.service_name, 8000)
+        return defaults.get(self.service_name, 9382)
 
     @classmethod
     def create_default_config(
@@ -257,8 +257,8 @@ class ServiceConfiguration(BaseModel):
         # Create temporary instance to get defaults
         temp_config = cls(
             service_name=service_name,
-            endpoint="http://localhost:8000",  # Temporary for validation
-            port=8000  # Temporary for validation
+            endpoint="http://localhost:9382",  # Temporary for validation
+            port=9382  # Temporary for validation
         )
 
         port = custom_port or temp_config.get_default_port()

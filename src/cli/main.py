@@ -29,6 +29,11 @@ from src.services.crawler import DocumentationCrawler
 from src.services.setup import SetupWizardService
 from src.services.config import ConfigService
 from src.services.detection import ServiceDetectionService
+from src.version import __version__
+
+# Auto-setup imports
+from src.services.installation_wizard import InstallationWizardService
+from src.models.installation import InstallationRequest
 
 
 class DocBroApp:
@@ -121,6 +126,159 @@ def get_app() -> DocBroApp:
     return app
 
 
+def _is_first_time_installation() -> bool:
+    """Check if this is a first-time installation.
+
+    Returns:
+        True if no previous installation context exists
+    """
+    try:
+        config_service = ConfigService()
+
+        # Check for existing installation context
+        context = config_service.load_installation_context()
+        if context:
+            return False
+
+        # Check for any existing configuration
+        config_dir = config_service.config_dir
+        if config_dir.exists():
+            # Look for any configuration files
+            config_files = list(config_dir.glob("*.json"))
+            if config_files:
+                return False
+
+        return True
+    except Exception:
+        # If we can't determine, assume first time for safety
+        return True
+
+
+def _detect_uv_installation() -> bool:
+    """Detect if this is running from a UV tool installation.
+
+    Returns:
+        True if this appears to be a UV tool installation
+    """
+    import os
+    import sys
+    from pathlib import Path
+
+    # Check for UV environment variables
+    if "UV_TOOL_DIR" in os.environ or "UVX_ROOT" in os.environ:
+        return True
+
+    # Check if running from UV virtual environment
+    current_executable = Path(sys.executable)
+    if "uv" in str(current_executable).lower():
+        return True
+
+    # Check if docbro is in a UV-managed location
+    try:
+        import shutil
+        docbro_path = shutil.which("docbro")
+        if docbro_path:
+            path_str = str(Path(docbro_path))
+            if ".local" in path_str and "uv" in path_str.lower():
+                return True
+    except Exception:
+        pass
+
+    return False
+
+
+async def _run_auto_setup() -> bool:
+    """Run the installation wizard automatically for first-time UV installations.
+
+    Returns:
+        True if setup completed successfully, False otherwise
+    """
+    console = Console()
+
+    try:
+        console.print("\n[cyan]🚀 Welcome to DocBro![/cyan]")
+        console.print("[dim]Detected first-time installation - running automatic setup...[/dim]")
+
+        installation_wizard = InstallationWizardService()
+
+        # Create installation request for auto-setup
+        request = InstallationRequest(
+            install_method="uv-tool",
+            version=__version__,
+            user_preferences={
+                "auto_setup": True,
+                "install_source": "uv-auto-setup"
+            }
+        )
+
+        # Start installation process
+        response = await installation_wizard.start_installation(request)
+
+        if response.status == "started":
+            # Wait for completion with timeout
+            max_wait_time = 180  # 3 minutes
+            wait_interval = 2  # 2 seconds
+            waited = 0
+
+            while waited < max_wait_time:
+                await asyncio.sleep(wait_interval)
+                waited += wait_interval
+
+                status_info = installation_wizard.get_installation_status()
+
+                if status_info["status"] == "complete":
+                    console.print("[green]✅ Auto-setup completed successfully![/green]")
+                    console.print("[dim]DocBro is now ready to use.[/dim]\n")
+                    return True
+                elif status_info["status"] == "error":
+                    console.print(f"[yellow]⚠ Auto-setup encountered issues: {status_info.get('message', 'Unknown error')}[/yellow]")
+                    console.print("[dim]You can run 'docbro setup' manually to configure services.[/dim]\n")
+                    return False
+
+            # Timeout reached
+            console.print("[yellow]⚠ Auto-setup timed out.[/yellow]")
+            console.print("[dim]You can run 'docbro setup' manually to configure services.[/dim]\n")
+            return False
+        else:
+            console.print(f"[yellow]⚠ Failed to start auto-setup: {response.message}[/yellow]")
+            console.print("[dim]You can run 'docbro setup' manually to configure services.[/dim]\n")
+            return False
+
+    except Exception as e:
+        console.print(f"[yellow]⚠ Auto-setup failed: {str(e)}[/yellow]")
+        console.print("[dim]You can run 'docbro setup' manually to configure services.[/dim]\n")
+        return False
+
+
+def _should_run_auto_setup() -> bool:
+    """Determine if auto-setup should run.
+
+    Returns:
+        True if auto-setup should be triggered
+    """
+    import os
+    import sys
+
+    # Skip if explicitly disabled
+    if os.environ.get("DOCBRO_SKIP_AUTO_SETUP", "").lower() in ("1", "true", "yes"):
+        return False
+
+    # Skip in CI/automated environments
+    ci_indicators = [
+        "CI", "CONTINUOUS_INTEGRATION", "BUILD_NUMBER",
+        "GITHUB_ACTIONS", "GITLAB_CI", "JENKINS_URL"
+    ]
+    if any(var in os.environ for var in ci_indicators):
+        return False
+
+    # Skip if no TTY (non-interactive)
+    if not sys.stdout.isatty():
+        return False
+
+    # Only run for first-time UV installations
+    return _is_first_time_installation() and _detect_uv_installation()
+
+
 def run_async(coro):
     """Run async coroutine in sync context."""
     if UVLOOP_AVAILABLE:
@@ -133,28 +291,33 @@ def run_async(coro):
 
 
 @click.group(invoke_without_command=True)
-@click.version_option(version="1.0.0")
+@click.option("--version", "-v", is_flag=True, expose_value=False, is_eager=True, callback=lambda ctx, param, value: click.echo(__version__) or ctx.exit() if value else None, help="Show version and exit")
 @click.option("--config-file", type=click.Path(exists=True), help="Configuration file path")
-@click.option("--verbose", "-v", is_flag=True, help="Verbose output")
 @click.option("--debug", is_flag=True, help="Enable debug output")
 @click.option("--quiet", "-q", is_flag=True, help="Suppress non-essential output")
 @click.option("--json", is_flag=True, help="Output in JSON format")
 @click.option("--no-color", is_flag=True, help="Disable colored output")
 @click.option("--no-progress", is_flag=True, help="Disable progress indicators")
+@click.option("--health", is_flag=True, help="Show health check for all services")
+@click.option("--skip-auto-setup", is_flag=True, help="Skip automatic setup for first-time installations")
 @click.pass_context
-def main(ctx: click.Context, config_file: Optional[str], verbose: bool, debug: bool,
-         quiet: bool, json: bool, no_color: bool, no_progress: bool):
-    """DocBro - Documentation crawler and search tool."""
+def main(ctx: click.Context, config_file: Optional[str], debug: bool,
+         quiet: bool, json: bool, no_color: bool, no_progress: bool, health: bool, skip_auto_setup: bool):
+    """DocBro - Documentation crawler and search tool with RAG capabilities.
+
+    Create projects, crawl documentation, and access content through MCP server integration.
+    """
     ctx.ensure_object(dict)
 
     # Store all flags in context
     ctx.obj["config_file"] = config_file
-    ctx.obj["verbose"] = verbose
     ctx.obj["debug"] = debug
     ctx.obj["quiet"] = quiet
     ctx.obj["json"] = json
     ctx.obj["no_color"] = no_color
     ctx.obj["no_progress"] = no_progress
+    ctx.obj["health"] = health
+    ctx.obj["skip_auto_setup"] = skip_auto_setup
 
     # Handle debug mode
     if debug:
@@ -163,15 +326,31 @@ def main(ctx: click.Context, config_file: Optional[str], verbose: bool, debug: b
         debug_mgr = DebugManager()
         debug_mgr.enable_debug()
 
+    # Handle health check
+    if health:
+        run_async(_handle_health_check(json))
+        ctx.exit(0)
+
+    # Check for auto-setup before showing help or processing commands
+    if not skip_auto_setup and _should_run_auto_setup():
+        # Run auto-setup asynchronously
+        run_async(_run_auto_setup())
+
     # Show help suggestion when no command provided
     if ctx.invoked_subcommand is None:
         console = Console()
-        console.print("DocBro CLI\n")
+        console.print("DocBro - Documentation crawler and search tool\n")
         console.print("No command specified. Try 'docbro --help' for available commands.\n")
         console.print("Quick start:")
-        console.print("  docbro create                 Create a new documentation project")
-        console.print("  docbro crawl                  Crawl documentation for a project")
-        console.print("  docbro search                 Search indexed documentation")
+        console.print("  docbro setup                  Interactive setup wizard")
+        console.print("  docbro create myproject -u URL   Create a documentation project")
+        console.print("  docbro crawl myproject        Crawl and index documentation")
+        console.print("  docbro list                   List all projects")
+        console.print("  docbro serve                  Start MCP server (port 9382)")
+        console.print("\nAdditional commands:")
+        console.print("  docbro remove <project>       Remove a project")
+        console.print("  docbro uninstall              Uninstall DocBro completely")
+        console.print("  docbro --health               Check service health status")
         console.print("  docbro --help                Show all available commands")
         ctx.exit(0)
 
@@ -183,6 +362,73 @@ def main(ctx: click.Context, config_file: Optional[str], verbose: bool, debug: b
         pass
 
     app = DocBroApp(config)
+
+
+async def _handle_health_check(output_json: bool) -> None:
+    """Handle health check command."""
+    from src.services.detection import ServiceDetectionService
+
+    console = Console()
+    detection_service = ServiceDetectionService()
+
+    try:
+        # Check all services
+        statuses = await detection_service.check_all_services()
+
+        if output_json:
+            import json
+            health_data = {
+                "version": __version__,
+                "services": {}
+            }
+            for name, status in statuses.items():
+                health_data["services"][name] = {
+                    "available": status.available,
+                    "version": status.version,
+                    "status": "healthy" if status.available else "unhealthy",
+                    "error": status.error_message if not status.available else None
+                }
+            print(json.dumps(health_data, indent=2))
+            return
+
+        console.print(f"📊 DocBro Health Check (v{__version__})\n")
+
+        # Create health table
+        table = Table(title="Service Health Status")
+        table.add_column("Service", style="cyan", no_wrap=True)
+        table.add_column("Status", style="green")
+        table.add_column("Version", style="yellow")
+        table.add_column("Details", style="dim")
+
+        overall_healthy = True
+
+        for name, status in statuses.items():
+            status_text = "✅ Healthy" if status.available else "❌ Unhealthy"
+            if not status.available:
+                overall_healthy = False
+
+            version_text = status.version or "unknown"
+            details = status.error_message if not status.available else "OK"
+
+            table.add_row(
+                name.title().replace('_', ' '),
+                status_text,
+                version_text,
+                details[:50] + "..." if len(details) > 50 else details
+            )
+
+        console.print(table)
+
+        # Overall status
+        if overall_healthy:
+            console.print("\n✅ [bold green]All services are healthy[/bold green]")
+        else:
+            console.print("\n⚠️  [bold yellow]Some services need attention[/bold yellow]")
+            console.print("💡 Run [cyan]docbro setup[/cyan] to fix issues")
+
+    except Exception as e:
+        console.print(f"❌ Health check failed: {e}")
+        raise
 
 
 @main.command()
@@ -610,7 +856,7 @@ def crawl(ctx: click.Context, name: Optional[str], max_pages: Optional[int],
                 app.console.print(f"[bold]Status:[/bold] [green]Ready for search[/green]")
 
             app.console.print("="*60)
-            app.console.print(f"[dim]You can now search this project with:[/dim] [cyan]docbro search \"your query\" --project {name}[/cyan]")
+            app.console.print(f"[dim]Project '{name}' is now ready for use[/dim]")
             app.console.print()
 
         except Exception as e:
@@ -622,69 +868,6 @@ def crawl(ctx: click.Context, name: Optional[str], max_pages: Optional[int],
     run_async(_crawl())
 
 
-@main.command()
-@click.argument("query")
-@click.option("--project", "-p", help="Search specific project")
-@click.option("--limit", "-l", default=10, type=int, help="Maximum results")
-@click.option("--strategy", default="semantic", help="Search strategy")
-@click.pass_context
-def search(ctx: click.Context, query: str, project: Optional[str], limit: int, strategy: str):
-    """Search documentation."""
-    async def _search():
-        app = get_app()
-        await app.initialize()
-
-        try:
-            if project:
-                # Search specific project
-                project_obj = await app.db_manager.get_project_by_name(project)
-                if not project_obj:
-                    raise click.ClickException(f"Project '{project}' not found")
-
-                collection_name = f"project_{project_obj.id}"
-                results = await app.rag_service.search(
-                    query=query,
-                    collection_name=collection_name,
-                    limit=limit,
-                    strategy=strategy
-                )
-            else:
-                # Search all projects
-                projects = await app.db_manager.list_projects()
-                project_names = [p.name for p in projects]
-                results = await app.rag_service.search_multi_project(
-                    query=query,
-                    project_names=project_names,
-                    limit=limit,
-                    strategy=strategy
-                )
-
-            if not results:
-                app.console.print("No results found.")
-                return
-
-            # Display results
-            app.console.print(f"\n[bold]Search Results for:[/bold] {query}")
-            app.console.print(f"[dim]Found {len(results)} results[/dim]\n")
-
-            for i, result in enumerate(results, 1):
-                score = result.get("score", 0)
-                title = result.get("title", "Untitled")
-                url = result.get("url", "")
-                content = result.get("content", "")[:200] + "..." if len(result.get("content", "")) > 200 else result.get("content", "")
-
-                app.console.print(f"[bold]{i}. {title}[/bold] (Score: {score:.3f})")
-                app.console.print(f"[blue]{url}[/blue]")
-                app.console.print(f"{content}")
-                app.console.print()
-
-        except Exception as e:
-            app.console.print(f"[red]✗ Search failed: {e}[/red]")
-            raise click.ClickException(str(e))
-        finally:
-            await app.cleanup()
-
-    run_async(_search())
 
 
 @main.command()
@@ -727,192 +910,63 @@ def remove(ctx: click.Context, name: str, confirm: bool):
 
 @main.command()
 @click.option("--host", default="0.0.0.0", help="Server host")
-@click.option("--port", default=8000, type=int, help="Server port")
+@click.option("--port", default=9382, type=int, help="Server port")
+@click.option("--foreground", "-f", is_flag=True, help="Run server in foreground")
 @click.pass_context
-def serve(ctx: click.Context, host: str, port: int):
+def serve(ctx: click.Context, host: str, port: int, foreground: bool):
     """Start the MCP server for agent integration."""
     from src.services.mcp_server import run_mcp_server
+    import subprocess
+    import os
+    import signal
 
     app = get_app()
-    app.console.print(f"[green]Starting MCP server on {host}:{port}...[/green]")
-    app.console.print("[dim]Press Ctrl+C to stop[/dim]\n")
 
-    try:
-        run_mcp_server(host=host, port=port, config=app.config)
-    except KeyboardInterrupt:
-        app.console.print("\n[yellow]Server stopped[/yellow]")
-    except Exception as e:
-        app.console.print(f"[red]✗ Server error: {e}[/red]")
-        raise click.ClickException(str(e))
-
-
-
-
-# Import wizard commands and new setup command
-from .wizard import setup as wizard_setup, wizard_group
-from .setup import setup as enhanced_setup
-
-# Add the enhanced setup command to main CLI (replaces wizard setup)
-main.add_command(enhanced_setup, name="setup")
-
-# Also add the wizard group for advanced wizard commands
-main.add_command(wizard_group, name="wizard")
-
-
-@main.command("version")
-@click.option("--detailed", is_flag=True, help="Show detailed version information")
-@click.pass_context
-def version_cmd(ctx: click.Context, detailed: bool):
-    """Show version information."""
-    if not detailed:
-        # Simple version (handled by @click.version_option on main group)
-        click.echo("1.0.0")
-        return
-
-    async def _detailed_version():
-        config_service = ConfigService()
-        detection_service = ServiceDetectionService()
-        console = Console()
+    if foreground:
+        # Run in foreground (original behavior)
+        app.console.print(f"[green]Starting MCP server on {host}:{port}...[/green]")
+        app.console.print("[dim]Press Ctrl+C to stop[/dim]\n")
 
         try:
-            # Get installation context
-            context = config_service.load_installation_context()
-
-            console.print("[bold]DocBro Version Information[/bold]\n")
-
-            # Basic version info
-            console.print(f"[cyan]Version:[/cyan] 1.0.0")
-
-            if context:
-                console.print(f"[cyan]Installation Method:[/cyan] {context.install_method}")
-                console.print(f"[cyan]Install Path:[/cyan] {context.install_path}")
-                console.print(f"[cyan]Install Date:[/cyan] {context.install_date.strftime('%Y-%m-%d %H:%M:%S')}")
-                console.print(f"[cyan]Python Version:[/cyan] {context.python_version}")
-                if context.uv_version:
-                    console.print(f"[cyan]UV Version:[/cyan] {context.uv_version}")
-                console.print(f"[cyan]Global Install:[/cyan] {'Yes' if context.is_global else 'No'}")
-
-                console.print(f"\n[bold]Directory Paths[/bold]")
-                console.print(f"[dim]Config:[/dim] {context.config_dir}")
-                console.print(f"[dim]Data:[/dim] {context.user_data_dir}")
-                console.print(f"[dim]Cache:[/dim] {context.cache_dir}")
-            else:
-                console.print("[yellow]No installation context found (setup may be required)[/yellow]")
-
-            # Check external services
-            console.print(f"\n[bold]External Services[/bold]")
-            try:
-                statuses = await detection_service.check_all_services()
-                for name, status in statuses.items():
-                    status_icon = "[green]✓[/green]" if status.available else "[red]✗[/red]"
-                    version_info = f" ({status.version})" if status.version else ""
-                    console.print(f"{status_icon} {name.title()}{version_info}")
-                    if not status.available and status.error_message:
-                        console.print(f"    [dim]{status.error_message}[/dim]")
-            except Exception as e:
-                console.print(f"[red]✗ Service check failed: {e}[/red]")
-
+            run_mcp_server(host=host, port=port, config=app.config)
+        except KeyboardInterrupt:
+            app.console.print("\n[yellow]Server stopped[/yellow]")
         except Exception as e:
-            console.print(f"[red]✗ Failed to get detailed version info: {e}[/red]")
+            app.console.print(f"[red]✗ Server error: {e}[/red]")
             raise click.ClickException(str(e))
+    else:
+        # Run in background (default behavior)
+        app.console.print(f"[green]✅ MCP server starting on {host}:{port}[/green]")
 
-    run_async(_detailed_version())
+        # Fork the process to run in background
+        pid = os.fork()
+        if pid == 0:
+            # Child process - redirect stdout/stderr to suppress INFO messages
+            with open(os.devnull, 'w') as devnull:
+                os.dup2(devnull.fileno(), 1)  # stdout
+                os.dup2(devnull.fileno(), 2)  # stderr
 
-
-@main.command()
-@click.option("--install", is_flag=True, help="Show installation-specific status")
-@click.pass_context
-def status(ctx: click.Context, install: bool):
-    """Show DocBro system status."""
-    async def _status():
-        app = get_app()
-        console = Console()
-
-        if install:
-            # Show installation-specific status
             try:
-                wizard = SetupWizardService()
-                status_info = wizard.get_setup_status()
-
-                console.print("[bold]DocBro Installation Status[/bold]\n")
-
-                if status_info["setup_completed"]:
-                    console.print("[green]✓ Installation completed[/green]")
-                    console.print(f"[cyan]Method:[/cyan] {status_info['install_method']}")
-                    console.print(f"[cyan]Install Date:[/cyan] {status_info['install_date']}")
-                    console.print(f"[cyan]Version:[/cyan] {status_info['version']}")
-                    console.print(f"[cyan]Config Dir:[/cyan] {status_info['config_dir']}")
-                    console.print(f"[cyan]Data Dir:[/cyan] {status_info['data_dir']}")
-                elif status_info["in_progress"]:
-                    console.print(f"[yellow]⚠ Setup in progress (step: {status_info['current_step']})[/yellow]")
-                    console.print("Run [bold]docbro setup[/bold] to continue.")
-                else:
-                    console.print("[red]✗ Setup required[/red]")
-                    console.print("Run [bold]docbro setup[/bold] to get started.")
-
-                # Check external services briefly
-                detection_service = ServiceDetectionService()
-                statuses = await detection_service.check_all_services()
-
-                console.print(f"\n[bold]Services Status[/bold]")
-                available_count = sum(1 for s in statuses.values() if s.available)
-                total_count = len(statuses)
-                console.print(f"{available_count}/{total_count} services available")
-
-                for name, status in statuses.items():
-                    status_icon = "[green]✓[/green]" if status.available else "[red]✗[/red]"
-                    console.print(f"  {status_icon} {name.title()}")
-
-            except Exception as e:
-                console.print(f"[red]✗ Failed to get installation status: {e}[/red]")
-                raise click.ClickException(str(e))
+                run_mcp_server(host=host, port=port, config=app.config)
+            except Exception:
+                pass
         else:
-            # Show general system status (existing implementation)
-            try:
-                await app.initialize()
-
-                console.print("[bold]DocBro System Status[/bold]\n")
-
-                # Database status
-                try:
-                    projects_count = len(await app.db_manager.list_projects())
-                    console.print(f"[green]✓[/green] Database: Connected ({projects_count} projects)")
-                except Exception as e:
-                    console.print(f"[red]✗[/red] Database: {e}")
-
-                # Vector store status
-                try:
-                    health_ok, health_msg = await app.vector_store.health_check()
-                    status_icon = "[green]✓[/green]" if health_ok else "[red]✗[/red]"
-                    console.print(f"{status_icon} Vector Store: {health_msg}")
-                except Exception as e:
-                    console.print(f"[red]✗[/red] Vector Store: {e}")
-
-                # Embedding service status
-                try:
-                    health_ok, health_msg = await app.embedding_service.health_check()
-                    status_icon = "[green]✓[/green]" if health_ok else "[red]✗[/red]"
-                    console.print(f"{status_icon} Embeddings: {health_msg}")
-                except Exception as e:
-                    console.print(f"[red]✗[/red] Embeddings: {e}")
-
-            except Exception as e:
-                console.print(f"[red]✗ Failed to get status: {e}[/red]")
-                raise click.ClickException(str(e))
-            finally:
-                await app.cleanup()
-
-    run_async(_status())
+            # Parent process - just show status and exit
+            app.console.print(f"[dim]Process ID: {pid}[/dim]")
+            app.console.print(f"[dim]Use 'kill {pid}' to stop the server[/dim]")
 
 
-# Import and register system-check command
-from .system_check import system_check
-main.add_command(system_check)
 
 
-# Import and register services command group
-from .service_commands import get_services_command_group
-main.add_command(get_services_command_group())
+# Import enhanced setup command
+from .setup import setup as enhanced_setup
+
+# Add the enhanced setup command to main CLI
+main.add_command(enhanced_setup, name="setup")
+
+
+
+
 
 
 # Import and register uninstall command
