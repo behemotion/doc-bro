@@ -47,31 +47,54 @@ class SetupLogicService:
         try:
             logger.info("Starting interactive setup")
 
-            # Create setup configuration
+            # Detect components first
+            components = await self.health_checker.check_all_components()
+
+            # Check component availability
+            docker_available = any(c.component_name == "docker" and c.available for c in components)
+            ollama_available = any(c.component_name == "ollama" and c.available for c in components)
+
+            # Prepare initial configuration with at least one component
+            initial_vector_storage = None
+            initial_embedding_model = None
+
+            # Set default configurations based on availability
+            if docker_available:
+                initial_vector_storage = VectorStorageConfig(
+                    connection_url="http://localhost:6333",
+                    data_path="/tmp/docbro/qdrant"
+                )
+
+            if ollama_available:
+                initial_embedding_model = EmbeddingModelConfig(
+                    model_name="mxbai-embed-large",
+                    download_required=False
+                )
+
+            # If neither is available, create minimal default config
+            if not initial_vector_storage and not initial_embedding_model:
+                initial_vector_storage = VectorStorageConfig(
+                    provider="qdrant",
+                    connection_url="http://localhost:6333",
+                    data_path="/tmp/docbro/qdrant"
+                )
+
+            # Create setup configuration with initial components
             config = SetupConfiguration(
                 setup_mode=SetupMode.INTERACTIVE,
-                version="0.2.1"
+                version="0.2.1",
+                vector_storage=initial_vector_storage,
+                embedding_model=initial_embedding_model
             )
 
             # Create session
             session = SetupSession(setup_config_id=config.setup_id)
             session.start_session()
 
-            # Detect components
-            components = await self.health_checker.check_all_components()
+            # Mark detection step as complete
             session.complete_step(SetupStep.DETECT_COMPONENTS)
 
-            # Mock setup for now - in real implementation would have UI prompts
-            docker_available = any(c.component_name == "docker" and c.available for c in components)
-            ollama_available = any(c.component_name == "ollama" and c.available for c in components)
-
-            if docker_available:
-                # Configure and start vector storage
-                config.vector_storage = VectorStorageConfig(
-                    connection_url="http://localhost:6333",
-                    data_path="/tmp/docbro/qdrant"
-                )
-
+            if docker_available and config.vector_storage:
                 # Actually create and start the Qdrant container
                 from pathlib import Path
                 data_path = Path(config.vector_storage.data_path)
@@ -84,12 +107,8 @@ class SetupLogicService:
 
                 session.complete_step(SetupStep.CONFIGURE_VECTOR_STORAGE)
 
-            if ollama_available:
-                # Configure embedding model
-                config.embedding_model = EmbeddingModelConfig(
-                    model_name="mxbai-embed-large",
-                    download_required=False
-                )
+            if ollama_available and config.embedding_model:
+                # Embedding model is already configured, just mark step as complete
                 session.complete_step(SetupStep.SETUP_EMBEDDING_MODEL)
 
             # Skip MCP for now
@@ -119,30 +138,54 @@ class SetupLogicService:
         try:
             logger.info("Starting auto setup")
 
-            # Create setup configuration
+            # Detect components first
+            components = await self.health_checker.check_all_components()
+
+            # Check component availability
+            docker_available = any(c.component_name == "docker" and c.available for c in components)
+            ollama_available = any(c.component_name == "ollama" and c.available for c in components)
+
+            # Prepare initial configuration with at least one component
+            initial_vector_storage = None
+            initial_embedding_model = None
+
+            # Set default configurations based on availability
+            if docker_available:
+                initial_vector_storage = VectorStorageConfig(
+                    connection_url="http://localhost:6333",
+                    data_path="/tmp/docbro/qdrant"
+                )
+
+            if ollama_available:
+                initial_embedding_model = EmbeddingModelConfig(
+                    model_name="embeddinggemma:300m-qat-q4_0",
+                    download_required=True
+                )
+
+            # If neither is available, create minimal default config
+            if not initial_vector_storage and not initial_embedding_model:
+                initial_vector_storage = VectorStorageConfig(
+                    provider="qdrant",
+                    connection_url="http://localhost:6333",
+                    data_path="/tmp/docbro/qdrant"
+                )
+
+            # Create setup configuration with initial components
             config = SetupConfiguration(
                 setup_mode=SetupMode.AUTO,
-                version="0.2.1"
+                version="0.2.1",
+                vector_storage=initial_vector_storage,
+                embedding_model=initial_embedding_model
             )
 
             # Create session
             session = SetupSession(setup_config_id=config.setup_id)
             session.start_session()
 
-            # Detect components
-            components = await self.health_checker.check_all_components()
+            # Mark detection step as complete
             session.complete_step(SetupStep.DETECT_COMPONENTS)
 
-            # Auto-configure available components
-            docker_available = any(c.component_name == "docker" and c.available for c in components)
-            ollama_available = any(c.component_name == "ollama" and c.available for c in components)
-
-            if docker_available:
-                config.vector_storage = VectorStorageConfig(
-                    connection_url="http://localhost:6333",
-                    data_path="/tmp/docbro/qdrant"
-                )
-
+            if docker_available and config.vector_storage:
                 # Actually create and start the Qdrant container
                 from pathlib import Path
                 data_path = Path(config.vector_storage.data_path)
@@ -155,11 +198,8 @@ class SetupLogicService:
 
                 session.complete_step(SetupStep.CONFIGURE_VECTOR_STORAGE)
 
-            if ollama_available:
-                config.embedding_model = EmbeddingModelConfig(
-                    model_name="embeddinggemma:300m-qat-q4_0",
-                    download_required=True
-                )
+            if ollama_available and config.embedding_model:
+                # Embedding model is already configured, just mark step as complete
                 session.complete_step(SetupStep.SETUP_EMBEDDING_MODEL)
 
             session.complete_step(SetupStep.CONFIGURE_MCP_CLIENTS)
@@ -203,7 +243,9 @@ class SetupLogicService:
 
         for component in components:
             status_key = component.component_name
-            if component.component_type.value == "mcp_client":
+            # Handle component_type as either enum or string
+            component_type_value = component.component_type.value if hasattr(component.component_type, 'value') else component.component_type
+            if component_type_value == "mcp_client":
                 status_key = "mcp_clients"
                 if status_key not in components_status:
                     components_status[status_key] = []
