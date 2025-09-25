@@ -24,10 +24,24 @@ class ComponentDetectionService:
         """Initialize Docker client if not provided."""
         if self.docker_client is None:
             try:
-                self.docker_client = docker.from_env()
+                # Try auto version negotiation first
+                self.docker_client = docker.from_env(version='auto')
             except docker.errors.DockerException as e:
-                logger.warning(f"Docker not available: {e}")
-                self.docker_client = None
+                # If auto fails, try with explicit version
+                if "api version" in str(e).lower() or "500" in str(e):
+                    try:
+                        import os
+                        # Try with older API version
+                        os.environ['DOCKER_API_VERSION'] = '1.41'
+                        self.docker_client = docker.from_env()
+                        os.environ.pop('DOCKER_API_VERSION', None)
+                        logger.info("Connected to Docker using API v1.41")
+                    except docker.errors.DockerException:
+                        logger.warning(f"Docker not available even with compatibility mode: {e}")
+                        self.docker_client = None
+                else:
+                    logger.warning(f"Docker not available: {e}")
+                    self.docker_client = None
 
     async def detect_all_components(self) -> Dict[str, Any]:
         """Detect all DocBro components on the system."""
