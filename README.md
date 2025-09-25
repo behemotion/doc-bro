@@ -6,7 +6,7 @@ A powerful CLI tool that crawls documentation websites, creates vector databases
 
 ### Install with one command:
 ```bash
-uvx install git+https://github.com/yourusername/local-doc-bro
+uvx install git+https://github.com/behemotion/doc-bro
 docbro setup
 ```
 
