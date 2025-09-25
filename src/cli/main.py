@@ -25,6 +25,9 @@ from ..services.vector_store import VectorStoreService
 from ..services.embeddings import EmbeddingService
 from ..services.rag import RAGSearchService
 from ..services.crawler import DocumentationCrawler
+from ..services.setup import SetupWizardService
+from ..services.config import ConfigService
+from ..services.detection import ServiceDetectionService
 
 
 class DocBroApp:
@@ -473,46 +476,187 @@ def serve(ctx: click.Context, host: str, port: int):
         raise click.ClickException(str(e))
 
 
+
+
 @main.command()
+@click.option("--skip-checks", is_flag=True, help="Skip service detection checks")
 @click.pass_context
-def status(ctx: click.Context):
+def setup(ctx: click.Context, skip_checks: bool):
+    """Run the interactive setup wizard."""
+    async def _setup():
+        wizard = SetupWizardService()
+
+        try:
+            # Check if setup is required
+            if not wizard.check_setup_required():
+                console = Console()
+                console.print("[yellow]DocBro is already set up![/yellow]")
+
+                if not Confirm.ask("Would you like to run setup again?", default=False):
+                    console.print("Setup cancelled.")
+                    return
+
+                # Clear existing configuration for re-setup
+                config_service = ConfigService()
+                config_path = config_service.installation_config_path
+                if config_path.exists():
+                    config_path.unlink()
+
+            # Run interactive setup
+            context = await wizard.run_interactive_setup()
+
+        except click.Abort:
+            pass  # User cancelled, already handled
+        except Exception as e:
+            console = Console()
+            console.print(f"[red]✗ Setup failed: {e}[/red]")
+            raise click.ClickException(str(e))
+
+    run_async(_setup())
+
+
+@main.command("version")
+@click.option("--detailed", is_flag=True, help="Show detailed version information")
+@click.pass_context
+def version_cmd(ctx: click.Context, detailed: bool):
+    """Show version information."""
+    if not detailed:
+        # Simple version (handled by @click.version_option on main group)
+        click.echo("1.0.0")
+        return
+
+    async def _detailed_version():
+        config_service = ConfigService()
+        detection_service = ServiceDetectionService()
+        console = Console()
+
+        try:
+            # Get installation context
+            context = config_service.load_installation_context()
+
+            console.print("[bold]DocBro Version Information[/bold]\n")
+
+            # Basic version info
+            console.print(f"[cyan]Version:[/cyan] 1.0.0")
+
+            if context:
+                console.print(f"[cyan]Installation Method:[/cyan] {context.install_method}")
+                console.print(f"[cyan]Install Path:[/cyan] {context.install_path}")
+                console.print(f"[cyan]Install Date:[/cyan] {context.install_date.strftime('%Y-%m-%d %H:%M:%S')}")
+                console.print(f"[cyan]Python Version:[/cyan] {context.python_version}")
+                if context.uv_version:
+                    console.print(f"[cyan]UV Version:[/cyan] {context.uv_version}")
+                console.print(f"[cyan]Global Install:[/cyan] {'Yes' if context.is_global else 'No'}")
+
+                console.print(f"\n[bold]Directory Paths[/bold]")
+                console.print(f"[dim]Config:[/dim] {context.config_dir}")
+                console.print(f"[dim]Data:[/dim] {context.user_data_dir}")
+                console.print(f"[dim]Cache:[/dim] {context.cache_dir}")
+            else:
+                console.print("[yellow]No installation context found (setup may be required)[/yellow]")
+
+            # Check external services
+            console.print(f"\n[bold]External Services[/bold]")
+            try:
+                statuses = await detection_service.check_all_services()
+                for name, status in statuses.items():
+                    status_icon = "[green]✓[/green]" if status.available else "[red]✗[/red]"
+                    version_info = f" ({status.version})" if status.version else ""
+                    console.print(f"{status_icon} {name.title()}{version_info}")
+                    if not status.available and status.error_message:
+                        console.print(f"    [dim]{status.error_message}[/dim]")
+            except Exception as e:
+                console.print(f"[red]✗ Service check failed: {e}[/red]")
+
+        except Exception as e:
+            console.print(f"[red]✗ Failed to get detailed version info: {e}[/red]")
+            raise click.ClickException(str(e))
+
+    run_async(_detailed_version())
+
+
+@main.command()
+@click.option("--install", is_flag=True, help="Show installation-specific status")
+@click.pass_context
+def status(ctx: click.Context, install: bool):
     """Show DocBro system status."""
     async def _status():
         app = get_app()
+        console = Console()
 
-        try:
-            await app.initialize()
-
-            app.console.print("[bold]DocBro System Status[/bold]\n")
-
-            # Database status
+        if install:
+            # Show installation-specific status
             try:
-                projects_count = len(await app.db_manager.list_projects())
-                app.console.print(f"[green]✓[/green] Database: Connected ({projects_count} projects)")
-            except Exception as e:
-                app.console.print(f"[red]✗[/red] Database: {e}")
+                wizard = SetupWizardService()
+                status_info = wizard.get_setup_status()
 
-            # Vector store status
+                console.print("[bold]DocBro Installation Status[/bold]\n")
+
+                if status_info["setup_completed"]:
+                    console.print("[green]✓ Installation completed[/green]")
+                    console.print(f"[cyan]Method:[/cyan] {status_info['install_method']}")
+                    console.print(f"[cyan]Install Date:[/cyan] {status_info['install_date']}")
+                    console.print(f"[cyan]Version:[/cyan] {status_info['version']}")
+                    console.print(f"[cyan]Config Dir:[/cyan] {status_info['config_dir']}")
+                    console.print(f"[cyan]Data Dir:[/cyan] {status_info['data_dir']}")
+                elif status_info["in_progress"]:
+                    console.print(f"[yellow]⚠ Setup in progress (step: {status_info['current_step']})[/yellow]")
+                    console.print("Run [bold]docbro setup[/bold] to continue.")
+                else:
+                    console.print("[red]✗ Setup required[/red]")
+                    console.print("Run [bold]docbro setup[/bold] to get started.")
+
+                # Check external services briefly
+                detection_service = ServiceDetectionService()
+                statuses = await detection_service.check_all_services()
+
+                console.print(f"\n[bold]Services Status[/bold]")
+                available_count = sum(1 for s in statuses.values() if s.available)
+                total_count = len(statuses)
+                console.print(f"{available_count}/{total_count} services available")
+
+                for name, status in statuses.items():
+                    status_icon = "[green]✓[/green]" if status.available else "[red]✗[/red]"
+                    console.print(f"  {status_icon} {name.title()}")
+
+            except Exception as e:
+                console.print(f"[red]✗ Failed to get installation status: {e}[/red]")
+                raise click.ClickException(str(e))
+        else:
+            # Show general system status (existing implementation)
             try:
-                health_ok, health_msg = await app.vector_store.health_check()
-                status_icon = "[green]✓[/green]" if health_ok else "[red]✗[/red]"
-                app.console.print(f"{status_icon} Vector Store: {health_msg}")
-            except Exception as e:
-                app.console.print(f"[red]✗[/red] Vector Store: {e}")
+                await app.initialize()
 
-            # Embedding service status
-            try:
-                health_ok, health_msg = await app.embedding_service.health_check()
-                status_icon = "[green]✓[/green]" if health_ok else "[red]✗[/red]"
-                app.console.print(f"{status_icon} Embeddings: {health_msg}")
-            except Exception as e:
-                app.console.print(f"[red]✗[/red] Embeddings: {e}")
+                console.print("[bold]DocBro System Status[/bold]\n")
 
-        except Exception as e:
-            app.console.print(f"[red]✗ Failed to get status: {e}[/red]")
-            raise click.ClickException(str(e))
-        finally:
-            await app.cleanup()
+                # Database status
+                try:
+                    projects_count = len(await app.db_manager.list_projects())
+                    console.print(f"[green]✓[/green] Database: Connected ({projects_count} projects)")
+                except Exception as e:
+                    console.print(f"[red]✗[/red] Database: {e}")
+
+                # Vector store status
+                try:
+                    health_ok, health_msg = await app.vector_store.health_check()
+                    status_icon = "[green]✓[/green]" if health_ok else "[red]✗[/red]"
+                    console.print(f"{status_icon} Vector Store: {health_msg}")
+                except Exception as e:
+                    console.print(f"[red]✗[/red] Vector Store: {e}")
+
+                # Embedding service status
+                try:
+                    health_ok, health_msg = await app.embedding_service.health_check()
+                    status_icon = "[green]✓[/green]" if health_ok else "[red]✗[/red]"
+                    console.print(f"{status_icon} Embeddings: {health_msg}")
+                except Exception as e:
+                    console.print(f"[red]✗[/red] Embeddings: {e}")
+
+            except Exception as e:
+                console.print(f"[red]✗ Failed to get status: {e}[/red]")
+                raise click.ClickException(str(e))
+            finally:
+                await app.cleanup()
 
     run_async(_status())
 

@@ -17,8 +17,9 @@ A powerful CLI tool that crawls documentation websites, creates vector databases
 ### Required Services
 
 1. **Docker & Docker Compose** - For Qdrant and Redis
-2. **Python 3.11+** - Core runtime
+2. **Python 3.13+** - Core runtime (required for UVX installation)
 3. **Ollama** - For local embeddings
+4. **UV** - Package installer (for UVX method)
 
 ### Quick Prerequisites Check
 
@@ -30,13 +31,41 @@ docker-compose --version
 # Check Python
 python3 --version
 
+# Check/Install UV (for UVX installation)
+uv --version || curl -LsSf https://astral.sh/uv/install.sh | sh
+
 # Check/Install Ollama
 ollama --version || curl -fsSL https://ollama.com/install.sh | sh
 ```
 
 ## 🛠️ Installation
 
-### Option 1: Automated Setup (Recommended)
+### Option 1: UVX Installation (Recommended)
+
+Install DocBro globally with a single command using [UV](https://docs.astral.sh/uv/):
+
+```bash
+# Install with uvx (one command installation)
+uvx install git+https://github.com/yourusername/local-doc-bro
+
+# Run interactive setup wizard
+docbro setup
+
+# Check installation status
+docbro status --install
+
+# Get detailed version info
+docbro version --detailed
+```
+
+**What the setup wizard does:**
+- ✅ Detects and validates Python 3.13+ installation
+- ✅ Checks for external services (Docker, Ollama, Redis, Qdrant)
+- ✅ Provides installation guidance for missing services
+- ✅ Creates XDG-compliant configuration directories
+- ✅ Sets up installation metadata and tracking
+
+### Option 2: Development/Manual Setup
 
 ```bash
 # Clone repository
@@ -53,30 +82,10 @@ cd local-doc-bro
 # - Verify installation
 ```
 
-### Option 2: Manual Installation
+### Option 3: Quick Start (Development)
 
 ```bash
-# 1. Clone repository
-git clone https://github.com/yourusername/local-doc-bro.git
-cd local-doc-bro
-
-# 2. Install Python package
-pip install -e .
-
-# 3. Start Docker services
-docker-compose -f docker/docker-compose.yml up -d
-
-# 4. Pull embedding model
-ollama pull mxbai-embed-large
-
-# 5. Verify installation
-./docbro status
-```
-
-### Option 3: Quick Start
-
-```bash
-# All-in-one command
+# All-in-one command for development
 ./run.sh
 ```
 
