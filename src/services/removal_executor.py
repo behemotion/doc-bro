@@ -32,8 +32,8 @@ class RemovalExecutor:
     async def stop_container(self, container_id: str, timeout: int = 10) -> bool:
         """Stop a running container."""
         if not self.docker_client:
-            logger.error("Docker client not available")
-            return False
+            logger.warning(f"Docker client not available - skipping container stop for {container_id}")
+            return True  # Skip Docker operations when Docker is not available
 
         try:
             container = self.docker_client.containers.get(container_id)
@@ -51,8 +51,8 @@ class RemovalExecutor:
     async def remove_container(self, container_id: str, force: bool = False) -> bool:
         """Remove a container."""
         if not self.docker_client:
-            logger.error("Docker client not available")
-            return False
+            logger.warning(f"Docker client not available - skipping container removal for {container_id}")
+            return True  # Skip Docker operations when Docker is not available
 
         try:
             container = self.docker_client.containers.get(container_id)
@@ -69,8 +69,8 @@ class RemovalExecutor:
     async def remove_volume(self, volume_name: str, force: bool = False) -> bool:
         """Remove a volume."""
         if not self.docker_client:
-            logger.error("Docker client not available")
-            return False
+            logger.warning(f"Docker client not available - skipping volume removal for {volume_name}")
+            return True  # Skip Docker operations when Docker is not available
 
         try:
             volume = self.docker_client.volumes.get(volume_name)
