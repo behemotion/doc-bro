@@ -18,7 +18,7 @@ from rich.text import Text
 
 from .config import ConfigService
 from .detection import ServiceDetectionService
-from ..models.installation import (
+from src.models.installation import (
     InstallationContext, ServiceStatus, SetupWizardState, PackageMetadata
 )
 

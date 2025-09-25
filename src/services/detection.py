@@ -7,7 +7,7 @@ from typing import Dict, List, Optional
 import httpx
 import logging
 
-from ..models.installation import ServiceStatus
+from src.models.installation import ServiceStatus
 
 logger = logging.getLogger(__name__)
 

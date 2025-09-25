@@ -1,6 +1,6 @@
 # Utilities and libraries
 from . import config
 from . import docker_utils
-from . import logger
+from . import lib_logger
 
-__all__ = ["config", "docker_utils", "logger"]
+__all__ = ["config", "docker_utils", "lib_logger"]
