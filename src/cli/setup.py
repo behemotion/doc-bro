@@ -56,8 +56,13 @@ console = Console()
     is_flag=True,
     help="Output status in JSON format"
 )
+@click.option(
+    "--no-prompt",
+    is_flag=True,
+    help="Skip all interactive prompts (use defaults)"
+)
 @async_command
-async def setup(auto: bool, force: bool, status: bool, verbose: bool, output_json: bool) -> None:
+async def setup(auto: bool, force: bool, status: bool, verbose: bool, output_json: bool, no_prompt: bool) -> None:
     """Enhanced setup command with component configuration.
 
     Run 'docbro setup' for interactive mode or 'docbro setup --auto' for automated setup.
@@ -78,7 +83,7 @@ async def setup(auto: bool, force: bool, status: bool, verbose: bool, output_jso
         elif auto:
             return await _handle_auto_setup(setup_service, force)
         else:
-            return await _handle_interactive_setup(setup_service, force)
+            return await _handle_interactive_setup(setup_service, force, no_prompt)
 
     except UserCancellationError as e:
         console.print(f"❌ Setup cancelled: {e}")
@@ -192,7 +197,7 @@ async def _handle_auto_setup(setup_service: SetupLogicService, force: bool) -> N
         console.print(f"\nSetup time: {setup_time:.1f} seconds")
 
 
-async def _handle_interactive_setup(setup_service: SetupLogicService, force: bool) -> None:
+async def _handle_interactive_setup(setup_service: SetupLogicService, force: bool, no_prompt: bool = False) -> None:
     """Handle interactive setup mode."""
     start_time = time.time()
     console.print("🚀 DocBro Setup Wizard\n")
@@ -201,9 +206,21 @@ async def _handle_interactive_setup(setup_service: SetupLogicService, force: boo
     if not force:
         existing = await setup_service.get_setup_status()
         if existing["setup_completed"]:
-            reconfigure = click.confirm("Setup already completed. Reconfigure?")
-            if not reconfigure:
-                raise UserCancellationError("User chose not to reconfigure")
+            # Check if we're in an automated context (auto-setup environment variables)
+            import os
+            auto_context = (
+                no_prompt or
+                os.environ.get("DOCBRO_AUTO_SETUP") or
+                os.environ.get("DOCBRO_SKIP_AUTO_SETUP") == "false"  # Inverted logic
+            )
+
+            if auto_context:
+                # Skip prompt in automated mode, just proceed with reconfiguration
+                console.print("✅ Setup already completed. Reconfiguring...")
+            else:
+                reconfigure = click.confirm("Setup already completed. Reconfigure?")
+                if not reconfigure:
+                    raise UserCancellationError("User chose not to reconfigure")
 
     # Detect components
     console.print("Detecting available components...")
@@ -231,9 +248,21 @@ async def _handle_interactive_setup(setup_service: SetupLogicService, force: boo
 
     console.print("\n🔗 MCP Client Configuration")
     if components.get("claude-code", {}).get("available"):
-        setup_mcp = click.confirm("Configure Claude Code integration?", default=True)
-        if setup_mcp:
-            console.print("✅ MCP integration will be configured")
+        # Use the same auto_context check for MCP prompt
+        import os
+        auto_context = (
+            no_prompt or
+            os.environ.get("DOCBRO_AUTO_SETUP") or
+            os.environ.get("DOCBRO_SKIP_AUTO_SETUP") == "false"  # Inverted logic
+        )
+
+        if auto_context:
+            setup_mcp = True  # Default to yes in auto mode
+            console.print("✅ MCP integration will be configured (auto-selected)")
+        else:
+            setup_mcp = click.confirm("Configure Claude Code integration?", default=True)
+            if setup_mcp:
+                console.print("✅ MCP integration will be configured")
     else:
         console.print("ℹ️  Claude Code not detected - MCP integration will be skipped")
 

@@ -199,6 +199,10 @@ async def _run_auto_setup() -> bool:
         console.print("\n[cyan]🚀 Welcome to DocBro![/cyan]")
         console.print("[dim]Detected first-time installation - running automatic setup...[/dim]")
 
+        # Set environment variable to signal auto-setup mode
+        import os
+        os.environ["DOCBRO_AUTO_SETUP"] = "true"
+
         installation_wizard = InstallationWizardService()
 
         # Create installation request for auto-setup
