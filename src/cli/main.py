@@ -232,7 +232,7 @@ def list(ctx: click.Context, status: Optional[str], limit: Optional[int]):
                 table.add_row(
                     project.name,
                     project.source_url,
-                    project.status.value,
+                    project.status,
                     str(project.total_pages),
                     last_crawl
                 )
@@ -274,7 +274,7 @@ def crawl(ctx: click.Context, name: str, max_pages: Optional[int], rate_limit: f
 
             app.console.print(f"[green]✓[/green] Crawl started for project '{name}'")
             app.console.print(f"  Session ID: {session.id}")
-            app.console.print(f"  Status: {session.status.value}")
+            app.console.print(f"  Status: {session.status}")
 
             # Show progress
             with Progress(
@@ -287,6 +287,8 @@ def crawl(ctx: click.Context, name: str, max_pages: Optional[int], rate_limit: f
                 # Wait for completion with periodic updates
                 while True:
                     await asyncio.sleep(2.0)
+                    # Give other tasks a chance to run
+                    await asyncio.sleep(0)
 
                     # Get updated session
                     session = await app.db_manager.get_crawl_session(session.id)

@@ -42,11 +42,13 @@ class VectorStoreService:
 
         try:
             # Create client based on deployment strategy
-            if self.config.qdrant_deployment.is_docker():
+            from ..lib.config import ServiceDeployment
+            if self.config.qdrant_deployment == ServiceDeployment.DOCKER:
                 self._client = QdrantClient(url=self.config.qdrant_url)
             else:
                 # Local deployment
-                self._client = QdrantClient(path=str(self.config.qdrant_path))
+                qdrant_path = self.config.data_dir / "qdrant"
+                self._client = QdrantClient(path=str(qdrant_path))
 
             # Test connection
             await self._test_connection()
@@ -54,7 +56,7 @@ class VectorStoreService:
             self._initialized = True
             self.logger.info("Vector store initialized", extra={
                 "deployment": self.config.qdrant_deployment.value,
-                "url": self.config.qdrant_url if self.config.qdrant_deployment.is_docker() else str(self.config.qdrant_path)
+                "url": self.config.qdrant_url if self.config.qdrant_deployment == ServiceDeployment.DOCKER else str(qdrant_path)
             })
 
         except Exception as e:
@@ -274,7 +276,7 @@ class VectorStoreService:
                 None,
                 self._client.upsert,
                 collection_name,
-                points=points
+                points
             )
 
             self.logger.info("Documents upserted", extra={
@@ -318,14 +320,20 @@ class VectorStoreService:
                 )
 
             # Perform search
+            search_kwargs = {
+                "collection_name": collection_name,
+                "query_vector": query_embedding,
+                "limit": limit
+            }
+
+            if query_filter:
+                search_kwargs["query_filter"] = query_filter
+            if score_threshold is not None:
+                search_kwargs["score_threshold"] = score_threshold
+
             search_result = await asyncio.get_event_loop().run_in_executor(
                 None,
-                self._client.search,
-                collection_name,
-                query_embedding,
-                query_filter,
-                limit,
-                score_threshold
+                lambda: self._client.search(**search_kwargs)
             )
 
             # Format results

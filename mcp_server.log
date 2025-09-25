@@ -1,0 +1,30 @@
+Starting MCP server on 0.0.0.0:9382...
+Press Ctrl+C to stop
+
+INFO:     Started server process [67618]
+INFO:     Waiting for application startup.
+[09/25/25 08:35:19] INFO     Database initialized                 database.py:56
+/Users/alexandr/Repository/local-doc-bro/src/services/vector_store.py:47: UserWarning: Qdrant client version 1.15.1 is incompatible with server version 1.13.0. Major versions should match and minor version difference must not exceed 1. Set check_compatibility=False to skip version check.
+  self._client = QdrantClient(url=self.config.qdrant_url)
+                    INFO     Vector store initialized         vector_store.py:57
+                    INFO     Pulling embedding model            embeddings.py:98
+[09/25/25 08:35:21] INFO     Model pulled successfully         embeddings.py:163
+                    INFO     Embedding service initialized      embeddings.py:56
+                    INFO     MCP services initialized           mcp_server.py:68
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:9382 (Press CTRL+C to quit)
+[09/25/25 08:35:26] INFO     MCP session created               mcp_server.py:158
+INFO:     127.0.0.1:55006 - "POST /mcp/connect HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55006 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55006 - "GET /mcp/projects HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55006 - "POST /mcp/search HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55006 - "GET /mcp/projects/uv-docs HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55450 - "GET /health HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+[09/25/25 08:39:24] INFO     Embedding service cleaned up       embeddings.py:76
+                    INFO     Vector store connections closed  vector_store.py:75
+                    INFO     Database connections closed          database.py:74
+                    INFO     MCP services cleaned up            mcp_server.py:85
+INFO:     Application shutdown complete.
+INFO:     Finished server process [67618]

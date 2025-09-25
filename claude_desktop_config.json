@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "docbro": {
+      "command": "/Users/alexandr/Repository/local-doc-bro/docbro",
+      "args": [
+        "serve",
+        "--port",
+        "9382"
+      ],
+      "env": {
+        "DOCBRO_MCP_PORT": "9382",
+        "DOCBRO_DATABASE_PATH": "/Users/alexandr/.docbro/docbro.db",
+        "DOCBRO_QDRANT_URL": "http://localhost:6333",
+        "DOCBRO_REDIS_URL": "redis://localhost:6379",
+        "DOCBRO_OLLAMA_URL": "http://localhost:11434",
+        "DOCBRO_EMBEDDING_MODEL": "mxbai-embed-large",
+        "DOCBRO_LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}
