@@ -355,3 +355,60 @@ async def integration_qdrant_client(docker_services):
             client.delete_collection(collection.name)
 
 
+# Docker container testing fixtures for setup wizard
+@pytest.fixture
+def mock_docker_client() -> MagicMock:
+    """Mock Docker client for container testing."""
+    mock_client = MagicMock()
+
+    # Mock container operations
+    mock_container = MagicMock()
+    mock_container.name = "docbro-memory-qdrant"
+    mock_container.status = "running"
+    mock_container.ports = {"6333/tcp": [{"HostPort": "6333"}]}
+    mock_container.attrs = {"Config": {"Image": "qdrant/qdrant"}}
+
+    # Mock client methods
+    mock_client.containers.list.return_value = [mock_container]
+    mock_client.containers.get.return_value = mock_container
+    mock_client.containers.run.return_value = mock_container
+    mock_client.ping.return_value = True
+    mock_client.images.pull.return_value = MagicMock()
+
+    return mock_client
+
+
+@pytest.fixture
+def docker_container_test_env(mock_docker_client, temp_dir):
+    """Test environment for Docker container operations."""
+    return {
+        "docker_client": mock_docker_client,
+        "temp_dir": temp_dir,
+        "container_name": "docbro-memory-qdrant",
+        "test_port": 6333,
+        "test_image": "qdrant/qdrant:latest"
+    }
+
+
+@pytest.fixture
+def mock_progress_callback():
+    """Mock progress callback for setup wizard testing."""
+    def callback(step_id: str, status: str, message: str = "", duration: float = 0.0):
+        """Mock progress callback that captures step updates."""
+        pass
+    return MagicMock(side_effect=callback)
+
+
+@pytest.fixture
+def setup_wizard_test_context(docker_container_test_env, mock_progress_callback):
+    """Complete test context for setup wizard testing."""
+    return {
+        **docker_container_test_env,
+        "progress_callback": mock_progress_callback,
+        "retry_policy": {
+            "max_attempts": 3,
+            "delays": [2.0, 4.0, 8.0]
+        }
+    }
+
+

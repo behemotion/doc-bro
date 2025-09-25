@@ -497,8 +497,11 @@ def crawl(ctx: click.Context, name: Optional[str], max_pages: Optional[int],
                     app.console.print(f"[yellow]⚠ Warning: Failed to update project statistics: {e}[/yellow]")
 
                 # Index crawled pages for search
+                indexed_chunks_count = 0
                 if session.pages_crawled > 0:
-                    app.console.print("\n[yellow]Indexing pages for search...[/yellow]")
+                    from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn
+
+                    app.console.print("\n[cyan]Indexing pages for search...[/cyan]")
 
                     # Get crawled pages
                     pages = await app.db_manager.get_project_pages(project.id)
@@ -516,13 +519,99 @@ def crawl(ctx: click.Context, name: Optional[str], max_pages: Optional[int],
                         for page in pages
                         if page.content_text
                     ]
-
                     if documents:
                         collection_name = f"project_{project.id}"
-                        indexed = await app.rag_service.index_documents(
-                            collection_name, documents
-                        )
-                        app.console.print(f"[green]✓[/green] Indexed {indexed} document chunks")
+
+                        # Progress tracking variables
+                        embedding_task = None
+                        progress = None
+
+                        def progress_callback(event_type: str, data: dict):
+                            nonlocal embedding_task, progress, indexed_chunks_count
+
+                            if event_type == "indexing_started":
+                                app.console.print(f"[cyan]Processing {data['total_documents']} documents into ~{data['estimated_chunks']} chunks[/cyan]")
+                                progress = Progress(
+                                    SpinnerColumn(),
+                                    TextColumn("[progress.description]{task.description}"),
+                                    BarColumn(),
+                                    TaskProgressColumn(),
+                                    TimeElapsedColumn(),
+                                    console=app.console
+                                )
+                                progress.start()
+                                embedding_task = progress.add_task(
+                                    "Creating embeddings...",
+                                    total=data['estimated_chunks']
+                                )
+
+                            elif event_type == "embedding_progress":
+                                if progress and embedding_task is not None:
+                                    progress.update(
+                                        embedding_task,
+                                        completed=data['current_chunk'],
+                                        description=f"Embedding '{data['document_title'][:30]}...' ({data['current_document']}/{data['total_documents']})"
+                                    )
+
+                            elif event_type == "storing_embeddings":
+                                if progress and embedding_task is not None:
+                                    progress.update(
+                                        embedding_task,
+                                        description=f"Storing {data['total_embeddings']} embeddings to vector database..."
+                                    )
+
+                            elif event_type == "indexing_completed":
+                                if progress:
+                                    progress.stop()
+                                indexed_chunks_count = data['chunks_indexed']
+                                app.console.print(f"[green]✓[/green] Successfully indexed {data['chunks_indexed']} chunks from {data['original_documents']} documents")
+
+                            elif event_type == "indexing_failed":
+                                if progress:
+                                    progress.stop()
+                                app.console.print(f"[red]✗[/red] Indexing failed: {data['error']}")
+
+                        try:
+                            indexed = await app.rag_service.index_documents(
+                                collection_name, documents, progress_callback=progress_callback
+                            )
+
+                        except Exception as e:
+                            if progress:
+                                progress.stop()
+                            app.console.print(f"[red]✗[/red] Indexing failed: {e}")
+                            raise
+
+            # Final completion summary
+            app.console.print("\n" + "="*60)
+            app.console.print("[bold green]🎉 CRAWL AND INDEXING COMPLETED SUCCESSFULLY 🎉[/bold green]")
+            app.console.print("="*60)
+
+            if session:
+                # Calculate final statistics
+                total_time = session.get_duration()
+                success_rate = ((session.pages_crawled - session.pages_failed) / session.pages_crawled * 100) if session.pages_crawled > 0 else 0
+
+                app.console.print(f"[bold]Project:[/bold] {name}")
+                app.console.print(f"[bold]Duration:[/bold] {total_time:.1f}s")
+                app.console.print(f"[bold]Pages Crawled:[/bold] {session.pages_crawled}")
+                app.console.print(f"[bold]Pages Failed:[/bold] {session.pages_failed}")
+                app.console.print(f"[bold]Success Rate:[/bold] {success_rate:.1f}%")
+
+                if session.pages_crawled > 0:
+                    # Get final document count
+                    final_pages = await app.db_manager.get_project_pages(project.id)
+                    documents_with_content = [p for p in final_pages if p.content_text]
+
+                    app.console.print(f"[bold]Documents Indexed:[/bold] {len(documents_with_content)}")
+                    if indexed_chunks_count > 0:
+                        app.console.print(f"[bold]Chunks Created:[/bold] {indexed_chunks_count}")
+
+                app.console.print(f"[bold]Status:[/bold] [green]Ready for search[/green]")
+
+            app.console.print("="*60)
+            app.console.print(f"[dim]You can now search this project with:[/dim] [cyan]docbro search \"your query\" --project {name}[/cyan]")
+            app.console.print()
 
         except Exception as e:
             app.console.print(f"[red]✗ Failed during crawl: {e}[/red]")

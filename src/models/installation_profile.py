@@ -1,14 +1,96 @@
-"""Installation Profile model for UV/UVX installation feature."""
+"""Installation Profile model for UV/UVX installation feature and setup wizard."""
 
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 from uuid import UUID, uuid4
 import re
 import os
+import sys
+import platform
 from packaging import version
+from enum import Enum
 
 from pydantic import BaseModel, Field, field_validator, ConfigDict
+
+
+class InstallationState(Enum):
+    """Installation state enumeration for setup wizard"""
+    NOT_STARTED = "not_started"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    ROLLED_BACK = "rolled_back"
+
+
+class SystemInfo(BaseModel):
+    """System information for installation validation"""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    python_version: str = Field(..., description="Current Python version")
+    platform: str = Field(..., description="Operating system platform")
+    available_memory_gb: float = Field(..., description="Available memory in GB")
+    available_disk_gb: float = Field(..., description="Available disk space in GB")
+    docker_available: bool = Field(..., description="Docker daemon availability")
+
+    @classmethod
+    def detect_current_system(cls) -> "SystemInfo":
+        """Detect current system information"""
+        import shutil
+        import psutil
+
+        # Get Python version
+        python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+
+        # Get platform
+        system_platform = platform.system().lower()
+
+        # Get available memory in GB
+        memory = psutil.virtual_memory()
+        available_memory_gb = memory.available / (1024**3)
+
+        # Get available disk space in GB
+        disk = shutil.disk_usage('/')
+        available_disk_gb = disk.free / (1024**3)
+
+        # Check Docker availability
+        docker_available = False
+        try:
+            import docker
+            client = docker.from_env()
+            client.ping()
+            docker_available = True
+        except Exception:
+            docker_available = False
+
+        return cls(
+            python_version=python_version,
+            platform=system_platform,
+            available_memory_gb=available_memory_gb,
+            available_disk_gb=available_disk_gb,
+            docker_available=docker_available
+        )
+
+    def validate_requirements(self) -> Dict[str, bool]:
+        """Validate system requirements against installation criteria"""
+        return {
+            "python_version": self._validate_python_version(),
+            "memory": self.available_memory_gb >= 4.0,  # ≥4GB RAM requirement
+            "disk": self.available_disk_gb >= 2.0,      # ≥2GB disk requirement
+            "docker": self.docker_available             # Docker availability
+        }
+
+    def _validate_python_version(self) -> bool:
+        """Validate Python version is 3.13+"""
+        try:
+            version_parts = self.python_version.split('.')
+            major = int(version_parts[0])
+            minor = int(version_parts[1])
+
+            # Python 3.13+ requirement
+            return major > 3 or (major == 3 and minor >= 13)
+        except (ValueError, IndexError):
+            return False
 
 
 class InstallationProfile(BaseModel):
@@ -38,6 +120,18 @@ class InstallationProfile(BaseModel):
     data_dir: Path = Field(..., description="Data directory (XDG compliant)")
     cache_dir: Path = Field(..., description="Cache directory (XDG compliant)")
 
+    # Setup wizard enhancements
+    system_info: Optional[SystemInfo] = Field(None, description="System information for validation")
+    service_statuses: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Status of external services (Docker, Qdrant, etc.)"
+    )
+    installation_state: InstallationState = Field(
+        default=InstallationState.NOT_STARTED,
+        description="Current installation state"
+    )
+    configuration_path: Optional[Path] = Field(None, description="Path to configuration file")
+
     # User configuration and preferences
     user_preferences: Dict[str, Any] = Field(
         default_factory=dict,
@@ -53,6 +147,9 @@ class InstallationProfile(BaseModel):
         None,
         description="Installation completion timestamp"
     )
+
+    # Error tracking
+    error_message: Optional[str] = Field(None, description="Error message if installation failed")
 
     @field_validator('install_method')
     @classmethod
@@ -183,4 +280,83 @@ class InstallationProfile(BaseModel):
             "duration_seconds": self.get_duration(),
             "created_at": self.created_at.isoformat(),
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "installation_state": self.installation_state.value,
+            "error_message": self.error_message
         }
+
+    # Setup wizard specific methods
+    def start_installation(self) -> None:
+        """Mark installation as started"""
+        self.installation_state = InstallationState.IN_PROGRESS
+
+    def complete_installation(self) -> None:
+        """Mark installation as completed successfully"""
+        self.installation_state = InstallationState.COMPLETED
+        self.mark_completed()
+
+    def fail_installation(self, error_message: str) -> None:
+        """Mark installation as failed with error message"""
+        self.installation_state = InstallationState.FAILED
+        self.error_message = error_message
+        self.mark_completed()
+
+    def rollback_installation(self) -> None:
+        """Mark installation as rolled back"""
+        self.installation_state = InstallationState.ROLLED_BACK
+        self.mark_completed()
+
+    def is_requirements_valid(self) -> bool:
+        """Check if system requirements are valid for installation"""
+        if not self.system_info:
+            return False
+        requirements = self.system_info.validate_requirements()
+        return all(requirements.values())
+
+    def get_failed_requirements(self) -> List[str]:
+        """Get list of failed requirement names"""
+        if not self.system_info:
+            return ["system_info_missing"]
+        requirements = self.system_info.validate_requirements()
+        return [name for name, passed in requirements.items() if not passed]
+
+    def update_service_status(self, service_name: str, status: Any) -> None:
+        """Update status for a specific service"""
+        self.service_statuses[service_name] = status
+
+    def get_service_status(self, service_name: str) -> Optional[Any]:
+        """Get status for a specific service"""
+        return self.service_statuses.get(service_name)
+
+    def set_configuration_path(self, path: Path) -> None:
+        """Set the configuration directory path"""
+        self.configuration_path = path
+
+    def detect_system_info(self) -> None:
+        """Detect and set current system information"""
+        self.system_info = SystemInfo.detect_current_system()
+
+
+class InstallationStateTransitions:
+    """Validates installation state transitions"""
+
+    VALID_TRANSITIONS = {
+        InstallationState.NOT_STARTED: [InstallationState.IN_PROGRESS],
+        InstallationState.IN_PROGRESS: [
+            InstallationState.COMPLETED,
+            InstallationState.FAILED,
+            InstallationState.ROLLED_BACK
+        ],
+        InstallationState.FAILED: [InstallationState.ROLLED_BACK, InstallationState.IN_PROGRESS],
+        InstallationState.COMPLETED: [],  # Terminal state
+        InstallationState.ROLLED_BACK: [InstallationState.IN_PROGRESS]  # Can restart
+    }
+
+    @classmethod
+    def is_valid_transition(cls, from_state: InstallationState, to_state: InstallationState) -> bool:
+        """Check if state transition is valid"""
+        return to_state in cls.VALID_TRANSITIONS.get(from_state, [])
+
+    @classmethod
+    def get_valid_next_states(cls, current_state: InstallationState) -> List[InstallationState]:
+        """Get list of valid next states from current state"""
+        return cls.VALID_TRANSITIONS.get(current_state, [])

@@ -7,10 +7,22 @@ from src.models.uninstall_config import UninstallConfig
 from src.models.uninstall_progress import UninstallProgress
 from src.models.component_status import ComponentStatus, RemovalStatus
 from src.models.removal_operation import RemovalOperation, OperationType
+from src.models.uninstall_inventory import UninstallComponent, ComponentType
 from src.services.component_detection import ComponentDetectionService
 from src.services.removal_executor import RemovalExecutor
 from src.services.backup_service import BackupService
 from src.core.lib_logger import get_logger
+import docker
+import asyncio
+
+
+class UninstallWarning:
+    """Uninstall warning data structure for contract compliance"""
+    def __init__(self, message: str, data_types: List[str], is_irreversible: bool, estimated_data_loss: str):
+        self.message = message
+        self.data_types = data_types
+        self.is_irreversible = is_irreversible
+        self.estimated_data_loss = estimated_data_loss
 
 logger = get_logger(__name__)
 
@@ -266,4 +278,202 @@ class UninstallService:
                 logger.info(f"Retrying operation (attempt {operation.retry_count}/{operation.max_retries})")
                 return await self._execute_operation(operation, config)
 
+            return False
+
+    async def scan_installed_components(self) -> List[UninstallComponent]:
+        """Scan and return all installed DocBro components."""
+        components = await self.detection_service.detect_all_components()
+        uninstall_components = []
+
+        # Convert containers
+        for container in components.get('containers', []):
+            name = container.get('Names', ['/unknown'])[0].lstrip('/') if isinstance(container, dict) else str(container)
+            uninstall_components.append(UninstallComponent(
+                component_type=ComponentType.CONTAINER,
+                name=name,
+                path=None,
+                size_mb=0,  # Could be calculated from container size
+                is_external=False
+            ))
+
+        # Convert volumes
+        for volume in components.get('volumes', []):
+            name = volume.get('Name', 'unknown') if isinstance(volume, dict) else str(volume)
+            uninstall_components.append(UninstallComponent(
+                component_type=ComponentType.VOLUME,
+                name=name,
+                path=None,
+                size_mb=0,  # Could be calculated from volume size
+                is_external=getattr(volume, 'is_external', False) if hasattr(volume, 'is_external') else False
+            ))
+
+        # Convert directories
+        for directory in components.get('directories', []):
+            path = str(directory.component_path) if hasattr(directory, 'component_path') else str(directory)
+            uninstall_components.append(UninstallComponent(
+                component_type=ComponentType.DIRECTORY,
+                name=Path(path).name,
+                path=path,
+                size_mb=0,  # Could be calculated from directory size
+                is_external=False
+            ))
+
+        # Convert configs
+        for config in components.get('configs', []):
+            path = str(config.component_path) if hasattr(config, 'component_path') else str(config)
+            uninstall_components.append(UninstallComponent(
+                component_type=ComponentType.CONFIG_FILE,
+                name=Path(path).name,
+                path=path,
+                size_mb=0,  # Config files are typically small
+                is_external=False
+            ))
+
+        # Add package component
+        if components.get('package'):
+            uninstall_components.append(UninstallComponent(
+                component_type=ComponentType.PACKAGE,
+                name="docbro",
+                path=None,
+                size_mb=0,
+                is_external=False
+            ))
+
+        return uninstall_components
+
+    async def check_running_services(self) -> List[str]:
+        """Check for running DocBro services that need shutdown."""
+        running_services = []
+
+        try:
+            client = docker.from_env()
+            containers = client.containers.list()
+
+            for container in containers:
+                # Check if it's a DocBro-related container
+                container_name = container.name
+                if any(keyword in container_name.lower() for keyword in ['docbro', 'qdrant']):
+                    if container.status == 'running':
+                        running_services.append(container_name)
+
+        except Exception as e:
+            logger.warning(f"Failed to check running services: {e}")
+
+        return running_services
+
+    def generate_uninstall_warning(self, components: List[UninstallComponent]) -> UninstallWarning:
+        """Generate warning about data loss and irreversible actions."""
+        data_types = []
+        total_size = sum(comp.size_mb for comp in components)
+
+        # Identify data types that will be lost
+        for component in components:
+            if component.component_type == ComponentType.VOLUME:
+                data_types.append("Vector database data")
+            elif component.component_type == ComponentType.DIRECTORY:
+                if "data" in component.name.lower() or "cache" in component.name.lower():
+                    data_types.append("Application data")
+            elif component.component_type == ComponentType.CONFIG_FILE:
+                data_types.append("Configuration files")
+
+        if not data_types:
+            data_types = ["Application components"]
+
+        message = (
+            f"This will permanently remove DocBro and all associated data.\n"
+            f"Components to be removed: {len(components)}\n"
+            f"Data types affected: {', '.join(set(data_types))}"
+        )
+
+        return UninstallWarning(
+            message=message,
+            data_types=list(set(data_types)),
+            is_irreversible=True,
+            estimated_data_loss=f"{total_size:.1f}MB" if total_size > 0 else "Unknown size"
+        )
+
+    async def stop_all_services(self, service_names: List[str]) -> Dict[str, bool]:
+        """Stop all running DocBro services before uninstall."""
+        results = {}
+
+        try:
+            client = docker.from_env()
+
+            for service_name in service_names:
+                try:
+                    container = client.containers.get(service_name)
+                    if container.status == 'running':
+                        logger.info(f"Stopping service: {service_name}")
+                        container.stop(timeout=10)
+                        results[service_name] = True
+                    else:
+                        results[service_name] = True  # Already stopped
+                except docker.errors.NotFound:
+                    results[service_name] = True  # Container doesn't exist
+                except Exception as e:
+                    logger.error(f"Failed to stop {service_name}: {e}")
+                    results[service_name] = False
+
+        except Exception as e:
+            logger.error(f"Failed to connect to Docker: {e}")
+            for service_name in service_names:
+                results[service_name] = False
+
+        return results
+
+    async def execute_uninstall(
+        self,
+        components: List[UninstallComponent],
+        force: bool = False,
+        preserve_external: bool = True
+    ) -> Dict[str, Any]:
+        """Execute the uninstall process."""
+        # Convert UninstallComponent list to the format expected by existing execute method
+        components_dict = {
+            'containers': [],
+            'volumes': [],
+            'directories': [],
+            'configs': [],
+            'package': None
+        }
+
+        for component in components:
+            if component.component_type == ComponentType.CONTAINER:
+                components_dict['containers'].append({'Names': [f'/{component.name}'], 'Id': component.name})
+            elif component.component_type == ComponentType.VOLUME:
+                vol_obj = type('Volume', (), {'Name': component.name, 'is_external': component.is_external})()
+                components_dict['volumes'].append(vol_obj)
+            elif component.component_type == ComponentType.DIRECTORY:
+                dir_obj = type('Directory', (), {'component_path': Path(component.path)})()
+                components_dict['directories'].append(dir_obj)
+            elif component.component_type == ComponentType.CONFIG_FILE:
+                config_obj = type('Config', (), {'component_path': Path(component.path)})()
+                components_dict['configs'].append(config_obj)
+            elif component.component_type == ComponentType.PACKAGE:
+                components_dict['package'] = component.name
+
+        # Create config for execution
+        config = UninstallConfig(
+            force=force,
+            dry_run=False,
+            backup=False
+        )
+
+        return await self.execute(config, components_dict, preserve_external)
+
+    async def rollback_uninstall(self, backup_path: str) -> bool:
+        """Rollback uninstall using backup (if available)."""
+        if not backup_path:
+            logger.error("No backup path provided for rollback")
+            return False
+
+        try:
+            logger.info(f"Attempting rollback from backup: {backup_path}")
+            # This would typically restore from backup
+            # Implementation depends on backup format and restoration logic
+            result = await self.backup_service.restore_backup(backup_path)
+            logger.info("Rollback completed successfully")
+            return result
+        except Exception as e:
+            logger.error(f"Rollback failed: {e}")
             return False

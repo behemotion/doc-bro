@@ -471,7 +471,8 @@ class RAGSearchService:
         collection_name: str,
         documents: List[Dict[str, Any]],
         chunk_size: Optional[int] = None,
-        chunk_overlap: Optional[int] = None
+        chunk_overlap: Optional[int] = None,
+        progress_callback: Optional[callable] = None
     ) -> int:
         """Index documents for search."""
         if not documents:
@@ -485,15 +486,44 @@ class RAGSearchService:
             if not await self.vector_store.collection_exists(collection_name):
                 await self.vector_store.create_collection(collection_name)
 
+            # First pass: Calculate total chunks for progress tracking
+            total_chunks = 0
+            for doc in documents:
+                content = doc.get("content", "")
+                if content:
+                    # Estimate chunks without actually creating them
+                    estimated_chunks = max(1, len(content) // chunk_size + (1 if len(content) % chunk_size > 0 else 0))
+                    total_chunks += estimated_chunks
+
+            if progress_callback:
+                progress_callback("indexing_started", {
+                    "total_documents": len(documents),
+                    "estimated_chunks": total_chunks,
+                    "phase": "chunking_and_embedding"
+                })
+
             # Chunk and embed documents
             processed_documents = []
+            current_chunk = 0
 
-            for doc in documents:
+            for doc_idx, doc in enumerate(documents):
                 chunks = await self.chunk_document(
                     doc, chunk_size, chunk_overlap
                 )
 
                 for chunk in chunks:
+                    current_chunk += 1
+
+                    if progress_callback:
+                        progress_callback("embedding_progress", {
+                            "current_chunk": current_chunk,
+                            "total_chunks": total_chunks,
+                            "current_document": doc_idx + 1,
+                            "total_documents": len(documents),
+                            "document_title": doc.get("title", "Untitled"),
+                            "progress_percent": int((current_chunk / total_chunks) * 100)
+                        })
+
                     # Create embedding for chunk content
                     embedding = await self.embedding_service.create_embedding(
                         chunk["content"]
@@ -514,10 +544,23 @@ class RAGSearchService:
                     }
                     processed_documents.append(processed_doc)
 
+            if progress_callback:
+                progress_callback("storing_embeddings", {
+                    "total_embeddings": len(processed_documents),
+                    "phase": "vector_storage"
+                })
+
             # Batch insert into vector store
             indexed_count = await self.vector_store.upsert_documents(
                 collection_name, processed_documents
             )
+
+            if progress_callback:
+                progress_callback("indexing_completed", {
+                    "original_documents": len(documents),
+                    "chunks_indexed": indexed_count,
+                    "collection_name": collection_name
+                })
 
             self.logger.info("Documents indexed", extra={
                 "collection_name": collection_name,
@@ -528,6 +571,12 @@ class RAGSearchService:
             return indexed_count
 
         except Exception as e:
+            if progress_callback:
+                progress_callback("indexing_failed", {
+                    "error": str(e),
+                    "documents_count": len(documents)
+                })
+
             self.logger.error("Failed to index documents", extra={
                 "collection_name": collection_name,
                 "documents_count": len(documents),
