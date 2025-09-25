@@ -18,7 +18,7 @@ class TestSetupWizardState:
             completed_steps=["welcome", "python_check"],
             services_to_install=["docker", "ollama"],
             user_preferences={"skip_docker": False, "port": 8000},
-            skip_services=["redis"],
+            skip_services=["qdrant"],
             setup_start_time=datetime.now()
         )
 
@@ -75,7 +75,7 @@ class TestSetupWizardState:
 
     def test_services_to_install_validation(self):
         """Test that services_to_install contains only valid service names."""
-        valid_services = ["docker", "ollama", "redis", "qdrant"]
+        valid_services = ["docker", "ollama", "qdrant"]
 
         state = SetupWizardState(
             current_step="service_install",
@@ -123,7 +123,7 @@ class TestSetupWizardState:
 
     def test_skip_services_list(self):
         """Test skip_services list validation."""
-        skip_list = ["redis", "qdrant"]
+        skip_list = ["docker", "qdrant"]
 
         state = SetupWizardState(
             current_step="service_install",
@@ -135,7 +135,7 @@ class TestSetupWizardState:
         )
 
         assert state.skip_services == skip_list
-        assert "redis" in state.skip_services
+        assert "docker" in state.skip_services
         assert "docker" not in state.skip_services
 
     def test_setup_start_time_tracking(self):
@@ -163,7 +163,7 @@ class TestSetupWizardState:
             current_step="service_install",
             completed_steps=["welcome", "python_check", "service_check"],
             services_to_install=["docker", "ollama"],
-            user_preferences={"port": 8000, "skip_redis": True},
+            user_preferences={"port": 8000, "skip_ollama": True},
             skip_services=["qdrant"],
             setup_start_time=datetime(2025, 1, 25, 10, 30, 0)
         )

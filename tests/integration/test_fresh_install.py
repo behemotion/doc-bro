@@ -93,11 +93,11 @@ class TestFreshInstallScenario:
         assert docker_status.name == "docker"
         assert docker_status.last_checked is not None
 
-        # Test async service detection
+        # Test async service detection (Redis removed)
         services = await detection_service.check_all_services()
         assert "docker" in services
         assert "ollama" in services
-        assert "redis" in services
+        assert "redis" not in services  # Redis should not be checked
         assert "qdrant" in services
 
         for service_name, status in services.items():
@@ -255,3 +255,40 @@ class TestFreshInstallScenario:
 
         # Core configuration operations should complete in well under 1 second
         assert duration < 1.0, f"Installation operations took {duration:.2f}s, should be under 1.0s"
+
+    @pytest.mark.asyncio
+    async def test_setup_wizard_skips_redis(self, mock_platformdirs, temp_home):
+        """Test that setup wizard doesn't check for Redis."""
+        wizard = SetupWizardService()
+        detection_service = ServiceDetectionService()
+
+        # Get services to check
+        services = await detection_service.check_all_services()
+
+        # Redis should not be in the list of services to check
+        assert "redis" not in services
+
+        # Verify setup prompts don't include Redis
+        # This would be in the actual wizard flow
+        service_prompts = wizard.get_service_prompts()
+        assert "redis" not in str(service_prompts).lower()
+
+    def test_fresh_install_without_redis_config(self, mock_platformdirs, temp_home):
+        """Test fresh installation doesn't create Redis configuration."""
+        config_service = ConfigService()
+
+        # Create installation context
+        context = config_service.create_installation_context(
+            install_method="uvx",
+            version="2.0.0",  # Version after Redis removal
+            python_version="3.13.1"
+        )
+
+        # Load configuration
+        from src.core.config import DocBroConfig
+        config = DocBroConfig()
+
+        # Verify no Redis configuration exists
+        assert not hasattr(config, 'redis_url')
+        assert not hasattr(config, 'redis_password')
+        assert not hasattr(config, 'redis_deployment')

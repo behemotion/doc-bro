@@ -154,7 +154,6 @@ class LoggingManager:
             "httpx": logging.WARNING,
             "httpcore": logging.WARNING,
             "qdrant_client": logging.INFO,
-            "redis": logging.WARNING,
             "scrapy": logging.INFO,
             "twisted": logging.WARNING,
             "urllib3": logging.WARNING,

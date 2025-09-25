@@ -86,7 +86,7 @@ class ServiceStatus(BaseModel):
     @classmethod
     def validate_name(cls, v: str) -> str:
         """Validate service name is supported."""
-        supported_services = {"docker", "ollama", "redis", "qdrant"}
+        supported_services = {"docker", "ollama", "qdrant"}  # Redis removed
         if v not in supported_services:
             raise ValueError(f"name must be one of {supported_services}")
         return v
@@ -123,7 +123,7 @@ class SetupWizardState(BaseModel):
     @classmethod
     def validate_service_lists(cls, v: List[str]) -> List[str]:
         """Validate service names in lists."""
-        valid_services = {"docker", "ollama", "redis", "qdrant"}
+        valid_services = {"docker", "ollama", "qdrant"}  # Redis removed
         for service in v:
             if service not in valid_services:
                 raise ValueError(f"Service '{service}' not in {valid_services}")

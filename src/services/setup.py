@@ -264,7 +264,7 @@ This setup wizard will help you configure DocBro for first use.
             "docker": {
                 "title": "Docker Installation",
                 "content": """
-Docker is required for running Qdrant and Redis services.
+Docker is required for running Qdrant service.
 
 [bold]Installation:[/bold]
 • macOS: Download Docker Desktop from https://docker.com/products/docker-desktop
@@ -286,20 +286,6 @@ Ollama provides local AI embeddings for document search.
 After installation, start Ollama and pull the embedding model:
 • ollama serve
 • ollama pull mxbai-embed-large
-                """.strip()
-            },
-            "redis": {
-                "title": "Redis Installation",
-                "content": """
-Redis is used for caching and task queues.
-
-[bold]Via Docker (recommended):[/bold]
-• docker run -d -p 6379:6379 redis:7-alpine
-
-[bold]Native installation:[/bold]
-• macOS: brew install redis
-• Ubuntu: sudo apt install redis-server
-• Windows: Use Docker or WSL
                 """.strip()
             },
             "qdrant": {

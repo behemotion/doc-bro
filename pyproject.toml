@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "docbro"
-version = "0.2.0"
+version = "0.2.1"
 description = "Documentation crawler and search tool with RAG capabilities and MCP server integration"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -28,7 +28,6 @@ dependencies = [
     "click>=8.1.0",
     "rich>=13.0.0",
     "qdrant-client>=1.7.0",
-    "redis>=4.5.0",
     "fastapi>=0.100.0",
     "uvicorn>=0.20.0",
     "pydantic>=2.0.0",
@@ -55,7 +54,6 @@ dev = [
     "black>=24.0.0",
     "ruff>=0.7.0",
     "mypy>=1.13.0",
-    "types-redis>=4.6.0",
     "types-beautifulsoup4>=4.12.0",
 ]
 
