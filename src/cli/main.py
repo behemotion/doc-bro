@@ -131,20 +131,48 @@ def run_async(coro):
     return asyncio.run(coro)
 
 
-@click.group()
+@click.group(invoke_without_command=True)
 @click.version_option(version="1.0.0")
 @click.option("--config-file", type=click.Path(exists=True), help="Configuration file path")
 @click.option("--verbose", "-v", is_flag=True, help="Verbose output")
+@click.option("--debug", is_flag=True, help="Enable debug output")
+@click.option("--quiet", "-q", is_flag=True, help="Suppress non-essential output")
+@click.option("--json", is_flag=True, help="Output in JSON format")
+@click.option("--no-color", is_flag=True, help="Disable colored output")
+@click.option("--no-progress", is_flag=True, help="Disable progress indicators")
 @click.pass_context
-def main(ctx: click.Context, config_file: Optional[str], verbose: bool):
+def main(ctx: click.Context, config_file: Optional[str], verbose: bool, debug: bool,
+         quiet: bool, json: bool, no_color: bool, no_progress: bool):
     """DocBro - Documentation crawler and search tool."""
     ctx.ensure_object(dict)
 
-    # Load configuration
-    if config_file:
-        ctx.obj["config_file"] = config_file
-
+    # Store all flags in context
+    ctx.obj["config_file"] = config_file
     ctx.obj["verbose"] = verbose
+    ctx.obj["debug"] = debug
+    ctx.obj["quiet"] = quiet
+    ctx.obj["json"] = json
+    ctx.obj["no_color"] = no_color
+    ctx.obj["no_progress"] = no_progress
+
+    # Handle debug mode
+    if debug:
+        # Import and configure debug manager
+        from src.services.debug_manager import DebugManager
+        debug_mgr = DebugManager()
+        debug_mgr.enable_debug()
+
+    # Show help suggestion when no command provided
+    if ctx.invoked_subcommand is None:
+        console = Console()
+        console.print("DocBro CLI\n")
+        console.print("No command specified. Try 'docbro --help' for available commands.\n")
+        console.print("Quick start:")
+        console.print("  docbro create                 Create a new documentation project")
+        console.print("  docbro crawl                  Crawl documentation for a project")
+        console.print("  docbro search                 Search indexed documentation")
+        console.print("  docbro --help                Show all available commands")
+        ctx.exit(0)
 
     # Initialize app
     global app
@@ -157,43 +185,72 @@ def main(ctx: click.Context, config_file: Optional[str], verbose: bool):
 
 
 @main.command()
-@click.argument("name")
-@click.option("--url", "-u", required=True, help="Source URL to crawl (quote URLs with special characters)")
+@click.argument("name", required=False)
+@click.option("--url", "-u", help="Source URL to crawl (quote URLs with special characters)")
 @click.option("--depth", "-d", default=2, type=int, help="Maximum crawl depth")
 @click.option("--model", "-m", default="mxbai-embed-large", help="Embedding model")
 @click.pass_context
-def create(ctx: click.Context, name: str, url: str, depth: int, model: str):
+def create(ctx: click.Context, name: Optional[str], url: Optional[str], depth: int, model: str):
     """Create a new documentation project.
 
     Note: URLs with special characters (?, &, etc.) must be quoted:
     docbro create myproject -u "https://example.com?param=value"
+
+    Run without arguments to launch interactive wizard:
+    docbro create
     """
     async def _create():
         app = get_app()
+
+        # If no name provided, launch interactive wizard
+        if not name:
+            from src.services.wizard_manager import WizardManager
+            wizard = WizardManager()
+
+            project_config = await wizard.create_project_wizard()
+
+            if not project_config:
+                app.console.print("[yellow]Wizard cancelled[/yellow]")
+                return
+
+            # Use wizard results
+            name_to_use = project_config["name"]
+            url_to_use = project_config["url"]
+            depth_to_use = project_config.get("depth", depth)
+            model_to_use = project_config.get("model", model)
+        else:
+            # Require URL if name is provided
+            if not url:
+                raise click.ClickException("URL is required when providing project name")
+            name_to_use = name
+            url_to_use = url
+            depth_to_use = depth
+            model_to_use = model
+
         await app.initialize()
 
         try:
             # Check if URL looks suspicious (might have been affected by shell glob expansion)
-            if url and not url.startswith(('http://', 'https://', 'file://')):
+            if url_to_use and not url_to_use.startswith(('http://', 'https://', 'file://')):
                 app.console.print("[yellow]⚠ Warning: URL doesn't start with http://, https://, or file://[/yellow]")
                 app.console.print("[yellow]  If your URL contains special characters (?, &, *, [, ]), you must quote it:[/yellow]")
                 app.console.print('[yellow]  Example: docbro create myproject -u "https://example.com?param=value"[/yellow]')
 
             # Additional check for common shell expansion issues
             import os
-            if url and os.path.exists(url) and not url.startswith('file://'):
+            if url_to_use and os.path.exists(url_to_use) and not url_to_use.startswith('file://'):
                 app.console.print("[yellow]⚠ Warning: URL appears to be a local file path.[/yellow]")
                 app.console.print("[yellow]  This might be due to shell glob expansion of special characters.[/yellow]")
                 app.console.print('[yellow]  Try quoting your URL: docbro create myproject -u "YOUR_URL_HERE"[/yellow]')
 
             project = await app.db_manager.create_project(
-                name=name,
-                source_url=url,
-                crawl_depth=depth,
-                embedding_model=model
+                name=name_to_use,
+                source_url=url_to_use,
+                crawl_depth=depth_to_use,
+                embedding_model=model_to_use
             )
 
-            app.console.print(f"[green]✓[/green] Project '{name}' created successfully")
+            app.console.print(f"[green]✓[/green] Project '{name_to_use}' created successfully")
             app.console.print(f"  ID: {project.id}")
             app.console.print(f"  URL: {project.source_url}")
             app.console.print(f"  Depth: {project.crawl_depth}")
@@ -274,65 +331,154 @@ def list(ctx: click.Context, status: Optional[str], limit: Optional[int]):
 
 
 @main.command()
-@click.argument("name")
+@click.argument("name", required=False)
 @click.option("--max-pages", "-m", type=int, help="Maximum pages to crawl")
 @click.option("--rate-limit", "-r", default=1.0, type=float, help="Requests per second")
+@click.option("--update", is_flag=True, help="Update existing project(s)")
+@click.option("--all", is_flag=True, help="Process all projects")
+@click.option("--debug", is_flag=True, help="Show detailed crawl output")
 @click.pass_context
-def crawl(ctx: click.Context, name: str, max_pages: Optional[int], rate_limit: float):
-    """Start crawling a project."""
+def crawl(ctx: click.Context, name: Optional[str], max_pages: Optional[int],
+         rate_limit: float, update: bool, all: bool, debug: bool):
+    """Start crawling a project.
+
+    Examples:
+      docbro crawl my-project                  # Crawl a specific project
+      docbro crawl --update my-project        # Update an existing project
+      docbro crawl --update --all             # Update all projects
+    """
     async def _crawl():
         app = get_app()
         await app.initialize()
+
+        # Handle batch operations
+        if all:
+            if not update:
+                raise click.ClickException("--all requires --update flag")
+
+            from src.services.batch_crawler import BatchCrawler
+            from src.services.progress_reporter import ProgressReporter
+
+            try:
+                # Get all projects
+                projects = await app.db_manager.list_projects()
+                if not projects:
+                    app.console.print("No projects found.")
+                    return
+
+                app.console.print(f"Starting batch crawl for {len(projects)} projects\n")
+
+                # Use batch crawler
+                batch_crawler = BatchCrawler()
+                progress_reporter = ProgressReporter() if not debug and not ctx.obj.get("no_progress") else None
+
+                # Process each project sequentially
+                results = await batch_crawler.crawl_all(
+                    projects=projects,
+                    max_pages=max_pages,
+                    rate_limit=rate_limit,
+                    continue_on_error=True,
+                    progress_reporter=progress_reporter
+                )
+
+                # Show summary
+                app.console.print("\n[bold]Batch Crawl Complete[/bold]")
+                app.console.print(f"  Succeeded: {results['succeeded']}")
+                app.console.print(f"  Failed: {results['failed']}")
+                if 'total_pages' in results:
+                    app.console.print(f"  Total pages: {results['total_pages']}")
+
+                if results.get('failures'):
+                    app.console.print("\n[yellow]Failed projects:[/yellow]")
+                    for failure in results['failures']:
+                        app.console.print(f"  - {failure['project']}: {failure['error']}")
+
+            except Exception as e:
+                app.console.print(f"[red]✗ Batch crawl failed: {e}[/red]")
+                raise click.ClickException(str(e))
+            finally:
+                await app.cleanup()
+            return
+
+        # Single project crawl
+        if not name:
+            raise click.ClickException("Project name required (or use --all for batch)")
 
         try:
             project = await app.db_manager.get_project_by_name(name)
             if not project:
                 raise click.ClickException(f"Project '{name}' not found")
 
-            # Start crawl with progress display
-            with app.console.status(f"[yellow]Starting crawl for project '{name}'...[/yellow]"):
+            # Use progress reporter for two-phase progress
+            from src.services.progress_reporter import ProgressReporter
+            from src.services.error_reporter import ErrorReporter
+
+            progress_reporter = ProgressReporter() if not debug and not ctx.obj.get("no_progress") else None
+            error_reporter = ErrorReporter(project_name=name)
+
+            if progress_reporter:
+                # Use two-phase progress display
+                with progress_reporter.crawl_progress():
+                    app.console.print(f"Crawling {name}...\n")
+
+                    # Start crawl
+                    session = await app.crawler.start_crawl(
+                        project_id=project.id,
+                        rate_limit=rate_limit,
+                        max_pages=max_pages,
+                        progress_reporter=progress_reporter,
+                        error_reporter=error_reporter
+                    )
+
+                    # Wait for completion
+                    while True:
+                        await asyncio.sleep(2.0)
+                        session = await app.db_manager.get_crawl_session(session.id)
+                        if not session or session.is_completed():
+                            break
+
+                    # Display phase summary
+                    progress_reporter.print_phase_summary()
+            else:
+                # Debug mode or no progress - simple output
                 session = await app.crawler.start_crawl(
                     project_id=project.id,
                     rate_limit=rate_limit,
-                    max_pages=max_pages
+                    max_pages=max_pages,
+                    error_reporter=error_reporter
                 )
 
-            app.console.print(f"[green]✓[/green] Crawl started for project '{name}'")
-            app.console.print(f"  Session ID: {session.id}")
-            app.console.print(f"  Status: {session.status}")
+                if debug:
+                    app.console.print(f"[green]✓[/green] Crawl started for project '{name}'")
+                    app.console.print(f"  Session ID: {session.id}")
 
-            # Show progress
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                transient=True
-            ) as progress:
-                task = progress.add_task("[cyan]Crawling...", total=None)
-
-                # Wait for completion with periodic updates
+                # Wait for completion with periodic status updates
                 while True:
                     await asyncio.sleep(2.0)
-                    # Give other tasks a chance to run
-                    await asyncio.sleep(0)
-
-                    # Get updated session
                     session = await app.db_manager.get_crawl_session(session.id)
                     if not session:
                         break
 
-                    # Update progress description
-                    progress.update(
-                        task,
-                        description=f"[cyan]Crawling... Pages: {session.pages_crawled}, Errors: {session.error_count}"
-                    )
+                    if debug:
+                        app.console.print(f"[cyan]Status: Pages={session.pages_crawled}, Errors={session.error_count}")
 
-                    # Check if completed
                     if session.is_completed():
                         break
 
             # Final status
             if session:
-                app.console.print(f"\n[green]✓[/green] Crawl completed")
+                # Check for errors and save report if needed
+                if error_reporter.has_errors():
+                    json_path, text_path = error_reporter.save_report()
+                    if session.pages_failed > 0:
+                        app.console.print(f"\n⚠ Crawl completed with {session.pages_failed} errors")
+                    else:
+                        app.console.print(f"\n[green]✓[/green] Crawl completed")
+                    app.console.print(f"Error report saved to: {text_path}")
+                    app.console.print(f"Review errors: open {text_path}")
+                else:
+                    app.console.print(f"\n[green]✓[/green] Crawl completed successfully")
+
                 app.console.print(f"  Pages crawled: {session.pages_crawled}")
                 app.console.print(f"  Pages failed: {session.pages_failed}")
                 app.console.print(f"  Duration: {session.get_duration():.1f}s")
