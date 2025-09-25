@@ -2,7 +2,7 @@
 
 from datetime import datetime, timedelta
 from typing import List, Tuple, Optional, Dict, Any
-from pydantic import BaseModel, Field, field_validator
+from pydantic import ConfigDict, BaseModel, Field, field_validator
 from uuid import uuid4
 
 
@@ -217,8 +217,8 @@ class BatchOperation(BaseModel):
             self.continue_on_error or len(self.failed) == 0
         )
 
-    class Config:
-        """Pydantic configuration."""
-        json_encoders = {
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat()
         }
+    )

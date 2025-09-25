@@ -111,7 +111,9 @@ class DocumentationCrawler:
         project_id: str,
         user_agent: Optional[str] = None,
         rate_limit: float = 1.0,
-        max_pages: Optional[int] = None
+        max_pages: Optional[int] = None,
+        progress_reporter: Optional[Any] = None,
+        error_reporter: Optional[Any] = None
     ) -> CrawlSession:
         """Start a new crawl session for a project."""
         if self._is_running:

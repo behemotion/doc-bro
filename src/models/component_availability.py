@@ -6,7 +6,7 @@ This model tracks detection results and availability status of external dependen
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any
 from pathlib import Path
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import ConfigDict, BaseModel, Field, field_validator, model_validator
 
 from .setup_types import ComponentType, HealthStatus
 
@@ -55,13 +55,13 @@ class ComponentAvailability(BaseModel):
         description="Component-specific capability information"
     )
 
-    class Config:
-        """Pydantic configuration."""
-        use_enum_values = True
-        json_encoders = {
+    model_config = ConfigDict(
+        use_enum_values=True,
+        json_encoders={
             datetime: lambda v: v.isoformat(),
             Path: str
         }
+    )
 
     @field_validator('component_name')
     @classmethod

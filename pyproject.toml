@@ -75,6 +75,7 @@ Issues = "https://github.com/yourusername/docbro/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
+include = ["src/lib/*"]
 
 [tool.black]
 line-length = 88

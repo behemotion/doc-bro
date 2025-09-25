@@ -2,7 +2,7 @@
 
 from typing import Optional
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import ConfigDict, BaseModel, Field
 from pathlib import Path
 
 
@@ -161,7 +161,6 @@ class CliContext(BaseModel):
             "effective_log_level": self.get_effective_log_level().value
         }
 
-    class Config:
-        """Pydantic configuration."""
-        use_enum_values = False
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(
+        use_enum_values = False,        arbitrary_types_allowed = True
+    )

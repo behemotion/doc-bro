@@ -2,7 +2,7 @@
 
 from typing import Dict, Any, List, Optional
 from enum import Enum
-from pydantic import BaseModel, Field, field_validator
+from pydantic import ConfigDict, BaseModel, Field, field_validator
 
 
 class WizardType(str, Enum):
@@ -202,6 +202,6 @@ class WizardState(BaseModel):
         """
         return self.completed and not self.cancelled
 
-    class Config:
-        """Pydantic configuration."""
+    model_config = ConfigDict(
         use_enum_values = False
+    )

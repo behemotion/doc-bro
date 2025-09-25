@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import List, Optional
 from enum import Enum
-from pydantic import BaseModel, Field, field_validator
+from pydantic import ConfigDict, BaseModel, Field, field_validator
 from uuid import uuid4
 
 from src.models.error_entry import ErrorEntry
@@ -131,9 +131,8 @@ class CrawlReport(BaseModel):
             "error_summary": self.get_error_summary()
         }
 
-    class Config:
-        """Pydantic configuration."""
-        use_enum_values = False
-        json_encoders = {
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat()
         }
+    )

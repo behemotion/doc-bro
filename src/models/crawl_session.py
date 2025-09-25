@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from enum import Enum
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 class CrawlStatus(str, Enum):
@@ -51,14 +51,15 @@ class CrawlSession(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
     archived: bool = Field(default=False, description="Whether session is archived")
 
-    class Config:
-        """Pydantic configuration."""
-        json_encoders = {
+    model_config = ConfigDict(
+        use_enum_values=True,
+        json_encoders={
             datetime: lambda v: v.isoformat()
         }
-        use_enum_values = True
+    )
 
-    @validator('rate_limit')
+    @field_validator('rate_limit')
+    @classmethod
     def validate_rate_limit(cls, v):
         """Validate rate limit is reasonable."""
         if v <= 0:
