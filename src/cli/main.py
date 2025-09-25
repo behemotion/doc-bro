@@ -813,6 +813,11 @@ from .service_commands import get_services_command_group
 main.add_command(get_services_command_group())
 
 
+# Import and register uninstall command
+from .uninstall import uninstall
+main.add_command(uninstall)
+
+
 # Create an alias for backward compatibility with tests
 cli = main
 
