@@ -83,3 +83,7 @@ test*.py
 
 # GitHub workflows and actions
 .github/
+
+# Test and validation directories
+tests/
+validation/
