@@ -571,7 +571,7 @@ def create_app(config: Optional[DocBroConfig] = None) -> FastAPI:
 
 def run_mcp_server(
     host: str = "0.0.0.0",
-    port: int = 8000,
+    port: int = 9382,
     config: Optional[DocBroConfig] = None
 ) -> None:
     """Run MCP server."""

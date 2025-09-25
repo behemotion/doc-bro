@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "docbro"
-version = "0.2.1"
+version = "0.2.4"
 description = "Documentation crawler and search tool with RAG capabilities and MCP server integration"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -62,9 +62,6 @@ docbro = "src.cli.main:main"
 
 [project.entry-points."uv.tool"]
 docbro = "src.cli.main:main"
-
-[project.entry-points."uv.tool.post_install"]
-docbro = "src.cli.post_install:main"
 
 
 [project.urls]

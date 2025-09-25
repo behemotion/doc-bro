@@ -6,16 +6,16 @@ networks:
     driver: bridge
 
 services:
-  docbro-qdrant:
+  docbro-memory-qdrant:
     image: qdrant/qdrant:v1.15.1
-    container_name: docbro-qdrant
+    container_name: docbro-memory-qdrant
     networks:
       - docbro
     ports:
       - "6333:6333"
       - "6334:6334"
     volumes:
-      - ./qdrant:/qdrant/storage:z
+      - ./docker/qdrant:/qdrant/storage:z
     environment:
       - QDRANT_LOG_LEVEL=INFO
     restart: unless-stopped

@@ -99,7 +99,7 @@ class SetupLogicService:
                 from pathlib import Path
                 data_path = Path(config.vector_storage.data_path)
                 await self.docker_manager.create_qdrant_container(
-                    container_name="docbro-qdrant",
+                    container_name="docbro-memory-qdrant",
                     port=6333,
                     data_path=data_path
                 )
@@ -190,7 +190,7 @@ class SetupLogicService:
                 from pathlib import Path
                 data_path = Path(config.vector_storage.data_path)
                 await self.docker_manager.create_qdrant_container(
-                    container_name="docbro-qdrant",
+                    container_name="docbro-memory-qdrant",
                     port=6333,
                     data_path=data_path
                 )

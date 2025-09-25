@@ -27,9 +27,10 @@ class MCPDetector:
         """Detect all available MCP clients."""
         clients = []
 
-        # Detect Claude Code
-        claude_code = await self.detect_claude_code()
-        clients.append(claude_code)
+        # Claude Code detection disabled
+        # If you need to re-enable Claude Code detection, uncomment the lines below:
+        # claude_code = await self.detect_claude_code()
+        # clients.append(claude_code)
 
         return clients
 
