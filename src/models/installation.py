@@ -35,7 +35,7 @@ class InstallationContext(BaseModel):
     @classmethod
     def validate_install_method(cls, v: str) -> str:
         """Validate install method is one of allowed values."""
-        allowed_methods = {"uvx", "manual", "development"}
+        allowed_methods = {"uvx", "uv-tool", "manual", "development"}
         if v not in allowed_methods:
             raise ValueError(f"install_method must be one of {allowed_methods}")
         return v

@@ -6,7 +6,7 @@ A powerful CLI tool that crawls documentation websites, creates vector databases
 
 ### Install with UV (Recommended):
 ```bash
-uvx install git+https://github.com/behemotion/doc-bro
+uv tool install git+https://github.com/behemotion/doc-bro
 docbro setup
 ```
 
@@ -39,7 +39,7 @@ Install DocBro globally using UV for persistent access across all your projects:
 
 ```bash
 # Install DocBro globally
-uvx install git+https://github.com/behemotion/doc-bro
+uv tool install git+https://github.com/behemotion/doc-bro
 
 # Run interactive setup wizard
 docbro setup

@@ -39,6 +39,7 @@ dependencies = [
     "platformdirs>=3.0.0",
     "packaging>=23.0",
     "docker>=6.0.0",
+    "psutil>=5.9.0",
 ]
 
 [project.optional-dependencies]
