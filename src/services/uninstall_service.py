@@ -110,12 +110,21 @@ class UninstallService:
             if config.dry_run:
                 logger.info(f"[DRY RUN] Would execute: {operation.get_display_name()}")
                 self.progress.increment_skipped()
+                # Call UI callback if available
+                if hasattr(self, '_ui_callback') and self._ui_callback:
+                    self._ui_callback('skipped')
             else:
                 success = await self._execute_operation(operation, config)
                 if success:
                     self.progress.increment_removed()
+                    # Call UI callback if available
+                    if hasattr(self, '_ui_callback') and self._ui_callback:
+                        self._ui_callback('removed')
                 else:
                     self.progress.increment_failed()
+                    # Call UI callback if available
+                    if hasattr(self, '_ui_callback') and self._ui_callback:
+                        self._ui_callback('failed')
 
                     # Handle failure
                     if not config.force:
