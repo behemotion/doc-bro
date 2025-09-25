@@ -348,6 +348,42 @@ class DatabaseManager:
 
         return project
 
+    async def update_project_statistics(
+        self,
+        project_id: str,
+        total_pages: int,
+        successful_pages: int,
+        failed_pages: int,
+        last_crawl_at: datetime
+    ) -> Project:
+        """Update project crawl statistics."""
+        self._ensure_initialized()
+
+        await self._connection.execute("""
+            UPDATE projects SET
+                total_pages = ?,
+                successful_pages = ?,
+                failed_pages = ?,
+                last_crawl_at = ?,
+                updated_at = ?
+            WHERE id = ?
+        """, (
+            total_pages,
+            successful_pages,
+            failed_pages,
+            last_crawl_at.isoformat(),
+            datetime.utcnow().isoformat(),
+            project_id
+        ))
+
+        await self._connection.commit()
+
+        project = await self.get_project(project_id)
+        if not project:
+            raise DatabaseError(f"Project {project_id} not found")
+
+        return project
+
     async def delete_project(self, project_id: str) -> bool:
         """Delete project and all associated data."""
         self._ensure_initialized()

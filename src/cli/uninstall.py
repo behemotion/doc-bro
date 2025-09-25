@@ -268,14 +268,34 @@ async def run_uninstall(config: UninstallConfig):
 
                 async def execute_with_progress(self, config, components, **kwargs):
                     # Hook into progress updates
-                    original_increment = self.progress.increment_removed
+                    original_increment_removed = self.progress.increment_removed
+                    original_increment_failed = self.progress.increment_failed
+                    original_increment_skipped = self.progress.increment_skipped
 
-                    def increment_with_ui():
-                        original_increment()
+                    def increment_removed_with_ui():
+                        original_increment_removed()
                         progress.update(task, advance=1)
 
-                    self.progress.increment_removed = increment_with_ui
-                    return await original_execute(self, config, components, **kwargs)
+                    def increment_failed_with_ui():
+                        original_increment_failed()
+                        progress.update(task, advance=1)
+
+                    def increment_skipped_with_ui():
+                        original_increment_skipped()
+                        progress.update(task, advance=1)
+
+                    # Replace methods temporarily
+                    self.progress.increment_removed = increment_removed_with_ui
+                    self.progress.increment_failed = increment_failed_with_ui
+                    self.progress.increment_skipped = increment_skipped_with_ui
+
+                    try:
+                        return await original_execute(self, config, components, **kwargs)
+                    finally:
+                        # Restore original methods
+                        self.progress.increment_removed = original_increment_removed
+                        self.progress.increment_failed = original_increment_failed
+                        self.progress.increment_skipped = original_increment_skipped
 
                 UninstallService.execute = execute_with_progress
                 service = UninstallService()
