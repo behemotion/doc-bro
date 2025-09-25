@@ -6,7 +6,7 @@ This model manages the current setup process state, progress tracking, and user 
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from uuid import UUID, uuid4
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import ConfigDict, BaseModel, Field, field_validator, model_validator
 
 from .setup_types import (
     SetupStep,
@@ -73,13 +73,13 @@ class SetupSession(BaseModel):
         description="Rollback checkpoints for error recovery"
     )
 
-    class Config:
-        """Pydantic configuration."""
-        use_enum_values = True
-        json_encoders = {
+    model_config = ConfigDict(
+        use_enum_values=True,
+        json_encoders={
             datetime: lambda v: v.isoformat(),
             UUID: str
         }
+    )
 
     @field_validator('session_id')
     @classmethod

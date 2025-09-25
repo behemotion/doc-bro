@@ -6,7 +6,7 @@ This model stores user configuration choices and preferences for the DocBro setu
 from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID, uuid4
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import ConfigDict, BaseModel, Field, field_validator, model_validator
 from packaging import version
 
 from .setup_types import (
@@ -61,13 +61,13 @@ class SetupConfiguration(BaseModel):
         description="DocBro version when setup was performed"
     )
 
-    class Config:
-        """Pydantic configuration."""
-        use_enum_values = True
-        json_encoders = {
+    model_config = ConfigDict(
+        use_enum_values=True,
+        json_encoders={
             datetime: lambda v: v.isoformat(),
             UUID: str
         }
+    )
 
     @field_validator('setup_id')
     @classmethod

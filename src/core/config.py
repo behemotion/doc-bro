@@ -5,11 +5,11 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
-from pydantic import Field
+from pydantic import ConfigDict, Field
 try:
     from pydantic_settings import BaseSettings as PydanticBaseSettings
 except ImportError:
-    from pydantic import BaseSettings as PydanticBaseSettings
+    from pydantic import ConfigDict, BaseSettings as PydanticBaseSettings
 
 
 class ServiceDeployment(str, Enum):
@@ -68,11 +68,11 @@ class DocBroConfig(PydanticBaseSettings):
     log_level: str = Field(default="INFO", env="DOCBRO_LOG_LEVEL")
     log_file: Optional[Path] = Field(default=None, env="DOCBRO_LOG_FILE")
 
-    class Config:
-        """Pydantic configuration."""
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
+    model_config = ConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False
+    )
 
     def __init__(self, **kwargs):
         """Initialize configuration and create data directory."""

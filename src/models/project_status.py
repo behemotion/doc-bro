@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional
 from enum import Enum
-from pydantic import BaseModel, Field, field_validator
+from pydantic import ConfigDict, BaseModel, Field, field_validator
 
 
 class ProjectState(str, Enum):
@@ -154,9 +154,8 @@ class ProjectStatus(BaseModel):
             "index_size_mb": round(self.index_size_mb, 2)
         }
 
-    class Config:
-        """Pydantic configuration."""
-        use_enum_values = False
-        json_encoders = {
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat()
         }
+    )

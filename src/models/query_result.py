@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from typing import Optional, Dict, Any, List
-from pydantic import BaseModel, Field, validator
+from pydantic import ConfigDict, BaseModel, Field, field_validator
 
 
 class QueryResult(BaseModel):
@@ -47,27 +47,30 @@ class QueryResult(BaseModel):
     # Additional metadata
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
-    class Config:
-        """Pydantic configuration."""
-        json_encoders = {
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat()
         }
+    )
 
-    @validator('url')
+    @field_validator('url')
+    @classmethod
     def validate_url(cls, v):
         """Validate URL format."""
         if not v.startswith(('http://', 'https://')):
             raise ValueError("URL must be a valid HTTP/HTTPS URL")
         return v
 
-    @validator('score')
+    @field_validator('score')
+    @classmethod
     def validate_score(cls, v):
         """Validate score is between 0 and 1."""
         if not 0.0 <= v <= 1.0:
             raise ValueError("Score must be between 0.0 and 1.0")
         return v
 
-    @validator('rerank_score')
+    @field_validator('rerank_score')
+    @classmethod
     def validate_rerank_score(cls, v):
         """Validate rerank score is between 0 and 1."""
         if v is not None and not 0.0 <= v <= 1.0:
@@ -215,11 +218,11 @@ class QueryResponse(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     cache_hit: bool = Field(default=False, description="Whether result was cached")
 
-    class Config:
-        """Pydantic configuration."""
-        json_encoders = {
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat()
         }
+    )
 
     def get_high_quality_results(self, min_score: float = 0.7) -> List[QueryResult]:
         """Get only high quality results."""

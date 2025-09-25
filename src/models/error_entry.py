@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional
 from enum import Enum
-from pydantic import BaseModel, Field, field_validator, HttpUrl
+from pydantic import ConfigDict, BaseModel, Field, field_validator, HttpUrl
 from uuid import uuid4
 
 
@@ -119,9 +119,8 @@ class ErrorEntry(BaseModel):
 
         return " | ".join(parts)
 
-    class Config:
-        """Pydantic configuration."""
-        use_enum_values = False
-        json_encoders = {
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat()
         }
+    )

@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional, Dict, Any
 from enum import Enum
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from pathlib import Path
 
 
@@ -46,14 +46,15 @@ class Project(BaseModel):
     # Metadata
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
-    class Config:
-        """Pydantic configuration."""
-        json_encoders = {
+    model_config = ConfigDict(
+        use_enum_values=True,
+        json_encoders={
             datetime: lambda v: v.isoformat()
         }
-        use_enum_values = True
+    )
 
-    @validator('name')
+    @field_validator('name')
+    @classmethod
     def validate_name(cls, v):
         """Validate project name."""
         if not v.strip():
@@ -66,17 +67,19 @@ class Project(BaseModel):
             raise ValueError("Project name can only contain letters, numbers, hyphens, and underscores")
         return v.strip()
 
-    @validator('source_url')
+    @field_validator('source_url')
+    @classmethod
     def validate_source_url(cls, v):
         """Validate source URL."""
         if not v.startswith(('http://', 'https://')):
             raise ValueError("Source URL must be a valid HTTP/HTTPS URL")
         return v
 
-    @validator('chunk_overlap')
-    def validate_chunk_overlap(cls, v, values):
+    @field_validator('chunk_overlap')
+    @classmethod
+    def validate_chunk_overlap(cls, v, info):
         """Validate chunk overlap is less than chunk size."""
-        if 'chunk_size' in values and v >= values['chunk_size']:
+        if info.data.get('chunk_size') and v >= info.data['chunk_size']:
             raise ValueError("Chunk overlap must be less than chunk size")
         return v
 

@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from enum import Enum
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 import hashlib
 from urllib.parse import urlparse
 
@@ -64,21 +64,23 @@ class Page(BaseModel):
     # Metadata
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
-    class Config:
-        """Pydantic configuration."""
-        json_encoders = {
+    model_config = ConfigDict(
+        use_enum_values=True,
+        json_encoders={
             datetime: lambda v: v.isoformat()
         }
-        use_enum_values = True
+    )
 
-    @validator('url')
+    @field_validator('url')
+    @classmethod
     def validate_url(cls, v):
         """Validate URL format."""
         if not v.startswith(('http://', 'https://')):
             raise ValueError("URL must be a valid HTTP/HTTPS URL")
         return v
 
-    @validator('response_code')
+    @field_validator('response_code')
+    @classmethod
     def validate_response_code(cls, v):
         """Validate HTTP response code."""
         if v is not None and (v < 100 or v > 599):
