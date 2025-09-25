@@ -564,7 +564,9 @@ class RAGSearchService:
 
             chunk_content = content[start:end].strip()
             if chunk_content:
-                chunk_id = f"{document['id']}_chunk_{chunk_index}"
+                # Generate a UUID for the chunk
+                import uuid
+                chunk_id = str(uuid.uuid4())
 
                 chunk = {
                     "id": chunk_id,

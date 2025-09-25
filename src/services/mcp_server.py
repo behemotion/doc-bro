@@ -196,7 +196,7 @@ class MCPServer:
                         {
                             "name": p.name,
                             "source_url": p.source_url,
-                            "status": p.status.value,
+                            "status": p.status,
                             "last_updated": p.updated_at.isoformat(),
                             "page_count": p.total_pages,
                             "total_size": p.total_size_bytes,

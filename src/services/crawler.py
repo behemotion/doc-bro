@@ -54,10 +54,12 @@ class DocumentationCrawler:
         self._current_session: Optional[CrawlSession] = None
         self._is_running = False
         self._stop_requested = False
+        self._crawl_task: Optional[asyncio.Task] = None
 
     async def initialize(self) -> None:
         """Initialize crawler."""
         if self._client:
+            self.logger.debug("Client already initialized, skipping")
             return
 
         self._client = httpx.AsyncClient(
@@ -78,11 +80,25 @@ class DocumentationCrawler:
 
     async def cleanup(self) -> None:
         """Clean up crawler resources."""
+        # Cancel crawl task if running
+        if self._crawl_task and not self._crawl_task.done():
+            self._crawl_task.cancel()
+            try:
+                await self._crawl_task
+            except asyncio.CancelledError:
+                pass
+            self._crawl_task = None
+
         if self._client:
             await self._client.aclose()
             self._client = None
 
-        self._crawl_queue = asyncio.Queue()
+        # Clear state but don't recreate queue (it will be recreated in start_crawl)
+        while not self._crawl_queue.empty():
+            try:
+                self._crawl_queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
         self._visited_urls.clear()
         self._content_hashes.clear()
         self._domain_last_access.clear()
@@ -124,21 +140,23 @@ class DocumentationCrawler:
         # Set user agent
         self._client.headers["User-Agent"] = session.user_agent
 
-        # Clear state
+        # Clear state and create fresh queue
         self._visited_urls.clear()
         self._content_hashes.clear()
         self._domain_last_access.clear()
         self._robots_cache.clear()
+        self._crawl_queue = asyncio.Queue()
 
-        # Add initial URL to queue
+        # Add initial URL to queue BEFORE creating the task
         await self._crawl_queue.put((project.source_url, 0, None))
+        self.logger.debug(f"Added initial URL to queue: {project.source_url}, queue size: {self._crawl_queue.qsize()}")
 
         # Update session status
         session.start_session()
         await self.db_manager.update_crawl_session(session)
 
-        # Start crawl workers
-        asyncio.create_task(self._crawl_worker(project, session, max_pages))
+        # Now start crawl worker task AFTER queue is set up
+        self._crawl_task = asyncio.create_task(self._crawl_worker(project, session, max_pages))
 
         self.logger.info("Crawl started", extra={
             "project_id": project_id,
@@ -157,6 +175,7 @@ class DocumentationCrawler:
         """Main crawl worker loop."""
         try:
             pages_crawled = 0
+            self.logger.info(f"Starting crawl worker loop, queue at start: {self._crawl_queue}, queue size: {self._crawl_queue.qsize()}")
 
             while not self._stop_requested:
                 if max_pages and pages_crawled >= max_pages:
@@ -167,30 +186,40 @@ class DocumentationCrawler:
                     break
 
                 try:
+                    self.logger.debug(f"Attempting to get from queue, current size: {self._crawl_queue.qsize()}")
                     # Get next URL from queue with timeout
                     url, depth, parent_url = await asyncio.wait_for(
                         self._crawl_queue.get(),
                         timeout=10.0
                     )
+                    self.logger.info(f"Got URL from queue: {url}, depth: {depth}")
                 except asyncio.TimeoutError:
                     # No more URLs to process
+                    self.logger.info(f"Queue timeout - no more URLs, final queue size: {self._crawl_queue.qsize()}")
                     break
 
                 # Skip if already visited
                 if url in self._visited_urls:
+                    self.logger.info(f"Skipping already visited URL: {url}")
                     continue
 
                 # Skip if depth exceeded
                 if depth > project.crawl_depth:
+                    self.logger.info(f"Skipping URL due to depth {depth} > {project.crawl_depth}: {url}")
                     continue
 
                 # Mark as visited
                 self._visited_urls.add(url)
+                self.logger.info(f"Marked URL as visited: {url}")
 
                 # Check robots.txt
-                if not await self.check_robots_allowed(url, session.user_agent):
-                    self.logger.debug("Robots.txt disallows URL", extra={"url": url})
+                self.logger.info(f"Checking robots.txt for URL: {url}")
+                robots_allowed = await self.check_robots_allowed(url, session.user_agent)
+                self.logger.info(f"Robots.txt check result for {url}: {robots_allowed}")
+                if not robots_allowed:
+                    self.logger.info(f"Robots.txt disallows URL: {url}")
                     continue
+                self.logger.info(f"Robots.txt allows URL: {url}")
 
                 # Apply rate limiting
                 await self._apply_rate_limit(url, session.rate_limit)
@@ -420,15 +449,32 @@ class DocumentationCrawler:
                 try:
                     response = await self._client.get(robots_url, timeout=5.0)
                     if response.status_code == 200:
-                        rp.parse(response.text.splitlines())
-                except Exception:
+                        # Check if it's actually a robots.txt file (text/plain)
+                        content_type = response.headers.get("content-type", "").lower()
+                        if "text/plain" in content_type or response.text.startswith("User-agent:") or response.text.startswith("user-agent:"):
+                            # Parse robots.txt content
+                            rp.parse(response.text.splitlines())
+                        else:
+                            # Not a robots.txt file (probably HTML 404 page), allow all
+                            self.logger.debug(f"Response is not robots.txt (content-type: {content_type}), allowing all")
+                    elif response.status_code == 404:
+                        # No robots.txt exists, allow all
+                        self.logger.debug("No robots.txt found (404), allowing all")
+                    else:
+                        # Other status codes, be conservative and check
+                        self.logger.debug(f"Robots.txt returned status {response.status_code}, allowing all")
+                except Exception as e:
                     # If robots.txt cannot be fetched, assume allowed
-                    rp.allow_all = True
+                    self.logger.debug(f"Failed to fetch robots.txt from {robots_url}: {e}")
+                    pass  # RobotFileParser allows all by default when empty
 
                 self._robots_cache[robots_url] = rp
 
             # Check if URL is allowed
             rp = self._robots_cache[robots_url]
+            # If no rules were parsed (empty robots or non-robots content), allow all
+            if not rp.entries:
+                return True
             return rp.can_fetch(user_agent, url)
 
         except Exception as e:

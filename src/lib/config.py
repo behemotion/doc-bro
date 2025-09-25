@@ -36,7 +36,7 @@ class DocBroConfig(PydanticBaseSettings):
     qdrant_api_key: Optional[str] = Field(default=None, env="DOCBRO_QDRANT_API_KEY")
 
     # Redis configuration
-    redis_url: str = Field(default="redis://localhost:6379", env="DOCBRO_REDIS_URL")
+    redis_url: str = Field(default="redis://localhost:6380", env="DOCBRO_REDIS_URL")
     redis_password: Optional[str] = Field(default=None, env="DOCBRO_REDIS_PASSWORD")
 
     # Ollama configuration
@@ -51,12 +51,13 @@ class DocBroConfig(PydanticBaseSettings):
 
     # Embedding configuration
     default_embedding_model: str = Field(default="mxbai-embed-large", env="DOCBRO_DEFAULT_EMBEDDING_MODEL")
+    embedding_model: str = Field(default="mxbai-embed-large", env="DOCBRO_EMBEDDING_MODEL")  # Alias for compatibility
     chunk_size: int = Field(default=500, env="DOCBRO_CHUNK_SIZE")
     chunk_overlap: int = Field(default=50, env="DOCBRO_CHUNK_OVERLAP")
 
     # MCP Server configuration
     mcp_host: str = Field(default="localhost", env="DOCBRO_MCP_HOST")
-    mcp_port: int = Field(default=8765, env="DOCBRO_MCP_PORT")
+    mcp_port: int = Field(default=9382, env="DOCBRO_MCP_PORT")
     mcp_auth_token: Optional[str] = Field(default=None, env="DOCBRO_MCP_AUTH_TOKEN")
 
     # Database configuration
@@ -82,6 +83,11 @@ class DocBroConfig(PydanticBaseSettings):
         (self.data_dir / "logs").mkdir(exist_ok=True)
         (self.data_dir / "cache").mkdir(exist_ok=True)
         (self.data_dir / "exports").mkdir(exist_ok=True)
+
+    @property
+    def database_path(self) -> Path:
+        """Get database file path."""
+        return self.data_dir / "docbro.db"
 
     @property
     def cache_dir(self) -> Path:
