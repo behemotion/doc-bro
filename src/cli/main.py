@@ -54,13 +54,16 @@ class DocBroApp:
 
         self._initialized = False
 
-    async def initialize(self) -> None:
+    async def initialize(self, debug: bool = False) -> None:
         """Initialize all services."""
         if self._initialized:
             return
 
         try:
-            # Setup logging
+            # Setup logging with debug override
+            if debug:
+                self.config.debug = True
+                self.config.log_level = "DEBUG"
             setup_logging(self.config)
             self.logger = get_component_logger("cli")
 
@@ -365,6 +368,11 @@ def main(ctx: click.Context, config_file: Optional[str], debug: bool,
         # Load config from file if needed
         pass
 
+    # Apply debug flag to config
+    if debug:
+        config.debug = True
+        config.log_level = "DEBUG"
+
     app = DocBroApp(config)
 
 
@@ -621,7 +629,6 @@ def crawl(ctx: click.Context, name: Optional[str], max_pages: Optional[int],
 
                 # Use batch crawler
                 batch_crawler = BatchCrawler()
-                progress_reporter = ProgressReporter() if not debug and not ctx.obj.get("no_progress") else None
 
                 # Process each project sequentially
                 results = await batch_crawler.crawl_all(
@@ -629,7 +636,7 @@ def crawl(ctx: click.Context, name: Optional[str], max_pages: Optional[int],
                     max_pages=max_pages,
                     rate_limit=rate_limit,
                     continue_on_error=True,
-                    progress_reporter=progress_reporter
+                    progress_reporter=None
                 )
 
                 # Show summary
@@ -660,42 +667,43 @@ def crawl(ctx: click.Context, name: Optional[str], max_pages: Optional[int],
             if not project:
                 raise click.ClickException(f"Project '{name}' not found")
 
-            # Use progress reporter for two-phase progress
-            from src.services.progress_reporter import ProgressReporter
+            # Use simple progress display
+            from src.services.crawl_progress import CrawlProgressDisplay
             from src.services.error_reporter import ErrorReporter
 
-            progress_reporter = ProgressReporter() if not debug and not ctx.obj.get("no_progress") else None
             error_reporter = ErrorReporter(project_name=name)
 
-            if progress_reporter:
-                # Use two-phase progress display
-                with progress_reporter.crawl_progress():
-                    app.console.print(f"Crawling {name}...\n")
+            if not debug and not ctx.obj.get("no_progress"):
+                # Use the new crawl progress display
+                progress_display = CrawlProgressDisplay(
+                    project_name=name,
+                    max_depth=project.crawl_depth,
+                    max_pages=max_pages
+                )
 
+                with progress_display:
                     # Start crawl
                     session = await app.crawler.start_crawl(
                         project_id=project.id,
                         rate_limit=rate_limit,
                         max_pages=max_pages,
-                        progress_reporter=progress_reporter,
+                        progress_display=progress_display,
                         error_reporter=error_reporter
                     )
 
                     # Wait for completion
                     while True:
-                        await asyncio.sleep(2.0)
+                        await asyncio.sleep(1.0)
                         session = await app.db_manager.get_crawl_session(session.id)
                         if not session or session.is_completed():
                             break
-
-                    # Display phase summary
-                    progress_reporter.print_phase_summary()
             else:
                 # Debug mode or no progress - simple output
                 session = await app.crawler.start_crawl(
                     project_id=project.id,
                     rate_limit=rate_limit,
                     max_pages=max_pages,
+                    progress_display=None,
                     error_reporter=error_reporter
                 )
 
