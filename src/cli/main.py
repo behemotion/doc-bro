@@ -646,11 +646,12 @@ def serve(ctx: click.Context, host: str, port: int):
 
 
 
-# Import wizard commands
+# Import wizard commands and new setup command
 from .wizard import setup as wizard_setup, wizard_group
+from .setup import setup as enhanced_setup
 
-# Add the wizard setup command to main CLI
-main.add_command(wizard_setup, name="setup")
+# Add the enhanced setup command to main CLI (replaces wizard setup)
+main.add_command(enhanced_setup, name="setup")
 
 # Also add the wizard group for advanced wizard commands
 main.add_command(wizard_group, name="wizard")

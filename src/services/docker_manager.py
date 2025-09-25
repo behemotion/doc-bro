@@ -1,0 +1,356 @@
+"""Docker container management service for DocBro setup logic.
+
+This service handles Docker container lifecycle management for vector storage components,
+specifically Qdrant containers used by DocBro.
+"""
+
+import asyncio
+import logging
+from typing import Optional, Dict, Any, List
+from pathlib import Path
+
+try:
+    import docker
+    from docker.models.containers import Container
+    from docker.errors import DockerException, NotFound, APIError
+    DOCKER_AVAILABLE = True
+except ImportError:
+    # Handle case where docker package is not installed
+    docker = None
+    Container = None
+    DockerException = Exception
+    NotFound = Exception
+    APIError = Exception
+    DOCKER_AVAILABLE = False
+
+from ..models.setup_types import ExternalDependencyError, TimeoutError as SetupTimeoutError
+
+
+logger = logging.getLogger(__name__)
+
+
+class DockerManager:
+    """Manages Docker container operations for DocBro setup."""
+
+    def __init__(self):
+        """Initialize Docker client."""
+        self._client: Optional[Any] = None
+        self._connected = False
+
+    async def connect(self) -> bool:
+        """Connect to Docker daemon."""
+        if not DOCKER_AVAILABLE:
+            raise ExternalDependencyError("Docker package not installed. Install with: pip install docker")
+
+        try:
+            self._client = docker.from_env()
+            # Test connection
+            await asyncio.get_event_loop().run_in_executor(None, self._client.ping)
+            self._connected = True
+            logger.info("Connected to Docker daemon")
+            return True
+        except DockerException as e:
+            logger.error(f"Failed to connect to Docker daemon: {e}")
+            raise ExternalDependencyError(f"Docker daemon not available: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error connecting to Docker: {e}")
+            raise ExternalDependencyError(f"Docker connection failed: {e}")
+
+    async def disconnect(self) -> None:
+        """Disconnect from Docker daemon."""
+        if self._client:
+            try:
+                await asyncio.get_event_loop().run_in_executor(None, self._client.close)
+            except Exception as e:
+                logger.warning(f"Error closing Docker client: {e}")
+            finally:
+                self._client = None
+                self._connected = False
+
+    def is_connected(self) -> bool:
+        """Check if connected to Docker daemon."""
+        return self._connected and self._client is not None
+
+    async def get_docker_version(self) -> Dict[str, Any]:
+        """Get Docker version information."""
+        if not self.is_connected():
+            await self.connect()
+
+        try:
+            version_info = await asyncio.get_event_loop().run_in_executor(
+                None, self._client.version
+            )
+            return version_info
+        except DockerException as e:
+            logger.error(f"Failed to get Docker version: {e}")
+            raise ExternalDependencyError(f"Cannot get Docker version: {e}")
+
+    async def check_docker_health(self) -> Dict[str, Any]:
+        """Check Docker daemon health."""
+        try:
+            if not self.is_connected():
+                await self.connect()
+
+            version = await self.get_docker_version()
+
+            return {
+                "available": True,
+                "version": version.get("Version", "unknown"),
+                "api_version": version.get("ApiVersion", "unknown"),
+                "platform": version.get("Os", "unknown"),
+                "architecture": version.get("Arch", "unknown"),
+                "health_status": "healthy"
+            }
+        except ExternalDependencyError:
+            return {
+                "available": False,
+                "version": None,
+                "health_status": "unhealthy",
+                "error": "Docker daemon not available"
+            }
+        except Exception as e:
+            return {
+                "available": False,
+                "version": None,
+                "health_status": "unhealthy",
+                "error": f"Docker health check failed: {e}"
+            }
+
+    async def find_container(self, name: str) -> Optional[Container]:
+        """Find container by name."""
+        if not self.is_connected():
+            await self.connect()
+
+        try:
+            containers = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: self._client.containers.list(all=True)
+            )
+
+            for container in containers:
+                if container.name == name or name in container.name:
+                    return container
+            return None
+
+        except DockerException as e:
+            logger.error(f"Failed to list containers: {e}")
+            raise ExternalDependencyError(f"Cannot list Docker containers: {e}")
+
+    async def get_container_status(self, name: str) -> Dict[str, Any]:
+        """Get container status information."""
+        container = await self.find_container(name)
+
+        if not container:
+            return {
+                "exists": False,
+                "status": None,
+                "health": None,
+                "container_id": None
+            }
+
+        try:
+            # Refresh container info
+            await asyncio.get_event_loop().run_in_executor(None, container.reload)
+
+            return {
+                "exists": True,
+                "status": container.status,
+                "health": container.attrs.get("State", {}).get("Health", {}).get("Status"),
+                "container_id": container.id,
+                "image": container.image.tags[0] if container.image.tags else "unknown",
+                "created": container.attrs.get("Created"),
+                "ports": container.ports
+            }
+
+        except DockerException as e:
+            logger.error(f"Failed to get container status: {e}")
+            return {
+                "exists": True,
+                "status": "error",
+                "health": "unknown",
+                "container_id": container.id if container else None,
+                "error": str(e)
+            }
+
+    async def create_qdrant_container(
+        self,
+        container_name: str = "docbro-memory-qdrant",
+        port: int = 6333,
+        data_path: Optional[Path] = None,
+        image: str = "qdrant/qdrant:v1.7.0"
+    ) -> Dict[str, Any]:
+        """Create and start Qdrant container."""
+        if not self.is_connected():
+            await self.connect()
+
+        try:
+            # Check if container already exists
+            existing_container = await self.find_container(container_name)
+            if existing_container:
+                logger.warning(f"Container {container_name} already exists")
+                return await self.get_container_status(container_name)
+
+            # Prepare volume mounts
+            volumes = {}
+            if data_path:
+                data_path.mkdir(parents=True, exist_ok=True)
+                volumes[str(data_path)] = {"bind": "/qdrant/storage", "mode": "rw"}
+
+            # Container configuration
+            container_config = {
+                "image": image,
+                "name": container_name,
+                "ports": {f"{port}/tcp": port},
+                "volumes": volumes,
+                "detach": True,
+                "restart_policy": {"Name": "unless-stopped"},
+                "environment": {
+                    "QDRANT__SERVICE__HTTP_PORT": str(port),
+                    "QDRANT__SERVICE__GRPC_PORT": str(port + 1)
+                }
+            }
+
+            logger.info(f"Creating Qdrant container: {container_name}")
+
+            # Pull image if needed
+            logger.info(f"Pulling Qdrant image: {image}")
+            await asyncio.get_event_loop().run_in_executor(
+                None, lambda: self._client.images.pull(image)
+            )
+
+            # Create and start container
+            container = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: self._client.containers.run(**container_config)
+            )
+
+            # Wait for container to be healthy
+            await self._wait_for_container_health(container, timeout=60)
+
+            logger.info(f"Qdrant container created successfully: {container.id}")
+
+            return {
+                "status": "success",
+                "container_id": container.id,
+                "container_name": container_name,
+                "port": port,
+                "image": image,
+                "data_path": str(data_path) if data_path else None
+            }
+
+        except DockerException as e:
+            logger.error(f"Failed to create Qdrant container: {e}")
+            raise ExternalDependencyError(f"Cannot create Qdrant container: {e}")
+
+    async def stop_container(self, name: str, timeout: int = 10) -> bool:
+        """Stop container gracefully."""
+        container = await self.find_container(name)
+        if not container:
+            logger.warning(f"Container {name} not found")
+            return True
+
+        try:
+            logger.info(f"Stopping container: {name}")
+            await asyncio.get_event_loop().run_in_executor(
+                None, lambda: container.stop(timeout=timeout)
+            )
+            return True
+        except DockerException as e:
+            logger.error(f"Failed to stop container {name}: {e}")
+            return False
+
+    async def remove_container(self, name: str, force: bool = False) -> bool:
+        """Remove container."""
+        container = await self.find_container(name)
+        if not container:
+            logger.warning(f"Container {name} not found")
+            return True
+
+        try:
+            # Stop first if running
+            if container.status == "running":
+                await self.stop_container(name)
+
+            logger.info(f"Removing container: {name}")
+            await asyncio.get_event_loop().run_in_executor(
+                None, lambda: container.remove(force=force)
+            )
+            return True
+        except DockerException as e:
+            logger.error(f"Failed to remove container {name}: {e}")
+            return False
+
+    async def recreate_qdrant_container(
+        self,
+        container_name: str = "docbro-memory-qdrant",
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Recreate Qdrant container (remove old, create new)."""
+        logger.info(f"Recreating Qdrant container: {container_name}")
+
+        # Remove existing container
+        removed = await self.remove_container(container_name, force=True)
+        if not removed:
+            raise ExternalDependencyError(f"Failed to remove existing container: {container_name}")
+
+        # Create new container
+        return await self.create_qdrant_container(container_name=container_name, **kwargs)
+
+    async def _wait_for_container_health(self, container: Container, timeout: int = 60) -> None:
+        """Wait for container to become healthy."""
+        start_time = asyncio.get_event_loop().time()
+
+        while True:
+            try:
+                await asyncio.get_event_loop().run_in_executor(None, container.reload)
+
+                if container.status == "running":
+                    # For containers without health checks, consider running as healthy
+                    health_status = container.attrs.get("State", {}).get("Health", {}).get("Status")
+                    if health_status in ["healthy", None]:  # None means no health check defined
+                        logger.info(f"Container {container.name} is healthy")
+                        return
+                    elif health_status == "unhealthy":
+                        raise ExternalDependencyError(f"Container {container.name} is unhealthy")
+
+                elif container.status in ["exited", "dead"]:
+                    logs = await asyncio.get_event_loop().run_in_executor(
+                        None, lambda: container.logs(tail=50).decode()
+                    )
+                    raise ExternalDependencyError(
+                        f"Container {container.name} failed to start. Status: {container.status}\n"
+                        f"Logs:\n{logs}"
+                    )
+
+                # Check timeout
+                if asyncio.get_event_loop().time() - start_time > timeout:
+                    raise SetupTimeoutError(
+                        f"Container {container.name} did not become healthy within {timeout} seconds"
+                    )
+
+                await asyncio.sleep(2)  # Check every 2 seconds
+
+            except DockerException as e:
+                raise ExternalDependencyError(f"Error checking container health: {e}")
+
+    async def get_container_logs(self, name: str, tail: int = 50) -> str:
+        """Get container logs."""
+        container = await self.find_container(name)
+        if not container:
+            return f"Container {name} not found"
+
+        try:
+            logs = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: container.logs(tail=tail).decode('utf-8', errors='replace')
+            )
+            return logs
+        except DockerException as e:
+            logger.error(f"Failed to get logs for container {name}: {e}")
+            return f"Error getting logs: {e}"
+
+    async def __aenter__(self):
+        """Async context manager entry."""
+        await self.connect()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit."""
+        await self.disconnect()
