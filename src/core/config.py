@@ -65,7 +65,7 @@ class DocBroConfig(PydanticBaseSettings):
     )
 
     # Logging configuration
-    log_level: str = Field(default="INFO", env="DOCBRO_LOG_LEVEL")
+    log_level: str = Field(default="WARNING", env="DOCBRO_LOG_LEVEL")
     log_file: Optional[Path] = Field(default=None, env="DOCBRO_LOG_FILE")
 
     model_config = ConfigDict(

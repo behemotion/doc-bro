@@ -76,7 +76,7 @@ class DocumentationCrawler:
             }
         )
 
-        self.logger.info("Crawler initialized")
+        self.logger.debug("Crawler initialized")
 
     async def cleanup(self) -> None:
         """Clean up crawler resources."""
@@ -104,7 +104,7 @@ class DocumentationCrawler:
         self._domain_last_access.clear()
         self._robots_cache.clear()
 
-        self.logger.info("Crawler cleaned up")
+        self.logger.debug("Crawler cleaned up")
 
     async def start_crawl(
         self,
@@ -112,7 +112,7 @@ class DocumentationCrawler:
         user_agent: Optional[str] = None,
         rate_limit: float = 1.0,
         max_pages: Optional[int] = None,
-        progress_reporter: Optional[Any] = None,
+        progress_display: Optional[Any] = None,
         error_reporter: Optional[Any] = None
     ) -> CrawlSession:
         """Start a new crawl session for a project."""
@@ -158,9 +158,11 @@ class DocumentationCrawler:
         await self.db_manager.update_crawl_session(session)
 
         # Now start crawl worker task AFTER queue is set up
-        self._crawl_task = asyncio.create_task(self._crawl_worker(project, session, max_pages))
+        self._crawl_task = asyncio.create_task(self._crawl_worker(
+            project, session, max_pages, progress_display, error_reporter
+        ))
 
-        self.logger.info("Crawl started", extra={
+        self.logger.debug("Crawl started", extra={
             "project_id": project_id,
             "session_id": session.id,
             "source_url": project.source_url
@@ -172,16 +174,20 @@ class DocumentationCrawler:
         self,
         project: Project,
         session: CrawlSession,
-        max_pages: Optional[int] = None
+        max_pages: Optional[int] = None,
+        progress_display: Optional[Any] = None,
+        error_reporter: Optional[Any] = None
     ) -> None:
         """Main crawl worker loop."""
         try:
             pages_crawled = 0
-            self.logger.info(f"Starting crawl worker loop, queue at start: {self._crawl_queue}, queue size: {self._crawl_queue.qsize()}")
+            pages_errors = 0
+            current_depth = 0
+            self.logger.debug(f"Starting crawl worker loop, queue at start: {self._crawl_queue}, queue size: {self._crawl_queue.qsize()}")
 
             while not self._stop_requested:
                 if max_pages and pages_crawled >= max_pages:
-                    self.logger.info("Maximum pages reached", extra={
+                    self.logger.debug("Maximum pages reached", extra={
                         "max_pages": max_pages,
                         "pages_crawled": pages_crawled
                     })
@@ -194,34 +200,48 @@ class DocumentationCrawler:
                         self._crawl_queue.get(),
                         timeout=10.0
                     )
-                    self.logger.info(f"Got URL from queue: {url}, depth: {depth}")
+                    self.logger.debug(f"Got URL from queue: {url}, depth: {depth}")
+
+                    # Update progress with current depth and counts
+                    if depth != current_depth:
+                        current_depth = depth
+
+                    # Update progress display if available
+                    if progress_display:
+                        progress_display.update(
+                            depth=depth,
+                            pages=pages_crawled,
+                            errors=pages_errors,
+                            queue=self._crawl_queue.qsize(),
+                            url=url
+                        )
                 except asyncio.TimeoutError:
                     # No more URLs to process
-                    self.logger.info(f"Queue timeout - no more URLs, final queue size: {self._crawl_queue.qsize()}")
+                    self.logger.debug(f"Queue timeout - no more URLs, final queue size: {self._crawl_queue.qsize()}")
                     break
 
                 # Skip if already visited
                 if url in self._visited_urls:
-                    self.logger.info(f"Skipping already visited URL: {url}")
+                    self.logger.debug(f"Skipping already visited URL: {url}")
                     continue
 
                 # Skip if depth exceeded
                 if depth > project.crawl_depth:
-                    self.logger.info(f"Skipping URL due to depth {depth} > {project.crawl_depth}: {url}")
+                    self.logger.debug(f"Skipping URL due to depth {depth} > {project.crawl_depth}: {url}")
                     continue
 
                 # Mark as visited
                 self._visited_urls.add(url)
-                self.logger.info(f"Marked URL as visited: {url}")
+                self.logger.debug(f"Marked URL as visited: {url}")
 
                 # Check robots.txt
-                self.logger.info(f"Checking robots.txt for URL: {url}")
+                self.logger.debug(f"Checking robots.txt for URL: {url}")
                 robots_allowed = await self.check_robots_allowed(url, session.user_agent)
-                self.logger.info(f"Robots.txt check result for {url}: {robots_allowed}")
+                self.logger.debug(f"Robots.txt check result for {url}: {robots_allowed}")
                 if not robots_allowed:
-                    self.logger.info(f"Robots.txt disallows URL: {url}")
+                    self.logger.debug(f"Robots.txt disallows URL: {url}")
                     continue
-                self.logger.info(f"Robots.txt allows URL: {url}")
+                self.logger.debug(f"Robots.txt allows URL: {url}")
 
                 # Apply rate limiting
                 await self._apply_rate_limit(url, session.rate_limit)
@@ -269,13 +289,27 @@ class DocumentationCrawler:
                                 await self._crawl_queue.put((link, depth + 1, url))
 
                         pages_crawled += 1
+
+                        # Update progress display after successful crawl
+                        if progress_display:
+                            progress_display.update(
+                                depth=depth,
+                                pages=pages_crawled,
+                                errors=pages_errors,
+                                queue=self._crawl_queue.qsize(),
+                                url=url
+                            )
                 else:
                     # Handle crawl error
                     error_msg = crawl_result.get("error") if crawl_result else "Unknown error"
                     page.mark_failed(error_msg)
+                    pages_errors += 1
+
+                    if error_reporter:
+                        error_reporter.add_error(url, error_msg, depth)
 
                     if session.increment_error_count():
-                        self.logger.warning("Max errors reached, stopping crawl", extra={
+                        self.logger.debug("Max errors reached, stopping crawl", extra={
                             "session_id": session.id,
                             "error_count": session.error_count
                         })
@@ -296,14 +330,14 @@ class DocumentationCrawler:
             session.complete_session()
             await self.db_manager.update_crawl_session(session)
 
-            self.logger.info("Crawl completed", extra={
+            self.logger.debug("Crawl completed", extra={
                 "session_id": session.id,
                 "pages_crawled": pages_crawled,
                 "pages_discovered": len(self._visited_urls)
             })
 
         except Exception as e:
-            self.logger.error("Crawl worker error", extra={
+            self.logger.debug("Crawl worker error", extra={
                 "session_id": session.id,
                 "error": str(e)
             })
@@ -366,7 +400,7 @@ class DocumentationCrawler:
         except httpx.RequestError as e:
             return {"url": url, "error": f"Request error: {str(e)}"}
         except Exception as e:
-            self.logger.error("Failed to crawl page", extra={
+            self.logger.debug("Failed to crawl page", extra={
                 "url": url,
                 "error": str(e)
             })
@@ -430,7 +464,7 @@ class DocumentationCrawler:
             return unique_links
 
         except Exception as e:
-            self.logger.error("Failed to extract links", extra={
+            self.logger.debug("Failed to extract links", extra={
                 "base_url": base_url,
                 "error": str(e)
             })
