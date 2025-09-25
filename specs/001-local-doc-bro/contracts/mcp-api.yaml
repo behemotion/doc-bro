@@ -1,0 +1,356 @@
+openapi: 3.0.0
+info:
+  title: DocBro MCP Server API
+  version: 1.0.0
+  description: MCP server API for agent connections
+
+servers:
+  - url: ws://localhost:8000
+    description: WebSocket endpoint for MCP protocol
+
+paths:
+  /mcp/connect:
+    get:
+      summary: Establish WebSocket connection for MCP protocol
+      operationId: connectMCP
+      responses:
+        '101':
+          description: WebSocket connection established
+          headers:
+            Upgrade:
+              schema:
+                type: string
+                enum: [websocket]
+            Connection:
+              schema:
+                type: string
+                enum: [Upgrade]
+
+  /api/projects:
+    get:
+      summary: List available projects
+      operationId: listProjects
+      tags:
+        - REST API
+      responses:
+        '200':
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Project'
+
+  /api/search:
+    post:
+      summary: Search documentation
+      operationId: searchDocs
+      tags:
+        - REST API
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+
+components:
+  schemas:
+    # MCP Protocol Messages
+    MCPRequest:
+      type: object
+      required:
+        - jsonrpc
+        - id
+        - method
+      properties:
+        jsonrpc:
+          type: string
+          enum: ['2.0']
+        id:
+          type: string
+        method:
+          type: string
+          enum:
+            - initialize
+            - search
+            - list_projects
+            - get_chunks
+            - set_chunk_size
+        params:
+          type: object
+
+    MCPResponse:
+      type: object
+      required:
+        - jsonrpc
+        - id
+      properties:
+        jsonrpc:
+          type: string
+          enum: ['2.0']
+        id:
+          type: string
+        result:
+          type: object
+        error:
+          type: object
+          properties:
+            code:
+              type: integer
+            message:
+              type: string
+            data:
+              type: object
+
+    # Initialize Method
+    InitializeParams:
+      type: object
+      required:
+        - agent_id
+      properties:
+        agent_id:
+          type: string
+        capabilities:
+          type: array
+          items:
+            type: string
+
+    InitializeResult:
+      type: object
+      required:
+        - session_id
+        - capabilities
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        capabilities:
+          type: array
+          items:
+            type: string
+        server_version:
+          type: string
+
+    # Search Method
+    SearchParams:
+      type: object
+      required:
+        - query
+      properties:
+        query:
+          type: string
+        project_id:
+          type: string
+          format: uuid
+        project_name:
+          type: string
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 10
+        strategy:
+          type: string
+          enum: [semantic, rerank, expand, decompose]
+          default: semantic
+        chunk_size:
+          type: integer
+          minimum: 100
+          maximum: 5000
+
+    SearchResult:
+      type: object
+      required:
+        - chunks
+        - total_results
+      properties:
+        chunks:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentChunk'
+        total_results:
+          type: integer
+        query_id:
+          type: string
+
+    # Get Chunks Method
+    GetChunksParams:
+      type: object
+      required:
+        - page_url
+      properties:
+        page_url:
+          type: string
+          format: uri
+        chunk_size:
+          type: integer
+          minimum: 100
+          maximum: 5000
+        start_index:
+          type: integer
+          minimum: 0
+        count:
+          type: integer
+          minimum: 1
+          maximum: 50
+
+    GetChunksResult:
+      type: object
+      required:
+        - chunks
+        - total_chunks
+      properties:
+        chunks:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentChunk'
+        total_chunks:
+          type: integer
+        page_title:
+          type: string
+
+    # Common Schemas
+    Project:
+      type: object
+      required:
+        - id
+        - name
+        - source_url
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        source_url:
+          type: string
+          format: uri
+        status:
+          type: string
+          enum: [ready, crawling, error]
+        pages_count:
+          type: integer
+        last_updated:
+          type: string
+          format: date-time
+        is_outdated:
+          type: boolean
+
+    DocumentChunk:
+      type: object
+      required:
+        - chunk_id
+        - content
+        - page_url
+        - relevance_score
+      properties:
+        chunk_id:
+          type: string
+          format: uuid
+        content:
+          type: string
+        page_url:
+          type: string
+          format: uri
+        page_title:
+          type: string
+        relevance_score:
+          type: number
+          minimum: 0
+          maximum: 1
+        chunk_index:
+          type: integer
+        metadata:
+          type: object
+          properties:
+            headers:
+              type: array
+              items:
+                type: string
+            section:
+              type: string
+            context:
+              type: string
+
+    SearchRequest:
+      type: object
+      required:
+        - query
+      properties:
+        query:
+          type: string
+        project_name:
+          type: string
+        limit:
+          type: integer
+        strategy:
+          type: string
+
+    SearchResponse:
+      type: object
+      required:
+        - results
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentChunk'
+        total:
+          type: integer
+        query_time:
+          type: number
+
+    # Error Response
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: integer
+            message:
+              type: string
+            details:
+              type: object
+
+    # WebSocket Events
+    WebSocketMessage:
+      oneOf:
+        - $ref: '#/components/schemas/MCPRequest'
+        - $ref: '#/components/schemas/MCPResponse'
+        - $ref: '#/components/schemas/EventNotification'
+
+    EventNotification:
+      type: object
+      required:
+        - type
+        - data
+      properties:
+        type:
+          type: string
+          enum:
+            - project_updated
+            - crawl_started
+            - crawl_completed
+            - crawl_failed
+        data:
+          type: object
+        timestamp:
+          type: string
+          format: date-time

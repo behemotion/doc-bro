@@ -1,0 +1,556 @@
+"""Documentation crawler service using httpx and BeautifulSoup."""
+
+import asyncio
+import hashlib
+import re
+import time
+from datetime import datetime
+from typing import Dict, List, Optional, Set, Tuple, Any
+from urllib.parse import urljoin, urlparse, urlunparse
+from urllib.robotparser import RobotFileParser
+import logging
+
+import httpx
+from bs4 import BeautifulSoup
+from bs4.element import Comment
+
+from ..models import Project, CrawlSession, Page, CrawlStatus, PageStatus
+from ..services.database import DatabaseManager
+from ..lib.config import DocBroConfig
+from ..lib.logging import get_component_logger
+
+
+class CrawlerError(Exception):
+    """Crawler operation error."""
+    pass
+
+
+class DocumentationCrawler:
+    """Asynchronous documentation crawler with rate limiting and robots.txt support."""
+
+    def __init__(
+        self,
+        db_manager: DatabaseManager,
+        config: Optional[DocBroConfig] = None
+    ):
+        """Initialize documentation crawler."""
+        self.db_manager = db_manager
+        self.config = config or DocBroConfig()
+        self.logger = get_component_logger("crawler")
+
+        # HTTP client
+        self._client: Optional[httpx.AsyncClient] = None
+
+        # Crawl state
+        self._crawl_queue: asyncio.Queue = asyncio.Queue()
+        self._visited_urls: Set[str] = set()
+        self._content_hashes: Set[str] = set()
+        self._domain_last_access: Dict[str, float] = {}
+
+        # Robots.txt cache
+        self._robots_cache: Dict[str, RobotFileParser] = {}
+
+        # Session state
+        self._current_session: Optional[CrawlSession] = None
+        self._is_running = False
+        self._stop_requested = False
+
+    async def initialize(self) -> None:
+        """Initialize crawler."""
+        if self._client:
+            return
+
+        self._client = httpx.AsyncClient(
+            timeout=httpx.Timeout(30.0),
+            limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+            follow_redirects=True,
+            headers={
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.5",
+                "Accept-Encoding": "gzip, deflate",
+                "DNT": "1",
+                "Connection": "keep-alive",
+                "Upgrade-Insecure-Requests": "1",
+            }
+        )
+
+        self.logger.info("Crawler initialized")
+
+    async def cleanup(self) -> None:
+        """Clean up crawler resources."""
+        if self._client:
+            await self._client.aclose()
+            self._client = None
+
+        self._crawl_queue = asyncio.Queue()
+        self._visited_urls.clear()
+        self._content_hashes.clear()
+        self._domain_last_access.clear()
+        self._robots_cache.clear()
+
+        self.logger.info("Crawler cleaned up")
+
+    async def start_crawl(
+        self,
+        project_id: str,
+        user_agent: Optional[str] = None,
+        rate_limit: float = 1.0,
+        max_pages: Optional[int] = None
+    ) -> CrawlSession:
+        """Start a new crawl session for a project."""
+        if self._is_running:
+            raise CrawlerError("Crawler is already running")
+
+        # Get project
+        project = await self.db_manager.get_project(project_id)
+        if not project:
+            raise CrawlerError(f"Project {project_id} not found")
+
+        # Create crawl session
+        session = await self.db_manager.create_crawl_session(
+            project_id=project_id,
+            crawl_depth=project.crawl_depth,
+            user_agent=user_agent or "DocBro/1.0",
+            rate_limit=rate_limit
+        )
+
+        self._current_session = session
+        self._is_running = True
+        self._stop_requested = False
+
+        # Initialize crawler
+        await self.initialize()
+
+        # Set user agent
+        self._client.headers["User-Agent"] = session.user_agent
+
+        # Clear state
+        self._visited_urls.clear()
+        self._content_hashes.clear()
+        self._domain_last_access.clear()
+        self._robots_cache.clear()
+
+        # Add initial URL to queue
+        await self._crawl_queue.put((project.source_url, 0, None))
+
+        # Update session status
+        session.start_session()
+        await self.db_manager.update_crawl_session(session)
+
+        # Start crawl workers
+        asyncio.create_task(self._crawl_worker(project, session, max_pages))
+
+        self.logger.info("Crawl started", extra={
+            "project_id": project_id,
+            "session_id": session.id,
+            "source_url": project.source_url
+        })
+
+        return session
+
+    async def _crawl_worker(
+        self,
+        project: Project,
+        session: CrawlSession,
+        max_pages: Optional[int] = None
+    ) -> None:
+        """Main crawl worker loop."""
+        try:
+            pages_crawled = 0
+
+            while not self._stop_requested:
+                if max_pages and pages_crawled >= max_pages:
+                    self.logger.info("Maximum pages reached", extra={
+                        "max_pages": max_pages,
+                        "pages_crawled": pages_crawled
+                    })
+                    break
+
+                try:
+                    # Get next URL from queue with timeout
+                    url, depth, parent_url = await asyncio.wait_for(
+                        self._crawl_queue.get(),
+                        timeout=10.0
+                    )
+                except asyncio.TimeoutError:
+                    # No more URLs to process
+                    break
+
+                # Skip if already visited
+                if url in self._visited_urls:
+                    continue
+
+                # Skip if depth exceeded
+                if depth > project.crawl_depth:
+                    continue
+
+                # Mark as visited
+                self._visited_urls.add(url)
+
+                # Check robots.txt
+                if not await self.check_robots_allowed(url, session.user_agent):
+                    self.logger.debug("Robots.txt disallows URL", extra={"url": url})
+                    continue
+
+                # Apply rate limiting
+                await self._apply_rate_limit(url, session.rate_limit)
+
+                # Create page record
+                page = await self.db_manager.create_page(
+                    project_id=project.id,
+                    session_id=session.id,
+                    url=url,
+                    crawl_depth=depth,
+                    parent_url=parent_url
+                )
+
+                # Crawl the page
+                crawl_result = await self.crawl_page(url)
+
+                if crawl_result and not crawl_result.get("error"):
+                    # Update page with content
+                    page.update_content(
+                        title=crawl_result.get("title"),
+                        content_html=crawl_result.get("content_html"),
+                        content_text=crawl_result.get("content_text"),
+                        mime_type=crawl_result.get("mime_type", "text/html"),
+                        charset=crawl_result.get("charset", "utf-8")
+                    )
+
+                    # Check for duplicate content
+                    if page.content_hash in self._content_hashes:
+                        page.mark_skipped("Duplicate content")
+                    else:
+                        self._content_hashes.add(page.content_hash)
+                        page.mark_crawled(
+                            response_code=crawl_result.get("status_code", 200),
+                            response_time_ms=crawl_result.get("response_time_ms", 0)
+                        )
+
+                        # Extract and queue links
+                        links = crawl_result.get("links", [])
+                        page.outbound_links = links
+                        page.categorize_links(urlparse(project.source_url).netloc)
+
+                        # Queue internal links
+                        for link in page.internal_links:
+                            if link not in self._visited_urls:
+                                await self._crawl_queue.put((link, depth + 1, url))
+
+                        pages_crawled += 1
+                else:
+                    # Handle crawl error
+                    error_msg = crawl_result.get("error") if crawl_result else "Unknown error"
+                    page.mark_failed(error_msg)
+
+                    if session.increment_error_count():
+                        self.logger.warning("Max errors reached, stopping crawl", extra={
+                            "session_id": session.id,
+                            "error_count": session.error_count
+                        })
+                        break
+
+                # Update page in database
+                await self.db_manager.update_page(page)
+
+                # Update session progress
+                session.update_progress(
+                    pages_discovered=len(self._visited_urls),
+                    pages_crawled=pages_crawled,
+                    pages_failed=session.error_count
+                )
+                await self.db_manager.update_crawl_session(session)
+
+            # Complete session
+            session.complete_session()
+            await self.db_manager.update_crawl_session(session)
+
+            self.logger.info("Crawl completed", extra={
+                "session_id": session.id,
+                "pages_crawled": pages_crawled,
+                "pages_discovered": len(self._visited_urls)
+            })
+
+        except Exception as e:
+            self.logger.error("Crawl worker error", extra={
+                "session_id": session.id,
+                "error": str(e)
+            })
+            session.fail_session(str(e))
+            await self.db_manager.update_crawl_session(session)
+
+        finally:
+            self._is_running = False
+            self._current_session = None
+
+    async def crawl_page(self, url: str) -> Dict[str, Any]:
+        """Crawl a single page and extract content."""
+        try:
+            start_time = time.time()
+
+            # Make HTTP request
+            response = await self._client.get(url)
+            response_time_ms = int((time.time() - start_time) * 1000)
+
+            # Check content type
+            content_type = response.headers.get("content-type", "").lower()
+            if "text/html" not in content_type:
+                return {
+                    "url": url,
+                    "error": f"Unsupported content type: {content_type}"
+                }
+
+            # Parse HTML
+            soup = BeautifulSoup(response.text, "html.parser")
+
+            # Extract title
+            title = ""
+            if soup.title:
+                title = soup.title.string or ""
+
+            # Extract text content
+            text_content = self._extract_text(soup)
+
+            # Extract links
+            links = self.extract_links(response.text, url)
+
+            # Calculate content hash
+            content_hash = hashlib.sha256(text_content.encode()).hexdigest()
+
+            return {
+                "url": url,
+                "title": title.strip(),
+                "content_html": response.text,
+                "content_text": text_content,
+                "content_hash": content_hash,
+                "links": links,
+                "status_code": response.status_code,
+                "response_time_ms": response_time_ms,
+                "mime_type": "text/html",
+                "charset": response.encoding or "utf-8"
+            }
+
+        except httpx.TimeoutException:
+            return {"url": url, "error": "Request timeout"}
+        except httpx.RequestError as e:
+            return {"url": url, "error": f"Request error: {str(e)}"}
+        except Exception as e:
+            self.logger.error("Failed to crawl page", extra={
+                "url": url,
+                "error": str(e)
+            })
+            return {"url": url, "error": str(e)}
+
+    def _extract_text(self, soup: BeautifulSoup) -> str:
+        """Extract clean text content from HTML."""
+        # Remove script and style elements
+        for element in soup(["script", "style", "meta", "link", "noscript"]):
+            element.decompose()
+
+        # Remove comments
+        for comment in soup.find_all(text=lambda text: isinstance(text, Comment)):
+            comment.extract()
+
+        # Get text
+        text = soup.get_text(separator=" ")
+
+        # Clean up whitespace
+        lines = (line.strip() for line in text.splitlines())
+        chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+        text = " ".join(chunk for chunk in chunks if chunk)
+
+        return text
+
+    def extract_links(self, html_content: str, base_url: str) -> List[str]:
+        """Extract all links from HTML content."""
+        try:
+            soup = BeautifulSoup(html_content, "html.parser")
+            links = []
+
+            for tag in soup.find_all(["a", "link"]):
+                href = tag.get("href")
+                if href:
+                    # Convert relative URLs to absolute
+                    absolute_url = urljoin(base_url, href)
+
+                    # Parse and clean URL
+                    parsed = urlparse(absolute_url)
+
+                    # Skip non-HTTP(S) URLs
+                    if parsed.scheme not in ["http", "https"]:
+                        continue
+
+                    # Remove fragment
+                    clean_url = urlunparse(
+                        (parsed.scheme, parsed.netloc, parsed.path,
+                         parsed.params, parsed.query, "")
+                    )
+
+                    links.append(clean_url)
+
+            # Remove duplicates while preserving order
+            seen = set()
+            unique_links = []
+            for link in links:
+                if link not in seen:
+                    seen.add(link)
+                    unique_links.append(link)
+
+            return unique_links
+
+        except Exception as e:
+            self.logger.error("Failed to extract links", extra={
+                "base_url": base_url,
+                "error": str(e)
+            })
+            return []
+
+    async def check_robots_allowed(self, url: str, user_agent: str) -> bool:
+        """Check if URL is allowed by robots.txt."""
+        try:
+            parsed = urlparse(url)
+            robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
+
+            # Check cache
+            if robots_url not in self._robots_cache:
+                # Fetch and parse robots.txt
+                rp = RobotFileParser()
+                rp.set_url(robots_url)
+
+                try:
+                    response = await self._client.get(robots_url, timeout=5.0)
+                    if response.status_code == 200:
+                        rp.parse(response.text.splitlines())
+                except Exception:
+                    # If robots.txt cannot be fetched, assume allowed
+                    rp.allow_all = True
+
+                self._robots_cache[robots_url] = rp
+
+            # Check if URL is allowed
+            rp = self._robots_cache[robots_url]
+            return rp.can_fetch(user_agent, url)
+
+        except Exception as e:
+            self.logger.debug("Failed to check robots.txt", extra={
+                "url": url,
+                "error": str(e)
+            })
+            # Default to allowing if check fails
+            return True
+
+    async def _apply_rate_limit(self, url: str, rate_limit: float) -> None:
+        """Apply rate limiting per domain."""
+        domain = urlparse(url).netloc
+
+        if domain in self._domain_last_access:
+            elapsed = time.time() - self._domain_last_access[domain]
+            wait_time = (1.0 / rate_limit) - elapsed
+
+            if wait_time > 0:
+                await asyncio.sleep(wait_time)
+
+        self._domain_last_access[domain] = time.time()
+
+    async def stop_crawl(self, session_id: str) -> bool:
+        """Stop an active crawl session."""
+        if self._current_session and self._current_session.id == session_id:
+            self._stop_requested = True
+            self.logger.info("Stop requested for crawl", extra={
+                "session_id": session_id
+            })
+            return True
+        return False
+
+    async def pause_crawl(self, session_id: str) -> bool:
+        """Pause an active crawl session."""
+        if self._current_session and self._current_session.id == session_id:
+            self._current_session.pause_session()
+            await self.db_manager.update_crawl_session(self._current_session)
+            self._stop_requested = True
+            return True
+        return False
+
+    async def resume_crawl(self, session_id: str) -> CrawlSession:
+        """Resume a paused crawl session."""
+        session = await self.db_manager.get_crawl_session(session_id)
+        if not session:
+            raise CrawlerError(f"Session {session_id} not found")
+
+        if session.status != CrawlStatus.PAUSED:
+            raise CrawlerError(f"Session is not paused: {session.status}")
+
+        # TODO: Implement resume logic
+        # This would need to reconstruct the crawl state from the database
+        raise NotImplementedError("Resume crawl not fully implemented yet")
+
+    async def complete_crawl(self, session_id: str) -> CrawlSession:
+        """Mark a crawl session as completed."""
+        session = await self.db_manager.get_crawl_session(session_id)
+        if not session:
+            raise CrawlerError(f"Session {session_id} not found")
+
+        session.complete_session()
+        await self.db_manager.update_crawl_session(session)
+
+        return session
+
+    async def get_crawled_pages(self, session_id: str) -> List[Page]:
+        """Get all pages crawled in a session."""
+        # This would need to be implemented in the database manager
+        # For now, return empty list
+        return []
+
+    async def get_crawl_statistics(self, session_id: str) -> Dict[str, Any]:
+        """Get statistics for a crawl session."""
+        session = await self.db_manager.get_crawl_session(session_id)
+        if not session:
+            raise CrawlerError(f"Session {session_id} not found")
+
+        return {
+            "pages_crawled": session.pages_crawled,
+            "pages_failed": session.pages_failed,
+            "pages_skipped": session.pages_skipped,
+            "total_size": session.total_size_bytes,
+            "average_page_size": (
+                session.total_size_bytes / session.pages_crawled
+                if session.pages_crawled > 0 else 0
+            ),
+            "crawl_duration": session.get_duration()
+        }
+
+    async def wait_for_completion(
+        self,
+        session_id: str,
+        timeout: Optional[float] = None
+    ) -> CrawlSession:
+        """Wait for a crawl session to complete."""
+        start_time = time.time()
+
+        while True:
+            session = await self.db_manager.get_crawl_session(session_id)
+            if not session:
+                raise CrawlerError(f"Session {session_id} not found")
+
+            if session.is_completed():
+                return session
+
+            if timeout and (time.time() - start_time) > timeout:
+                raise CrawlerError(f"Timeout waiting for session {session_id}")
+
+            await asyncio.sleep(1.0)
+
+    async def mark_crawl_failed(self, session_id: str, error: str) -> CrawlSession:
+        """Mark a crawl session as failed."""
+        session = await self.db_manager.get_crawl_session(session_id)
+        if not session:
+            raise CrawlerError(f"Session {session_id} not found")
+
+        session.fail_session(error)
+        await self.db_manager.update_crawl_session(session)
+
+        return session
+
+    async def retry_crawl(self, project_id: str) -> CrawlSession:
+        """Start a new crawl session for retry."""
+        return await self.start_crawl(project_id)

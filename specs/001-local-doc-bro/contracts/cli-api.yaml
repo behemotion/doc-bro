@@ -1,0 +1,368 @@
+openapi: 3.0.0
+info:
+  title: DocBro CLI Commands API
+  version: 1.0.0
+  description: Command-line interface specification for DocBro documentation crawler
+
+paths:
+  /crawl:
+    post:
+      summary: Initiate documentation crawling
+      operationId: crawl
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uri
+          description: Documentation URL to crawl
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Project name
+        - name: depth
+          in: query
+          schema:
+            type: integer
+            default: 3
+            minimum: 1
+            maximum: 10
+          description: Maximum crawl depth
+        - name: model
+          in: query
+          schema:
+            type: string
+            default: nomic-embed-text
+          description: Embedding model name
+      responses:
+        '200':
+          description: Crawl initiated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  project_id:
+                    type: string
+                  session_id:
+                    type: string
+                  status:
+                    type: string
+        '409':
+          description: Another crawl is already running
+
+  /list:
+    get:
+      summary: List all documentation projects
+      operationId: list
+      parameters:
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [table, json, simple]
+            default: table
+      responses:
+        '200':
+          description: Projects list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    name:
+                      type: string
+                    source_url:
+                      type: string
+                    status:
+                      type: string
+                    last_crawled:
+                      type: string
+                      format: date-time
+                    outdated:
+                      type: boolean
+                    pages_count:
+                      type: integer
+                    size_mb:
+                      type: number
+
+  /query:
+    post:
+      summary: Search documentation
+      operationId: query
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - query
+              properties:
+                query:
+                  type: string
+                  description: Search query
+                projects:
+                  type: array
+                  items:
+                    type: string
+                  description: Project IDs to search (empty = all)
+                limit:
+                  type: integer
+                  default: 10
+                  description: Maximum results
+                strategy:
+                  type: string
+                  enum: [basic, advanced]
+                  default: advanced
+                  description: RAG strategy
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        project_name:
+                          type: string
+                        url:
+                          type: string
+                        title:
+                          type: string
+                        content:
+                          type: string
+                        score:
+                          type: number
+                  total:
+                    type: integer
+                  latency_ms:
+                    type: integer
+
+  /rename:
+    put:
+      summary: Rename a project
+      operationId: rename
+      parameters:
+        - name: project
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Project name or ID
+        - name: new_name
+          in: query
+          required: true
+          schema:
+            type: string
+          description: New project name
+      responses:
+        '200':
+          description: Project renamed
+        '404':
+          description: Project not found
+        '409':
+          description: Name already exists
+
+  /delete:
+    delete:
+      summary: Delete a project
+      operationId: delete
+      parameters:
+        - name: project
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Project name or ID
+        - name: confirm
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: Skip confirmation prompt
+      responses:
+        '204':
+          description: Project deleted
+        '404':
+          description: Project not found
+
+  /recrawl:
+    post:
+      summary: Update existing project
+      operationId: recrawl
+      parameters:
+        - name: project
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Project name or ID
+        - name: depth
+          in: query
+          schema:
+            type: integer
+          description: Override crawl depth
+      responses:
+        '200':
+          description: Recrawl initiated
+        '404':
+          description: Project not found
+        '409':
+          description: Crawl already running
+
+  /export:
+    get:
+      summary: Export project data
+      operationId: export
+      parameters:
+        - name: project
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Project name or ID
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [archive, json, markdown]
+            default: archive
+        - name: output
+          in: query
+          schema:
+            type: string
+          description: Output file path
+      responses:
+        '200':
+          description: Export created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  file_path:
+                    type: string
+                  size_mb:
+                    type: number
+        '404':
+          description: Project not found
+
+  /import:
+    post:
+      summary: Import project data
+      operationId: import
+      parameters:
+        - name: file
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Archive file path
+        - name: name
+          in: query
+          schema:
+            type: string
+          description: Override project name
+      responses:
+        '200':
+          description: Import successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  project_id:
+                    type: string
+                  name:
+                    type: string
+                  pages_imported:
+                    type: integer
+        '400':
+          description: Invalid archive
+        '409':
+          description: Project name exists
+
+  /config:
+    get:
+      summary: View configuration
+      operationId: config-get
+      parameters:
+        - name: key
+          in: query
+          schema:
+            type: string
+          description: Config key to retrieve
+      responses:
+        '200':
+          description: Configuration values
+    put:
+      summary: Update configuration
+      operationId: config-set
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                embedding_model:
+                  type: string
+                outdated_days:
+                  type: integer
+                rate_limit:
+                  type: number
+                max_depth:
+                  type: integer
+      responses:
+        '200':
+          description: Configuration updated
+
+  /status:
+    get:
+      summary: Show system status
+      operationId: status
+      responses:
+        '200':
+          description: System status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  version:
+                    type: string
+                  qdrant_status:
+                    type: string
+                  ollama_status:
+                    type: string
+                  mcp_server_status:
+                    type: string
+                  projects_count:
+                    type: integer
+                  total_pages:
+                    type: integer
+                  total_size_gb:
+                    type: number
+                  active_crawls:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        project:
+                          type: string
+                        progress:
+                          type: number
+                        pages_crawled:
+                          type: integer
