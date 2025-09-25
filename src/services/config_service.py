@@ -148,7 +148,7 @@ class ConfigService:
 
         return {
             "setup_completed": config.is_completed(),
-            "setup_mode": config.setup_mode,
+            "setup_mode": config.setup_mode.value if hasattr(config.setup_mode, 'value') else config.setup_mode,
             "last_setup_time": config.updated_at.isoformat(),
             "components_configured": config.get_configured_components(),
             "configuration_file": str(self.config_file)
