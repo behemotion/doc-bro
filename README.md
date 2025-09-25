@@ -6,7 +6,7 @@ A powerful CLI tool that crawls documentation websites, creates vector databases
 
 ### Install with one command:
 ```bash
-uvx install git+https://github.com/behemotion/doc-bro
+uv tool install git+https://github.com/behemotion/doc-bro
 docbro setup
 ```
 
@@ -14,7 +14,7 @@ That's it! The setup wizard will guide you through the rest.
 
 ## ✨ Features
 
-- **One-Command Installation**: Install globally with `uvx` - no repository cloning needed
+- **One-Command Installation**: Install globally with `uv tool` - no repository cloning needed
 - **Interactive Setup**: Guided wizard detects services and provides installation help
 - **Smart Web Crawling**: Rate limiting, robots.txt respect, configurable depth
 - **Vector Search**: Qdrant-powered semantic search with multiple RAG strategies
@@ -33,13 +33,15 @@ The setup wizard will check these for you, but you'll need:
 
 ## 🛠️ Installation
 
-### Recommended: UVX Installation
+### Recommended: UV Tool Installation
+
+Install DocBro globally using UV tool for persistent access across all your projects:
 
 ```bash
-# 1. Install DocBro
-uvx install git+https://github.com/behemotion/doc-bro
+# 1. Install DocBro as a UV tool
+uv tool install git+https://github.com/behemotion/doc-bro
 
-# 2. Run interactive setup
+# 2. Run interactive setup wizard
 docbro setup
 
 # 3. Check everything is working
@@ -53,15 +55,29 @@ The setup wizard will:
 - ✅ Create configuration directories
 - ✅ Set up installation metadata
 
-### Alternative: Development Setup
+### Alternative: UVX Installation (Temporary)
 
-For development or if you prefer manual control:
+For quick testing without permanent installation:
+
+```bash
+# Run DocBro temporarily with uvx
+uvx --from git+https://github.com/behemotion/doc-bro docbro setup
+```
+
+### Development Setup
+
+For development or contributing:
 
 ```bash
 # Clone and setup
-git clone https://github.com/yourusername/local-doc-bro.git
-cd local-doc-bro
-./setup.sh
+git clone https://github.com/behemotion/doc-bro.git
+cd doc-bro
+
+# Install with UV in editable mode
+uv pip install -e .
+
+# Run tests
+pytest tests/ -v
 ```
 
 ## 🎯 Usage
@@ -117,7 +133,7 @@ Claude Code supports MCP servers through configuration. Add DocBro to your MCP c
 #### 1. Install DocBro MCP Server
 ```bash
 # Install DocBro globally if not already done
-uvx install git+https://github.com/yourusername/local-doc-bro
+uv tool install git+https://github.com/behemotion/doc-bro
 
 # Verify installation
 docbro --version
@@ -143,13 +159,13 @@ Create or update your MCP configuration file at `~/.config/mcp/config.json`:
 
 #### 3. Alternative Configuration Methods
 
-**Option A: Using UVX command (Recommended)**
+**Option A: Using UV Tool command (Alternative)**
 ```json
 {
   "mcpServers": {
     "docbro": {
-      "command": "uvx",
-      "args": ["run", "docbro", "serve", "--port", "8765"],
+      "command": "uv",
+      "args": ["tool", "run", "docbro", "serve", "--port", "8765"],
       "env": {
         "DOCBRO_LOG_LEVEL": "INFO"
       }
