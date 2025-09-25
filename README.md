@@ -37,7 +37,7 @@ The setup wizard will check these for you, but you'll need:
 
 ```bash
 # 1. Install DocBro
-uvx install git+https://github.com/yourusername/local-doc-bro
+uvx install git+https://github.com/behemotion/doc-bro
 
 # 2. Run interactive setup
 docbro setup
