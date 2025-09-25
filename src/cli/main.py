@@ -349,7 +349,8 @@ def main(ctx: click.Context, config_file: Optional[str], debug: bool,
         console.print("DocBro - Documentation crawler and search tool\n")
         console.print("No command specified. Try 'docbro --help' for available commands.\n")
         console.print("Quick start:")
-        console.print("  docbro setup                  Interactive setup wizard")
+        console.print("  docbro init                   Initialize DocBro system")
+        console.print("  docbro setup                  Interactive settings menu")
         console.print("  docbro create myproject -u URL   Create a documentation project")
         console.print("  docbro crawl myproject        Crawl and index documentation")
         console.print("  docbro list                   List all projects")
@@ -984,6 +985,10 @@ main.add_command(enhanced_setup, name="setup")
 # Import and register uninstall command
 from .uninstall import uninstall
 main.add_command(uninstall)
+
+# Import and register init command
+from .commands.init import init as init_command
+main.add_command(init_command, name="init")
 
 
 # Create an alias for backward compatibility with tests
