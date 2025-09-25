@@ -10,8 +10,8 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
 from qdrant_client.http.exceptions import ResponseHandlingException
 
-from ..lib.config import DocBroConfig
-from ..lib.logging import get_component_logger
+from src.core.config import DocBroConfig
+from src.core.lib_logger import get_component_logger
 
 
 class VectorStoreError(Exception):
@@ -42,7 +42,7 @@ class VectorStoreService:
 
         try:
             # Create client based on deployment strategy
-            from ..lib.config import ServiceDeployment
+            from src.core.config import ServiceDeployment
             if self.config.qdrant_deployment == ServiceDeployment.DOCKER:
                 self._client = QdrantClient(url=self.config.qdrant_url)
             else:

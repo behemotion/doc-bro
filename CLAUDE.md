@@ -37,6 +37,8 @@ DocBro is a documentation crawler and search tool with RAG (Retrieval-Augmented 
 - **pytest 8.x** - Test framework with async support
 - **platformdirs** - XDG Base Directory specification
 - **packaging** - Version validation
+- Python 3.13+ (as specified in pyproject.toml) + Hatchling (build system), UV/UVX (installer), Click, Rich, Pydantic (004-however-there-is)
+- N/A (packaging/configuration issue) (004-however-there-is)
 
 ## Project Structure
 ```

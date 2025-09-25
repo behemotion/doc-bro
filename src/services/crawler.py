@@ -14,10 +14,10 @@ import httpx
 from bs4 import BeautifulSoup
 from bs4.element import Comment
 
-from ..models import Project, CrawlSession, Page, CrawlStatus, PageStatus
-from ..services.database import DatabaseManager
-from ..lib.config import DocBroConfig
-from ..lib.logging import get_component_logger
+from src.models import Project, CrawlSession, Page, CrawlStatus, PageStatus
+from src.services.database import DatabaseManager
+from src.core.config import DocBroConfig
+from src.core.lib_logger import get_component_logger
 
 
 class CrawlerError(Exception):

@@ -18,16 +18,16 @@ try:
 except ImportError:
     UVLOOP_AVAILABLE = False
 
-from ..lib.config import DocBroConfig
-from ..lib.logging import setup_logging, get_component_logger
-from ..services.database import DatabaseManager
-from ..services.vector_store import VectorStoreService
-from ..services.embeddings import EmbeddingService
-from ..services.rag import RAGSearchService
-from ..services.crawler import DocumentationCrawler
-from ..services.setup import SetupWizardService
-from ..services.config import ConfigService
-from ..services.detection import ServiceDetectionService
+from src.core.config import DocBroConfig
+from src.core.lib_logger import setup_logging, get_component_logger
+from src.services.database import DatabaseManager
+from src.services.vector_store import VectorStoreService
+from src.services.embeddings import EmbeddingService
+from src.services.rag import RAGSearchService
+from src.services.crawler import DocumentationCrawler
+from src.services.setup import SetupWizardService
+from src.services.config import ConfigService
+from src.services.detection import ServiceDetectionService
 
 
 class DocBroApp:
@@ -201,7 +201,7 @@ def list(ctx: click.Context, status: Optional[str], limit: Optional[int]):
         await app.initialize()
 
         try:
-            from ..models import ProjectStatus
+            from src.models import ProjectStatus
             status_filter = None
             if status:
                 try:
@@ -461,7 +461,7 @@ def remove(ctx: click.Context, name: str, confirm: bool):
 @click.pass_context
 def serve(ctx: click.Context, host: str, port: int):
     """Start the MCP server for agent integration."""
-    from ..services.mcp_server import run_mcp_server
+    from src.services.mcp_server import run_mcp_server
 
     app = get_app()
     app.console.print(f"[green]Starting MCP server on {host}:{port}...[/green]")

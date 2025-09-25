@@ -7,9 +7,9 @@ from typing import Dict, List, Optional, Any, Tuple
 import logging
 import hashlib
 
-from ..models import QueryResult, QueryResponse
-from ..lib.config import DocBroConfig
-from ..lib.logging import get_component_logger
+from src.models import QueryResult, QueryResponse
+from src.core.config import DocBroConfig
+from src.core.lib_logger import get_component_logger
 from .vector_store import VectorStoreService, VectorStoreError
 from .embeddings import EmbeddingService, EmbeddingError
 
