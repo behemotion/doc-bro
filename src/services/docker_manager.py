@@ -203,7 +203,7 @@ class DockerManager:
         container_name: str = "docbro-memory-qdrant",
         port: int = 6333,
         data_path: Optional[Path] = None,
-        image: str = "qdrant/qdrant:v1.7.0"
+        image: str = "qdrant/qdrant:v1.15.1"
     ) -> Dict[str, Any]:
         """Create and start Qdrant container."""
         if not self.is_connected():

@@ -2,6 +2,7 @@
 
 import asyncio
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, Any, Dict, List
 
@@ -482,6 +483,18 @@ def crawl(ctx: click.Context, name: Optional[str], max_pages: Optional[int],
                 app.console.print(f"  Pages crawled: {session.pages_crawled}")
                 app.console.print(f"  Pages failed: {session.pages_failed}")
                 app.console.print(f"  Duration: {session.get_duration():.1f}s")
+
+                # Update project statistics
+                try:
+                    await app.db_manager.update_project_statistics(
+                        project.id,
+                        total_pages=session.pages_crawled,
+                        successful_pages=session.pages_crawled - session.pages_failed,
+                        failed_pages=session.pages_failed,
+                        last_crawl_at=session.completed_at or datetime.utcnow()
+                    )
+                except Exception as e:
+                    app.console.print(f"[yellow]⚠ Warning: Failed to update project statistics: {e}[/yellow]")
 
                 # Index crawled pages for search
                 if session.pages_crawled > 0:
