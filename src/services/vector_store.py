@@ -255,44 +255,90 @@ class VectorStoreService:
     async def upsert_documents(
         self,
         collection_name: str,
-        documents: List[Dict[str, Any]]
+        documents: List[Dict[str, Any]],
+        batch_size: int = 100
     ) -> int:
-        """Upsert multiple documents."""
+        """Upsert multiple documents with batching to avoid timeouts."""
         self._ensure_initialized()
 
-        try:
-            # Prepare points
-            points = []
-            for doc in documents:
-                point = qdrant_models.PointStruct(
-                    id=doc["id"],
-                    vector=doc["embedding"],
-                    payload=doc.get("metadata", {})
-                )
-                points.append(point)
+        total_documents = len(documents)
+        upserted_count = 0
 
-            # Batch upsert
-            await asyncio.get_event_loop().run_in_executor(
-                None,
-                self._client.upsert,
-                collection_name,
-                points
-            )
+        try:
+            # Process in batches to avoid timeouts
+            for i in range(0, total_documents, batch_size):
+                batch = documents[i:i + batch_size]
+
+                # Prepare points for this batch
+                points = []
+                for doc in batch:
+                    point = qdrant_models.PointStruct(
+                        id=doc["id"],
+                        vector=doc["embedding"],
+                        payload=doc.get("metadata", {})
+                    )
+                    points.append(point)
+
+                # Upsert batch with timeout handling
+                try:
+                    await asyncio.wait_for(
+                        asyncio.get_event_loop().run_in_executor(
+                            None,
+                            self._client.upsert,
+                            collection_name,
+                            points
+                        ),
+                        timeout=30.0  # 30 second timeout per batch
+                    )
+                    upserted_count += len(batch)
+
+                    # Log progress for large uploads
+                    if total_documents > 500 and (i + batch_size) % 500 == 0:
+                        self.logger.info(f"Upserted {upserted_count}/{total_documents} documents to {collection_name}")
+
+                except asyncio.TimeoutError:
+                    self.logger.error(f"Timeout while upserting batch {i//batch_size + 1}, retrying with smaller batch")
+                    # Retry with smaller batch
+                    if batch_size > 20:
+                        for j in range(0, len(batch), 20):
+                            small_batch = batch[j:j + 20]
+                            small_points = []
+                            for doc in small_batch:
+                                point = qdrant_models.PointStruct(
+                                    id=doc["id"],
+                                    vector=doc["embedding"],
+                                    payload=doc.get("metadata", {})
+                                )
+                                small_points.append(point)
+
+                            await asyncio.wait_for(
+                                asyncio.get_event_loop().run_in_executor(
+                                    None,
+                                    self._client.upsert,
+                                    collection_name,
+                                    small_points
+                                ),
+                                timeout=15.0
+                            )
+                            upserted_count += len(small_batch)
+                    else:
+                        raise
 
             self.logger.info("Documents upserted", extra={
                 "collection_name": collection_name,
-                "documents_count": len(documents)
+                "documents_count": upserted_count
             })
 
-            return len(documents)
+            return upserted_count
 
         except Exception as e:
             self.logger.error("Failed to upsert documents", extra={
                 "collection_name": collection_name,
-                "documents_count": len(documents),
+                "documents_count": total_documents,
+                "upserted_count": upserted_count,
                 "error": str(e)
             })
-            raise VectorStoreError(f"Failed to upsert {len(documents)} documents: {e}")
+            raise VectorStoreError(f"Failed to upsert documents (uploaded {upserted_count}/{total_documents}): {e}")
 
     async def search(
         self,
