@@ -25,15 +25,22 @@ class OllamaManager:
         self.base_url = base_url.rstrip('/')
         self._client: Optional[httpx.AsyncClient] = None
 
-    async def connect(self) -> bool:
-        """Connect to Ollama service."""
-        self._client = httpx.AsyncClient(timeout=30.0)
+    async def connect(self, timeout: float = 5.0) -> bool:
+        """Connect to Ollama service with timeout.
+
+        Args:
+            timeout: Connection timeout in seconds (default 5.0)
+        """
+        self._client = httpx.AsyncClient(timeout=timeout)
 
         try:
             response = await self._client.get(f"{self.base_url}/api/tags")
             response.raise_for_status()
             logger.info("Connected to Ollama service")
             return True
+        except httpx.TimeoutException as e:
+            logger.warning(f"Ollama connection timed out after {timeout} seconds")
+            raise ExternalDependencyError(f"Ollama service not responding (timeout after {timeout}s)")
         except (httpx.RequestError, httpx.HTTPStatusError) as e:
             logger.error(f"Failed to connect to Ollama: {e}")
             raise ExternalDependencyError(f"Ollama service not available at {self.base_url}: {e}")
@@ -45,20 +52,42 @@ class OllamaManager:
             self._client = None
 
     async def check_ollama_health(self) -> Dict[str, Any]:
-        """Check Ollama service health."""
+        """Check Ollama service health with timeout protection."""
         try:
-            await self.connect()
+            # Use timeout for the entire health check
+            async def _do_health_check():
+                await self.connect(timeout=5.0)
 
-            response = await self._client.get(f"{self.base_url}/api/tags")
-            response.raise_for_status()
-            models = response.json().get("models", [])
+                response = await self._client.get(f"{self.base_url}/api/tags")
+                response.raise_for_status()
+                models = response.json().get("models", [])
 
+                return {
+                    "available": True,
+                    "version": "0.1.17",  # Would get from API in real implementation
+                    "health_status": "healthy",
+                    "models_count": len(models),
+                    "available_models": [m["name"] for m in models]
+                }
+
+            # Apply timeout to entire health check operation
+            try:
+                return await asyncio.wait_for(_do_health_check(), timeout=10.0)
+            except asyncio.TimeoutError:
+                logger.warning("Ollama health check timed out")
+                return {
+                    "available": False,
+                    "version": None,
+                    "health_status": "timeout",
+                    "error": "Ollama health check timed out after 10 seconds"
+                }
+
+        except ExternalDependencyError as e:
             return {
-                "available": True,
-                "version": "0.1.17",  # Would get from API in real implementation
-                "health_status": "healthy",
-                "models_count": len(models),
-                "available_models": [m["name"] for m in models]
+                "available": False,
+                "version": None,
+                "health_status": "unhealthy",
+                "error": str(e)
             }
         except Exception as e:
             return {
