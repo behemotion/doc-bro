@@ -30,10 +30,25 @@ class DockerServiceManager:
     def is_docker_available(self) -> bool:
         """Check if Docker is available and running."""
         try:
-            client = docker.from_env()
+            # Try with auto version negotiation
+            client = docker.from_env(version='auto')
             client.ping()
             return True
-        except DockerException:
+        except DockerException as e:
+            # If it's an API version issue, try with compatibility
+            if "api version" in str(e).lower() or "500" in str(e):
+                try:
+                    import os
+                    # Try with older API version that's widely compatible
+                    os.environ['DOCKER_API_VERSION'] = '1.41'
+                    client = docker.from_env()
+                    client.ping()
+                    os.environ.pop('DOCKER_API_VERSION', None)
+                    logger.info("Docker available with API v1.41 compatibility mode")
+                    return True
+                except DockerException:
+                    logger.warning(f"Docker not available even with compatibility mode: {e}")
+                    return False
             return False
 
     def get_service_containers(self) -> Dict[str, Optional[Container]]:

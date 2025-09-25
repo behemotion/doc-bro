@@ -24,6 +24,7 @@ except ImportError:
     DOCKER_AVAILABLE = False
 
 from ..models.setup_types import ExternalDependencyError, TimeoutError as SetupTimeoutError
+from .docker_compatibility import DockerManagerCompatible, DockerAPICompatibility
 
 
 logger = logging.getLogger(__name__)
@@ -36,9 +37,11 @@ class DockerManager:
         """Initialize Docker client."""
         self._client: Optional[Any] = None
         self._connected = False
+        self._compat_manager = DockerManagerCompatible()
+        self._api_compat = DockerAPICompatibility()
 
     async def connect(self, timeout: float = 5.0) -> bool:
-        """Connect to Docker daemon with timeout.
+        """Connect to Docker daemon with timeout and version compatibility.
 
         Args:
             timeout: Connection timeout in seconds (default 5.0)
@@ -47,6 +50,15 @@ class DockerManager:
             raise ExternalDependencyError("Docker package not installed. Install with: pip install docker")
 
         try:
+            # First try the compatibility manager
+            connected = await self._compat_manager.connect(timeout=timeout)
+            if connected:
+                self._client = self._compat_manager.client
+                self._connected = True
+                logger.info(f"Connected to Docker daemon with API version: {self._compat_manager.compat.negotiated_version}")
+                return True
+
+            # Fallback to traditional method if compatibility layer fails
             self._client = docker.from_env()
             # Test connection with timeout
             try:
@@ -63,6 +75,15 @@ class DockerManager:
             return True
         except DockerException as e:
             logger.error(f"Failed to connect to Docker daemon: {e}")
+            # Check if it's an API version mismatch
+            if "api version" in str(e).lower() or "500" in str(e):
+                logger.info("Attempting version compatibility workaround...")
+                # Try with compatibility layer again with explicit versions
+                connected = await self._compat_manager.connect(timeout=timeout * 2)
+                if connected:
+                    self._client = self._compat_manager.client
+                    self._connected = True
+                    return True
             raise ExternalDependencyError(f"Docker daemon not available: {e}")
         except Exception as e:
             logger.error(f"Unexpected error connecting to Docker: {e}")
