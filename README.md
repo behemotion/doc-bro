@@ -1,147 +1,369 @@
-# DocBro - Documentation Web Crawler
+# DocBro - Local Documentation Crawler & Search
 
-A powerful CLI tool that crawls documentation websites, creates vector databases, and provides RAG-powered search capabilities for developers and coding agents.
+A powerful CLI tool that crawls documentation websites, creates vector databases, and provides RAG-powered search capabilities with MCP server integration for coding agents.
 
-## Features
+## 🚀 Features
 
-- **Smart Crawling**: Web crawler with configurable depth for documentation sites
-- **Vector Database**: Qdrant integration for efficient semantic search
-- **RAG Search**: Advanced retrieval-augmented generation with multiple strategies
-- **MCP Server**: Connect coding agents like Claude Code via Model Context Protocol
-- **Project Management**: Organize multiple documentation projects
-- **Local-First**: Fully local operation with Ollama embeddings
-- **Docker Integration**: Containerized data services with local ML models
+- **Smart Web Crawling**: Configurable documentation crawler with rate limiting and robots.txt respect
+- **Vector Search**: Qdrant-powered semantic search with multiple RAG strategies
+- **Local Embeddings**: Ollama integration for privacy-focused, offline operation
+- **MCP Server**: Model Context Protocol server for Claude, Cursor, and other AI coding assistants
+- **Project Management**: Organize multiple documentation sources
+- **Rich CLI**: Beautiful terminal interface with progress bars and formatted output
+- **Docker Integration**: Pre-configured services for immediate use
 
-## Quick Start
+## 📋 Prerequisites
 
-### Prerequisites
+### Required Services
 
-1. **Docker Services** (Qdrant + Redis):
+1. **Docker & Docker Compose** - For Qdrant and Redis
+2. **Python 3.11+** - Core runtime
+3. **Ollama** - For local embeddings
+
+### Quick Prerequisites Check
+
 ```bash
-docker-compose -f docker/docker-compose.yml up -d
+# Check Docker
+docker --version
+docker-compose --version
+
+# Check Python
+python3 --version
+
+# Check/Install Ollama
+ollama --version || curl -fsSL https://ollama.com/install.sh | sh
 ```
 
-2. **Ollama** (for embeddings):
-```bash
-# Install Ollama if not already installed
-curl -fsSL https://ollama.com/install.sh | sh
+## 🛠️ Installation
 
-# Pull the embedding model
-ollama pull mxbai-embed-large
-```
-
-### Installation
+### Option 1: Automated Setup (Recommended)
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/docbro
-cd docbro
+# Clone repository
+git clone https://github.com/yourusername/local-doc-bro.git
+cd local-doc-bro
 
-# Quick setup (installs dependencies and starts services)
+# Run automated setup
 ./setup.sh
 
-# Or manual installation
+# This will:
+# - Install Python dependencies
+# - Start Docker services (Qdrant + Redis)
+# - Pull Ollama embedding models
+# - Verify installation
+```
+
+### Option 2: Manual Installation
+
+```bash
+# 1. Clone repository
+git clone https://github.com/yourusername/local-doc-bro.git
+cd local-doc-bro
+
+# 2. Install Python package
 pip install -e .
+
+# 3. Start Docker services
+docker-compose -f docker/docker-compose.yml up -d
+
+# 4. Pull embedding model
+ollama pull mxbai-embed-large
+
+# 5. Verify installation
+./docbro status
 ```
 
-### Basic Usage
+### Option 3: Quick Start
 
 ```bash
-# Create a new project
-docbro create python-docs --url https://docs.python.org/3/ --depth 2
-
-# Crawl documentation
-docbro crawl python-docs --max-pages 100 --rate-limit 2.0
-
-# Search documentation
-docbro search "async function" --project python-docs --limit 10
-
-# List projects
-docbro list
-
-# Check system status
-docbro status
-
-# Start MCP server for coding agents
-docbro serve --port 8765
+# All-in-one command
+./run.sh
 ```
 
-## CLI Commands
+## 🎯 Quick Start Guide
 
-### Main Commands
-
-| Command | Description | Key Options |
-|---------|-------------|------------|
-| `docbro create` | Create a new documentation project | `-u/--url` (required): Source URL<br>`-d/--depth`: Max crawl depth<br>`-m/--model`: Embedding model |
-| `docbro crawl` | Start crawling an existing project | `-m/--max-pages`: Page limit<br>`-r/--rate-limit`: Requests/second |
-| `docbro search` | Search documentation in projects | `-p/--project`: Target project<br>`-l/--limit`: Max results<br>`--strategy`: Search strategy |
-| `docbro list` | List all documentation projects | No additional options |
-| `docbro remove` | Remove a project and all its data | `--confirm`: Skip confirmation |
-| `docbro serve` | Start MCP server for agent integration | `--host`: Server host<br>`--port`: Server port |
-| `docbro status` | Show system status | No additional options |
-
-### Global Options
-- `--version`: Show version and exit
-- `--config-file PATH`: Custom configuration file
-- `-v/--verbose`: Enable verbose output
-- `--help`: Show help message
-
-## MCP Server API
-
-The MCP (Model Context Protocol) server enables integration with coding agents:
-
-### REST API Endpoints
-
-| Method | Endpoint | Description | Authentication |
-|--------|----------|-------------|----------------|
-| GET | `/health` | Health check endpoint | No |
-| POST | `/mcp/connect` | Establish MCP connection | Yes |
-| GET | `/mcp/projects` | List available documentation projects | Yes |
-| POST | `/mcp/search` | Search documentation across projects | Yes |
-| POST | `/mcp/projects/refresh` | Refresh/re-crawl a project | Yes |
-
-### WebSocket Endpoint
-
-- **WS** `/mcp/ws/{session_id}`: Real-time bidirectional communication
-  - Supports `ping`/`pong` keep-alive
-  - Real-time search capabilities
-  - Streaming updates for long operations
-
-### Authentication
-
-- Bearer token authentication: `Authorization: Bearer <token>`
-- Configure token via `DOCBRO_MCP_AUTH_TOKEN` environment variable
-
-## Architecture
-
-- **Language**: Python 3.13.5
-- **Vector DB**: Qdrant 1.13.0 (Docker)
-- **Queue**: Redis 7.2 (Docker)
-- **Embeddings**: Ollama (Local) - mxbai-embed-large
-- **Web Framework**: FastAPI + WebSocket support
-- **CLI**: Click + Rich for beautiful terminal output
-
-## Development
+### 1. Create a Documentation Project
 
 ```bash
-# Install development dependencies
-pip install -e ".[dev]"
+# Create project for Python docs
+./docbro create python-docs --url https://docs.python.org/3/ --depth 2
 
-# Run tests
-pytest
+# Create project with custom settings
+./docbro create fastapi \
+  --url https://fastapi.tiangolo.com \
+  --depth 3 \
+  --model nomic-embed-text
+```
 
-# Code formatting
-black src/ tests/
+### 2. Crawl Documentation
+
+```bash
+# Basic crawl
+./docbro crawl python-docs
+
+# Crawl with limits
+./docbro crawl python-docs \
+  --max-pages 100 \
+  --rate-limit 2.0 \
+  --respect-robots
+```
+
+### 3. Search Documentation
+
+```bash
+# Simple search
+./docbro search "async await" --project python-docs
+
+# Advanced search with options
+./docbro search "error handling" \
+  --project fastapi \
+  --limit 10 \
+  --strategy hybrid
+```
+
+### 4. Start MCP Server (for AI Agents)
+
+```bash
+# Start MCP server
+./docbro serve --port 8000
+
+# For Claude Desktop integration
+./docbro serve --port 8765 --host 127.0.0.1
+```
+
+## 📚 Command Reference
+
+### Core Commands
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `create` | Create new documentation project | `./docbro create <name> --url <docs-url>` |
+| `crawl` | Crawl documentation pages | `./docbro crawl <name> --max-pages 100` |
+| `search` | Search across documentation | `./docbro search "query" --project <name>` |
+| `list` | List all projects | `./docbro list --status ready` |
+| `status` | Check system health | `./docbro status` |
+| `serve` | Start MCP server | `./docbro serve --port 8000` |
+| `remove` | Delete a project | `./docbro remove <name> --confirm` |
+
+### Command Options
+
+#### `create` Options
+- `--url, -u`: Documentation base URL (required)
+- `--depth, -d`: Maximum crawl depth (default: 2)
+- `--model, -m`: Embedding model (default: mxbai-embed-large)
+
+#### `crawl` Options
+- `--max-pages, -m`: Maximum pages to crawl (default: 100)
+- `--rate-limit, -r`: Requests per second (default: 2.0)
+- `--respect-robots`: Honor robots.txt (default: true)
+
+#### `search` Options
+- `--project, -p`: Target project name
+- `--limit, -l`: Maximum results (default: 10)
+- `--strategy, -s`: Search strategy (vector|keyword|hybrid)
+
+## 🔧 Configuration
+
+### Environment Variables
+
+```bash
+# Database & Storage
+DOCBRO_DATABASE_PATH=./data/docbro.db
+
+# Vector Database
+DOCBRO_QDRANT_URL=http://localhost:6333
+
+# Cache & Queue
+DOCBRO_REDIS_URL=redis://localhost:6379
+
+# Embeddings
+DOCBRO_OLLAMA_URL=http://localhost:11434
+DOCBRO_EMBEDDING_MODEL=mxbai-embed-large
+
+# Logging
+DOCBRO_LOG_LEVEL=INFO
+
+# MCP Server
+DOCBRO_MCP_AUTH_TOKEN=your-secret-token
+```
+
+### Configuration File
+
+Create `~/.docbro/config.yaml`:
+
+```yaml
+database:
+  path: ./data/docbro.db
+
+services:
+  qdrant:
+    url: http://localhost:6333
+  redis:
+    url: redis://localhost:6379
+  ollama:
+    url: http://localhost:11434
+    model: mxbai-embed-large
+
+crawler:
+  default_max_pages: 100
+  default_rate_limit: 2.0
+  respect_robots: true
+
+search:
+  default_limit: 10
+  default_strategy: hybrid
+```
+
+## 🤖 MCP Server Integration
+
+### For Claude Desktop
+
+Add to Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "docbro": {
+      "command": "/path/to/docbro",
+      "args": ["serve", "--port", "8765"],
+      "env": {
+        "DOCBRO_MCP_AUTH_TOKEN": "your-token"
+      }
+    }
+  }
+}
+```
+
+### API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Health check |
+| GET | `/mcp/projects` | List projects |
+| POST | `/mcp/search` | Search documentation |
+| WS | `/mcp/ws/{session_id}` | WebSocket connection |
+
+## 🏗️ Architecture
+
+### Technology Stack
+
+- **Core**: Python 3.11+ with async/await
+- **Vector DB**: Qdrant 1.13.0
+- **Cache**: Redis 7.2
+- **Embeddings**: Ollama (mxbai-embed-large, nomic-embed-text)
+- **Database**: SQLite (metadata)
+- **Web Framework**: FastAPI + WebSocket
+- **CLI**: Click + Rich
+
+### Project Structure
+
+```
+local-doc-bro/
+├── src/
+│   ├── models/         # Pydantic data models
+│   ├── services/       # Core services
+│   │   ├── database.py     # SQLite operations
+│   │   ├── vector_store.py # Qdrant integration
+│   │   ├── embeddings.py   # Ollama service
+│   │   ├── rag.py         # RAG search
+│   │   ├── crawler.py     # Web crawler
+│   │   └── mcp_server.py  # MCP/FastAPI
+│   ├── cli/           # CLI implementation
+│   └── lib/           # Utilities
+├── tests/             # Test suite
+├── docker/            # Docker configs
+├── docbro            # CLI entry point
+└── setup.sh          # Setup script
+```
+
+## 🧪 Development
+
+### Running Tests
+
+```bash
+# All tests
+pytest tests/
+
+# Specific test file
+pytest tests/contract/test_cli_create.py -v
+
+# With coverage
+pytest --cov=src tests/
+```
+
+### Code Quality
+
+```bash
+# Formatting
+ruff format src/ tests/
+
+# Linting
 ruff check src/ tests/
 
 # Type checking
 mypy src/
 ```
 
-## License
+## 📊 Implementation Status
 
-MIT License - see LICENSE file for details.
+- ✅ **Core Functionality** (90% complete)
+  - ✅ Data models with validation
+  - ✅ Async database operations
+  - ✅ Vector store integration
+  - ✅ Embedding service
+  - ✅ RAG search (3 strategies)
+  - ✅ Web crawler with rate limiting
+  - ✅ MCP server implementation
+  - ✅ Rich CLI interface
+  - ✅ Docker configuration
 
-## Contributing
+- 🚧 **Planned Features** (10% remaining)
+  - [ ] Incremental crawl updates
+  - [ ] Export functionality (JSON/Markdown)
+  - [ ] Advanced crawling strategies
+  - [ ] Crawl scheduling
+  - [ ] Web UI (optional)
 
-See CONTRIBUTING.md for development setup and guidelines.
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**Services not starting:**
+```bash
+# Check Docker services
+docker-compose -f docker/docker-compose.yml ps
+docker-compose -f docker/docker-compose.yml logs
+
+# Restart services
+docker-compose -f docker/docker-compose.yml restart
+```
+
+**Ollama connection error:**
+```bash
+# Check Ollama service
+ollama list
+ollama serve  # If not running
+
+# Pull model if missing
+ollama pull mxbai-embed-large
+```
+
+**Database errors:**
+```bash
+# Reset database
+rm -rf data/docbro.db
+./docbro status  # Will recreate
+```
+
+## 📝 License
+
+MIT License - See [LICENSE](LICENSE) file for details.
+
+## 🤝 Contributing
+
+Contributions welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## 📮 Support
+
+- **Issues**: [GitHub Issues](https://github.com/yourusername/local-doc-bro/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/yourusername/local-doc-bro/discussions)
