@@ -1,0 +1,138 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "docbro"
+version = "0.1.0"
+description = "Documentation web crawler with vector database and RAG search capabilities"
+readme = "README.md"
+requires-python = ">=3.13"
+license = {text = "MIT"}
+authors = [
+    {name = "DocBro Contributors"}
+]
+keywords = ["documentation", "crawler", "vector-database", "rag", "search"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Documentation",
+    "Topic :: Text Processing :: Indexing",
+]
+
+dependencies = [
+    "click>=8.3.0",
+    "rich>=13.9.0",
+    "scrapy>=2.13.3",
+    "qdrant-client>=1.13.0",
+    "redis>=7.2.0",
+    "fastmcp>=2.0.0",
+    "fastapi>=0.115.11",
+    "uvicorn>=0.32.0",
+    "langchain>=0.3.76",
+    "langchain-community>=0.3.76",
+    "pydantic>=2.0.0",
+    "sqlalchemy>=2.0.0",
+    "aiosqlite>=0.20.0",
+    "httpx>=0.28.0",
+    "beautifulsoup4>=4.12.0",
+    "lxml>=5.0.0",
+    "markdownify>=0.13.0",
+    "python-multipart>=0.0.12",
+    "websockets>=13.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.25.0",
+    "pytest-mock>=3.14.0",
+    "black>=24.0.0",
+    "ruff>=0.7.0",
+    "mypy>=1.13.0",
+    "types-redis>=4.6.0",
+    "types-beautifulsoup4>=4.12.0",
+]
+
+[project.scripts]
+docbro = "src.cli.main:main"
+
+[project.urls]
+Homepage = "https://github.com/yourusername/docbro"
+Repository = "https://github.com/yourusername/docbro"
+Documentation = "https://github.com/yourusername/docbro/docs"
+Issues = "https://github.com/yourusername/docbro/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.black]
+line-length = 88
+target-version = ['py313']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
+
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+ignore = [
+    "E501",  # line too long, handled by black
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.mypy]
+python_version = "3.13"
+check_untyped_defs = true
+disallow_any_generics = true
+disallow_untyped_defs = true
+follow_imports = "silent"
+strict_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_any_unimported = true
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-ra -q --strict-markers --strict-config"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "contract: marks tests as contract tests",
+    "unit: marks tests as unit tests",
+]
