@@ -66,40 +66,37 @@ async def setup(auto: bool, force: bool, status: bool, verbose: bool, output_jso
     if verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    async def _setup():
-        setup_service = SetupLogicService()
+    setup_service = SetupLogicService()
 
-        try:
-            if status:
-                return await _handle_status(setup_service, output_json)
-            elif auto:
-                return await _handle_auto_setup(setup_service, force)
-            else:
-                return await _handle_interactive_setup(setup_service, force)
+    try:
+        if status:
+            return await _handle_status(setup_service, output_json)
+        elif auto:
+            return await _handle_auto_setup(setup_service, force)
+        else:
+            return await _handle_interactive_setup(setup_service, force)
 
-        except UserCancellationError as e:
-            console.print(f"❌ Setup cancelled: {e}")
-            sys.exit(4)
-        except SetupConfigurationError as e:
-            console.print(f"❌ Configuration error: {e}")
-            sys.exit(2)
-        except ExternalDependencyError as e:
-            console.print(f"❌ Dependency error: {e}")
-            console.print("\n💡 Suggestions:")
-            if "docker" in str(e).lower():
-                console.print("  • Install Docker: https://docs.docker.com/get-docker/")
-                console.print("  • Start Docker service: `docker --version` to verify")
-            elif "ollama" in str(e).lower():
-                console.print("  • Install Ollama: https://ollama.ai/")
-                console.print("  • Start Ollama: `ollama serve`")
-            sys.exit(3)
-        except Exception as e:
-            console.print(f"❌ Setup failed: {e}")
-            if verbose:
-                logger.exception("Setup failed with exception")
-            sys.exit(1)
-
-    run_async(_setup())
+    except UserCancellationError as e:
+        console.print(f"❌ Setup cancelled: {e}")
+        sys.exit(4)
+    except SetupConfigurationError as e:
+        console.print(f"❌ Configuration error: {e}")
+        sys.exit(2)
+    except ExternalDependencyError as e:
+        console.print(f"❌ Dependency error: {e}")
+        console.print("\n💡 Suggestions:")
+        if "docker" in str(e).lower():
+            console.print("  • Install Docker: https://docs.docker.com/get-docker/")
+            console.print("  • Start Docker service: `docker --version` to verify")
+        elif "ollama" in str(e).lower():
+            console.print("  • Install Ollama: https://ollama.ai/")
+            console.print("  • Start Ollama: `ollama serve`")
+        sys.exit(3)
+    except Exception as e:
+        console.print(f"❌ Setup failed: {e}")
+        if verbose:
+            logger.exception("Setup failed with exception")
+        sys.exit(1)
 
 
 async def _handle_status(setup_service: SetupLogicService, output_json: bool) -> None:

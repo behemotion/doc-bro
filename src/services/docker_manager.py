@@ -37,15 +37,27 @@ class DockerManager:
         self._client: Optional[Any] = None
         self._connected = False
 
-    async def connect(self) -> bool:
-        """Connect to Docker daemon."""
+    async def connect(self, timeout: float = 5.0) -> bool:
+        """Connect to Docker daemon with timeout.
+
+        Args:
+            timeout: Connection timeout in seconds (default 5.0)
+        """
         if not DOCKER_AVAILABLE:
             raise ExternalDependencyError("Docker package not installed. Install with: pip install docker")
 
         try:
             self._client = docker.from_env()
-            # Test connection
-            await asyncio.get_event_loop().run_in_executor(None, self._client.ping)
+            # Test connection with timeout
+            try:
+                await asyncio.wait_for(
+                    asyncio.get_event_loop().run_in_executor(None, self._client.ping),
+                    timeout=timeout
+                )
+            except asyncio.TimeoutError:
+                logger.warning(f"Docker connection timed out after {timeout} seconds")
+                raise ExternalDependencyError(f"Docker daemon not responding (timeout after {timeout}s)")
+
             self._connected = True
             logger.info("Connected to Docker daemon")
             return True
@@ -86,27 +98,42 @@ class DockerManager:
             raise ExternalDependencyError(f"Cannot get Docker version: {e}")
 
     async def check_docker_health(self) -> Dict[str, Any]:
-        """Check Docker daemon health."""
+        """Check Docker daemon health with timeout protection."""
         try:
-            if not self.is_connected():
-                await self.connect()
+            # Use timeout for the entire health check
+            async def _do_health_check():
+                if not self.is_connected():
+                    await self.connect(timeout=5.0)
 
-            version = await self.get_docker_version()
+                version = await self.get_docker_version()
 
-            return {
-                "available": True,
-                "version": version.get("Version", "unknown"),
-                "api_version": version.get("ApiVersion", "unknown"),
-                "platform": version.get("Os", "unknown"),
-                "architecture": version.get("Arch", "unknown"),
-                "health_status": "healthy"
-            }
-        except ExternalDependencyError:
+                return {
+                    "available": True,
+                    "version": version.get("Version", "unknown"),
+                    "api_version": version.get("ApiVersion", "unknown"),
+                    "platform": version.get("Os", "unknown"),
+                    "architecture": version.get("Arch", "unknown"),
+                    "health_status": "healthy"
+                }
+
+            # Apply timeout to entire health check operation
+            try:
+                return await asyncio.wait_for(_do_health_check(), timeout=10.0)
+            except asyncio.TimeoutError:
+                logger.warning("Docker health check timed out")
+                return {
+                    "available": False,
+                    "version": None,
+                    "health_status": "timeout",
+                    "error": "Docker health check timed out after 10 seconds"
+                }
+
+        except ExternalDependencyError as e:
             return {
                 "available": False,
                 "version": None,
                 "health_status": "unhealthy",
-                "error": "Docker daemon not available"
+                "error": str(e)
             }
         except Exception as e:
             return {
