@@ -9,7 +9,7 @@ import hashlib
 
 from ..models import QueryResult, QueryResponse
 from ..lib.config import DocBroConfig
-from ..lib.logging import get_component_logger
+from ..lib.logger import get_component_logger
 from .vector_store import VectorStoreService, VectorStoreError
 from .embeddings import EmbeddingService, EmbeddingError
 

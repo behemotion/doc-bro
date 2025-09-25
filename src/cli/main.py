@@ -19,7 +19,7 @@ except ImportError:
     UVLOOP_AVAILABLE = False
 
 from ..lib.config import DocBroConfig
-from ..lib.logging import setup_logging, get_component_logger
+from ..lib.logger import setup_logging, get_component_logger
 from ..services.database import DatabaseManager
 from ..services.vector_store import VectorStoreService
 from ..services.embeddings import EmbeddingService

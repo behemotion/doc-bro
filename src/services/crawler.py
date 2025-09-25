@@ -17,7 +17,7 @@ from bs4.element import Comment
 from ..models import Project, CrawlSession, Page, CrawlStatus, PageStatus
 from ..services.database import DatabaseManager
 from ..lib.config import DocBroConfig
-from ..lib.logging import get_component_logger
+from ..lib.logger import get_component_logger
 
 
 class CrawlerError(Exception):

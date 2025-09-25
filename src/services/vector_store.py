@@ -11,7 +11,7 @@ from qdrant_client.http import models as qdrant_models
 from qdrant_client.http.exceptions import ResponseHandlingException
 
 from ..lib.config import DocBroConfig
-from ..lib.logging import get_component_logger
+from ..lib.logger import get_component_logger
 
 
 class VectorStoreError(Exception):

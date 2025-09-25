@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from ..lib.config import DocBroConfig
-from ..lib.logging import get_component_logger
+from ..lib.logger import get_component_logger
 from ..services.database import DatabaseManager
 from ..services.vector_store import VectorStoreService
 from ..services.embeddings import EmbeddingService

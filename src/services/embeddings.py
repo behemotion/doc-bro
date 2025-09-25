@@ -9,7 +9,7 @@ import httpx
 import logging
 
 from ..lib.config import DocBroConfig
-from ..lib.logging import get_component_logger
+from ..lib.logger import get_component_logger
 
 
 class EmbeddingError(Exception):
