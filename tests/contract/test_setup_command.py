@@ -11,7 +11,7 @@ from src.cli.main import cli
 class TestSetupCommand:
     """Contract tests for the docbro setup command interface."""
 
-    def setUp(self):
+    def setup_method(self):
         """Set up test fixtures."""
         self.runner = CliRunner()
 

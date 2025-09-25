@@ -20,6 +20,10 @@ from src.services.vector_store import VectorStoreService
 from src.services.embeddings import EmbeddingService
 from src.services.rag import RAGSearchService
 from src.models import Project, ProjectStatus
+from src.services.installation_start import InstallationStartService
+from src.services.installation_status import InstallationStatusService
+from src.services.decision_handler import DecisionHandler, DecisionHandlerError, DecisionNotFoundError, InvalidDecisionError
+from src.services.service_endpoints import create_service_endpoints_router
 
 
 # Security
@@ -39,6 +43,8 @@ class MCPServer:
         self.vector_store: Optional[VectorStoreService] = None
         self.embedding_service: Optional[EmbeddingService] = None
         self.rag_service: Optional[RAGSearchService] = None
+        self.installation_service = InstallationStartService()
+        self.installation_status_service = InstallationStatusService()
 
         # Session management
         self.sessions: Dict[str, Dict[str, Any]] = {}
@@ -117,6 +123,10 @@ class MCPServer:
 
     def _add_routes(self, app: FastAPI) -> None:
         """Add API routes to the FastAPI app."""
+
+        # Include service endpoints router
+        service_router = create_service_endpoints_router()
+        app.include_router(service_router, tags=["Service Configuration"])
 
         # Authentication helper
         async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
@@ -307,6 +317,183 @@ class MCPServer:
                 "status": "refresh_started",
                 "message": "Project refresh not fully implemented yet"
             }
+
+        # Installation start endpoint
+        @app.post("/installation/start")
+        async def installation_start(request_data: Dict[str, Any]):
+            """Start DocBro installation process."""
+            try:
+                response = await self.installation_service.start_installation(request_data)
+                return response
+            except HTTPException:
+                # Re-raise HTTPExceptions as-is
+                raise
+            except Exception as e:
+                self.logger.error("Installation start failed", extra={
+                    "error": str(e)
+                })
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Internal server error"
+                )
+
+        # Installation status endpoint
+        @app.get("/installation/{installation_id}/status")
+        async def get_installation_status(installation_id: str):
+            """Get installation status by ID."""
+            try:
+                # Get installation status (service validates UUID internally)
+                installation_status = await self.installation_status_service.get_installation_status(installation_id)
+
+                if not installation_status:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Installation '{installation_id}' not found"
+                    )
+
+                # Convert to dict for JSON response
+                return installation_status.model_dump()
+
+            except ValueError as e:
+                # UUID validation error from service
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=str(e)
+                )
+            except HTTPException:
+                raise
+            except Exception as e:
+                self.logger.error("Failed to get installation status", extra={
+                    "installation_id": installation_id,
+                    "error": str(e)
+                })
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to get installation status"
+                )
+
+        # Installation Decision endpoints
+        decision_handler = DecisionHandler()
+
+        @app.get("/installation/{installation_id}/decisions")
+        async def get_installation_decisions(installation_id: str):
+            """Get critical decisions for an installation.
+
+            Args:
+                installation_id: UUID of the installation process
+
+            Returns:
+                Array of CriticalDecisionPoint objects
+            """
+            try:
+                # Validate UUID format
+                try:
+                    uuid.UUID(installation_id)
+                except (ValueError, TypeError):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Invalid installation ID format: {installation_id}"
+                    )
+
+                decisions = await decision_handler.get_installation_decisions(installation_id)
+                return decisions
+
+            except DecisionHandlerError as e:
+                error_msg = str(e)
+                if "not found" in error_msg.lower():
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=error_msg
+                    )
+                elif "invalid installation id" in error_msg.lower():
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=error_msg
+                    )
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=error_msg
+                    )
+            except Exception as e:
+                # Check if this is actually an HTTPException being re-raised from the UUID validation
+                if "400" in str(e) and "Invalid installation ID" in str(e):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Invalid installation ID format"
+                    )
+                self.logger.error(f"Failed to get installation decisions: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Internal server error"
+                )
+
+        @app.put("/installation/{installation_id}/decisions")
+        async def put_installation_decisions(installation_id: str, decision_data: Dict[str, Any]):
+            """Submit user choice for a critical decision.
+
+            Args:
+                installation_id: UUID of the installation process
+                decision_data: Dictionary containing decision_id and user_choice
+
+            Returns:
+                Success confirmation
+            """
+            try:
+                # Validate UUID format
+                try:
+                    uuid.UUID(installation_id)
+                except (ValueError, TypeError):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Invalid installation ID format: {installation_id}"
+                    )
+
+                success = await decision_handler.submit_installation_decision(
+                    installation_id, decision_data
+                )
+
+                if success:
+                    return {
+                        "status": "success",
+                        "message": "Decision submitted successfully",
+                        "installation_id": installation_id,
+                        "decision_id": decision_data.get("decision_id")
+                    }
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Failed to submit decision"
+                    )
+
+            except DecisionNotFoundError as e:
+                # If no decisions file exists for installation, return 400 instead of 404
+                if "No decisions found for installation" in str(e):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="No pending decisions for this installation. Decisions must be created by the system before they can be submitted."
+                    )
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=str(e)
+                    )
+            except InvalidDecisionError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=str(e)
+                )
+            except DecisionHandlerError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=str(e)
+                )
+            except Exception as e:
+                self.logger.error(f"Failed to submit installation decision: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Internal server error"
+                )
 
         # WebSocket endpoint for real-time updates
         @app.websocket("/mcp/ws/{session_id}")

@@ -1,0 +1,186 @@
+"""Installation Profile model for UV/UVX installation feature."""
+
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, Optional
+from uuid import UUID, uuid4
+import re
+import os
+from packaging import version
+
+from pydantic import BaseModel, Field, field_validator, ConfigDict
+
+
+class InstallationProfile(BaseModel):
+    """Complete configuration state during installation process."""
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        validate_assignment=True,
+        json_encoders={
+            Path: str,
+            datetime: lambda v: v.isoformat(),
+            UUID: str
+        }
+    )
+
+    # Core identification and metadata
+    id: UUID = Field(default_factory=uuid4, description="Unique identifier for installation session")
+    install_method: str = Field(..., description="Installation method (uvx, uv-tool, development)")
+    version: str = Field(..., description="DocBro version being installed")
+    python_version: str = Field(..., description="Python version (must be 3.13+)")
+    uv_version: str = Field(..., description="UV version detected")
+
+    # Installation paths and configuration
+    install_path: Path = Field(..., description="Installation directory path")
+    is_global: bool = Field(..., description="Whether installed globally via UV tool")
+    config_dir: Path = Field(..., description="Configuration directory (XDG compliant)")
+    data_dir: Path = Field(..., description="Data directory (XDG compliant)")
+    cache_dir: Path = Field(..., description="Cache directory (XDG compliant)")
+
+    # User configuration and preferences
+    user_preferences: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="User-selected configuration options"
+    )
+
+    # Timestamps
+    created_at: datetime = Field(
+        default_factory=datetime.now,
+        description="Installation start timestamp"
+    )
+    completed_at: Optional[datetime] = Field(
+        None,
+        description="Installation completion timestamp"
+    )
+
+    @field_validator('install_method')
+    @classmethod
+    def validate_install_method(cls, v: str) -> str:
+        """Validate install method is one of allowed values."""
+        allowed_methods = {"uvx", "uv-tool", "development"}
+        if v not in allowed_methods:
+            raise ValueError(f"install_method must be one of {allowed_methods}")
+        return v
+
+    @field_validator('version')
+    @classmethod
+    def validate_version(cls, v: str) -> str:
+        """Validate version follows semantic versioning."""
+        try:
+            # Use packaging library for robust semantic version validation
+            version.Version(v)
+        except Exception:
+            raise ValueError("version must follow semantic versioning (e.g., '1.0.0')")
+        return v
+
+    @field_validator('python_version')
+    @classmethod
+    def validate_python_version(cls, v: str) -> str:
+        """Validate Python version is >= 3.13.0."""
+        try:
+            parsed_version = version.Version(v)
+            min_version = version.Version("3.13.0")
+            if parsed_version < min_version:
+                raise ValueError("python_version must be >= 3.13.0")
+        except Exception as e:
+            if "python_version must be >= 3.13.0" in str(e):
+                raise
+            raise ValueError("python_version must be a valid version string (e.g., '3.13.0')")
+        return v
+
+    @field_validator('uv_version')
+    @classmethod
+    def validate_uv_version(cls, v: str) -> str:
+        """Validate UV version is a valid version string."""
+        try:
+            version.Version(v)
+        except Exception:
+            raise ValueError("uv_version must be a valid version string")
+        return v
+
+    @field_validator('install_path')
+    @classmethod
+    def validate_install_path_writable(cls, v: Path) -> Path:
+        """Validate install path is absolute and writable."""
+        if not v.is_absolute():
+            raise ValueError("install_path must be absolute")
+
+        # Check if path exists and is writable, or if parent directory exists and is writable
+        if v.exists():
+            if not os.access(v, os.W_OK):
+                raise ValueError("install_path must be writable")
+        else:
+            parent = v.parent
+            if not parent.exists() or not os.access(parent, os.W_OK):
+                raise ValueError("install_path parent directory must exist and be writable")
+
+        return v
+
+    @field_validator('config_dir', 'data_dir', 'cache_dir')
+    @classmethod
+    def validate_directory_creatable(cls, v: Path) -> Path:
+        """Validate directories are absolute and can be created."""
+        if not v.is_absolute():
+            raise ValueError("Directory paths must be absolute")
+
+        # Check if directory exists or can be created
+        if v.exists():
+            if not v.is_dir():
+                raise ValueError(f"Path {v} exists but is not a directory")
+            if not os.access(v, os.W_OK):
+                raise ValueError(f"Directory {v} is not writable")
+        else:
+            # Check if we can create the directory by testing parent writability
+            try:
+                # Find the first existing parent directory
+                parent = v
+                while parent and not parent.exists():
+                    parent = parent.parent
+
+                if not parent or not os.access(parent, os.W_OK):
+                    raise ValueError(f"Cannot create directory {v} - parent not writable")
+
+            except Exception as e:
+                raise ValueError(f"Directory {v} cannot be created: {str(e)}")
+
+        return v
+
+    @field_validator('completed_at')
+    @classmethod
+    def validate_completed_after_created(cls, v: Optional[datetime], info) -> Optional[datetime]:
+        """Validate completed_at is after created_at if both are set."""
+        if v is not None and hasattr(info, 'data') and 'created_at' in info.data:
+            created_at = info.data['created_at']
+            if isinstance(created_at, datetime) and v <= created_at:
+                raise ValueError("completed_at must be after created_at")
+        return v
+
+    def is_completed(self) -> bool:
+        """Check if installation is completed."""
+        return self.completed_at is not None
+
+    def mark_completed(self) -> None:
+        """Mark installation as completed with current timestamp."""
+        self.completed_at = datetime.now()
+
+    def get_duration(self) -> Optional[float]:
+        """Get installation duration in seconds if completed."""
+        if self.completed_at is None:
+            return None
+        return (self.completed_at - self.created_at).total_seconds()
+
+    def to_summary(self) -> Dict[str, Any]:
+        """Generate a summary of the installation profile."""
+        return {
+            "id": str(self.id),
+            "install_method": self.install_method,
+            "version": self.version,
+            "python_version": self.python_version,
+            "is_global": self.is_global,
+            "install_path": str(self.install_path),
+            "completed": self.is_completed(),
+            "duration_seconds": self.get_duration(),
+            "created_at": self.created_at.isoformat(),
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+        }

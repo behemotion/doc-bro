@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Literal, Union
 import re
 
 from pydantic import BaseModel, Field, field_validator, ConfigDict
@@ -209,4 +209,170 @@ class PackageMetadata(BaseModel):
         """Validate URLs are HTTP/HTTPS."""
         if not v.startswith(("http://", "https://")):
             raise ValueError("URLs must be HTTP or HTTPS")
+        return v
+
+
+class InstallationRequest(BaseModel):
+    """Request model for starting DocBro installation process."""
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        validate_assignment=True
+    )
+
+    install_method: Literal["uvx", "uv-tool", "development"] = Field(
+        ..., description="Installation method to use"
+    )
+    version: str = Field(..., description="Version to install")
+    user_preferences: Optional[Dict[str, Any]] = Field(
+        default=None, description="User preferences for installation"
+    )
+    force_reinstall: bool = Field(
+        default=False, description="Whether to force reinstallation"
+    )
+
+    @field_validator('version')
+    @classmethod
+    def validate_version_format(cls, v: str) -> str:
+        """Validate version follows semantic versioning pattern."""
+        pattern = r"^\d+\.\d+\.\d+$"
+        if not re.match(pattern, v):
+            raise ValueError("version must follow semantic versioning pattern (e.g., '1.0.0')")
+        return v
+
+
+class InstallationResponse(BaseModel):
+    """Response model for installation start endpoint."""
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        validate_assignment=True
+    )
+
+    installation_id: str = Field(..., description="Unique installation identifier")
+    status: Literal["started", "in_progress", "completed", "failed"] = Field(
+        ..., description="Current installation status"
+    )
+    message: str = Field(..., description="Status message")
+    next_steps: Optional[List[str]] = Field(
+        default=None, description="Next steps for the user"
+    )
+
+    @field_validator('installation_id')
+    @classmethod
+    def validate_installation_id(cls, v: str) -> str:
+        """Validate installation_id is a valid UUID format."""
+        try:
+            import uuid
+            uuid.UUID(v)
+        except (ValueError, TypeError):
+            raise ValueError("installation_id must be a valid UUID")
+        return v
+
+
+class SystemRequirements(BaseModel):
+    """System requirements validation and information."""
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        validate_assignment=True
+    )
+
+    python_version: str = Field(..., description="Required Python version pattern")
+    platform: Literal["darwin", "linux", "windows"] = Field(..., description="Target platform")
+    memory_mb: int = Field(..., description="Required memory in MB", ge=512)
+    disk_space_mb: int = Field(..., description="Required disk space in MB", ge=100)
+    has_internet: bool = Field(..., description="Whether internet connection is required")
+    supports_docker: bool = Field(default=True, description="Whether Docker support is available")
+    requires_admin: bool = Field(default=False, description="Whether admin privileges are required")
+
+    @field_validator('python_version')
+    @classmethod
+    def validate_python_version_pattern(cls, v: str) -> str:
+        """Validate Python version follows pattern ^3\\.13\\.\\d+$"""
+        pattern = r"^3\.13\.\d+$"
+        if not re.match(pattern, v):
+            raise ValueError("python_version must match pattern ^3\\.13\\.\\d+$ (e.g., '3.13.0')")
+        return v
+
+    @field_validator('memory_mb', 'disk_space_mb')
+    @classmethod
+    def validate_positive_integers(cls, v: int) -> int:
+        """Validate integer fields are positive."""
+        if v <= 0:
+            raise ValueError("Memory and disk space must be positive integers")
+        return v
+
+
+class CriticalDecisionPoint(BaseModel):
+    """Model for tracking critical decisions during installation."""
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        validate_assignment=True,
+        json_encoders={
+            datetime: lambda v: v.isoformat()
+        }
+    )
+
+    decision_id: str = Field(..., description="Unique decision identifier")
+    decision_type: Literal["install_location", "service_port", "data_directory"] = Field(
+        ..., description="Type of decision being made"
+    )
+    title: str = Field(..., description="Human-readable decision title")
+    description: str = Field(..., description="Detailed description of the decision")
+    options: List[Dict[str, Any]] = Field(
+        ..., description="Available options for this decision"
+    )
+    default_option: Optional[str] = Field(
+        None, description="Default option identifier"
+    )
+    user_choice: Optional[Union[str, Dict[str, Any]]] = Field(
+        None, description="User's selected choice"
+    )
+    timestamp: datetime = Field(
+        default_factory=datetime.now,
+        description="When this decision point was created"
+    )
+    resolved: bool = Field(
+        default=False, description="Whether this decision has been resolved"
+    )
+    validation_pattern: Optional[str] = Field(
+        None, description="Regex pattern for validating custom input"
+    )
+
+    @field_validator('decision_id')
+    @classmethod
+    def validate_decision_id(cls, v: str) -> str:
+        """Validate decision ID format."""
+        # Should be alphanumeric with underscores/hyphens
+        pattern = r"^[a-zA-Z0-9_-]+$"
+        if not re.match(pattern, v):
+            raise ValueError("decision_id must contain only alphanumeric characters, underscores, and hyphens")
+        return v
+
+    @field_validator('validation_pattern')
+    @classmethod
+    def validate_regex_pattern(cls, v: Optional[str]) -> Optional[str]:
+        """Validate that the validation pattern is a valid regex."""
+        if v is not None:
+            try:
+                re.compile(v)
+            except re.error as e:
+                raise ValueError(f"Invalid regex pattern: {e}")
+        return v
+
+    @field_validator('options')
+    @classmethod
+    def validate_options_format(cls, v: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Validate options have required fields."""
+        if not v:
+            raise ValueError("At least one option must be provided")
+
+        for option in v:
+            if 'id' not in option:
+                raise ValueError("Each option must have an 'id' field")
+            if 'label' not in option:
+                raise ValueError("Each option must have a 'label' field")
+
         return v

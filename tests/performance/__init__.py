@@ -1,0 +1,1 @@
+"""Performance tests for DocBro installation and setup processes."""
