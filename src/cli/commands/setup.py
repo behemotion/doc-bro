@@ -1,77 +1,157 @@
-"""Setup CLI command - now serves as interactive settings menu."""
+"""Unified setup command for all setup operations."""
 
 import click
+from typing import Optional
+from src.logic.setup.core.orchestrator import SetupOrchestrator
+from src.logic.setup.core.router import CommandRouter
+from src.lib.logging import get_logger, setup_logging
 from rich.console import Console
 
-from src.services.menu_ui_service import MenuUIService
-from src.services.settings_service import SettingsService
-
+logger = get_logger(__name__)
 console = Console()
 
 
 @click.command()
-@click.option('--reset', is_flag=True, help='Reset to factory defaults')
-@click.option('--non-interactive', is_flag=True, help='Display current settings without menu')
-def setup(reset: bool, non_interactive: bool):
-    """Configure global settings interactively.
+@click.option(
+    "--init",
+    is_flag=True,
+    help="Initialize DocBro configuration"
+)
+@click.option(
+    "--uninstall",
+    is_flag=True,
+    help="Uninstall DocBro completely"
+)
+@click.option(
+    "--reset",
+    is_flag=True,
+    help="Reset DocBro to fresh state"
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Skip confirmation prompts"
+)
+@click.option(
+    "--auto",
+    is_flag=True,
+    help="Use automatic mode with defaults"
+)
+@click.option(
+    "--non-interactive",
+    is_flag=True,
+    help="Disable interactive prompts"
+)
+@click.option(
+    "--vector-store",
+    type=click.Choice(["sqlite_vec", "qdrant"]),
+    help="Select vector store provider (with --init)"
+)
+@click.option(
+    "--backup",
+    is_flag=True,
+    help="Create backup before uninstalling (with --uninstall)"
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Show what would be removed (with --uninstall)"
+)
+@click.option(
+    "--preserve-data",
+    is_flag=True,
+    help="Keep user project data (with --uninstall or --reset)"
+)
+@click.pass_context
+def setup(
+    ctx: click.Context,
+    init: bool,
+    uninstall: bool,
+    reset: bool,
+    force: bool,
+    auto: bool,
+    non_interactive: bool,
+    vector_store: Optional[str],
+    backup: bool,
+    dry_run: bool,
+    preserve_data: bool
+):
+    """Unified setup command for DocBro configuration.
 
-    This command provides an interactive menu to modify your global DocBro settings.
-    Use arrow keys to navigate, Enter to edit, and Esc/q to quit.
+    This command consolidates all setup operations:
+    - Initialize configuration (--init)
+    - Uninstall DocBro (--uninstall)
+    - Reset installation (--reset)
+    - Interactive menu (no flags)
 
     Examples:
-      docbro setup              # Interactive settings menu
-      docbro setup --reset      # Reset to factory defaults
-      docbro setup --non-interactive  # Just show current settings
+        docbro setup                           # Interactive menu
+        docbro setup --init --auto             # Quick setup with defaults
+        docbro setup --init --vector-store sqlite_vec
+        docbro setup --uninstall --force       # Uninstall without confirmation
+        docbro setup --reset --preserve-data   # Reset but keep projects
     """
-    settings_service = SettingsService()
+    # Setup logging
+    setup_logging()
+
+    # Initialize router and orchestrator
+    router = CommandRouter()
+    orchestrator = SetupOrchestrator()
 
     try:
-        # Handle reset flag
-        if reset:
-            if click.confirm("Reset all global settings to factory defaults?", abort=True):
-                backup_path = settings_service.reset_to_factory_defaults(backup=True)
-                if backup_path:
-                    console.print(f"[green]✓[/green] Settings reset to defaults")
-                    console.print(f"[dim]Backup saved to: {backup_path}[/dim]")
-                else:
-                    console.print("[green]✓[/green] Settings reset to defaults")
-                return
+        # Route to appropriate operation
+        operation = router.route_operation(
+            init=init,
+            uninstall=uninstall,
+            reset=reset,
+            force=force,
+            auto=auto,
+            non_interactive=non_interactive,
+            vector_store=vector_store,
+            backup=backup,
+            dry_run=dry_run,
+            preserve_data=preserve_data
+        )
 
-        # Load current settings
-        settings = settings_service.get_global_settings()
+        # Execute the operation
+        if operation.type == "init":
+            console.print("[cyan]Initializing DocBro...[/cyan]")
+            result = orchestrator.initialize(**operation.options)
 
-        if non_interactive:
-            # Just display current settings
-            from src.cli.commands.setup_settings import display_settings_table
-            display_settings_table(settings)
-            return
+        elif operation.type == "uninstall":
+            console.print("[yellow]Preparing to uninstall DocBro...[/yellow]")
+            result = orchestrator.uninstall(**operation.options)
 
-        # Show interactive menu
-        menu_service = MenuUIService()
+        elif operation.type == "reset":
+            console.print("[yellow]Resetting DocBro installation...[/yellow]")
+            result = orchestrator.reset(**operation.options)
 
-        try:
-            # Check if settings exist
-            if not settings_service.global_settings_path.exists():
-                console.print("[yellow]⚠[/yellow] Global settings not found.")
-                console.print("Run [cyan]docbro init[/cyan] first to initialize DocBro.")
-                return
+        elif operation.type == "menu":
+            # Launch interactive menu
+            console.print("[cyan]Welcome to DocBro Setup[/cyan]")
+            result = orchestrator.run_interactive_menu()
 
-            # Run interactive menu
-            updated_settings = menu_service.run_interactive_menu(settings)
+        else:
+            raise ValueError(f"Unknown operation type: {operation.type}")
 
-            if updated_settings:
-                # Save updated settings
-                settings_service.save_global_settings(updated_settings)
-                console.print("\n[green]✓[/green] Settings saved successfully!")
-            else:
-                console.print("\n[yellow]ℹ[/yellow] No changes made.")
+        # Display result
+        if result.status == "completed":
+            console.print(f"[green]✓ {operation.type.title()} completed successfully[/green]")
+        elif result.status == "cancelled":
+            console.print("[yellow]Operation cancelled[/yellow]")
+        elif result.status == "dry_run":
+            console.print("[blue]Dry run completed - no changes made[/blue]")
+        else:
+            console.print(f"[red]Operation failed: {result.error_message}[/red]")
+            ctx.exit(1)
 
-        except KeyboardInterrupt:
-            console.print("\n[yellow]⚠[/yellow] Setup cancelled by user")
-        except Exception as e:
-            console.print(f"\n[red]✗[/red] Error during setup: {e}")
-            raise click.ClickException(str(e))
+    except ValueError as e:
+        # Flag validation error
+        console.print(f"[red]Error: {e}[/red]")
+        console.print("\n[dim]Run 'docbro setup --help' for usage information[/dim]")
+        ctx.exit(1)
 
     except Exception as e:
-        console.print(f"[red]✗[/red] Setup failed: {e}")
-        raise click.ClickException(str(e))
+        logger.exception("Setup command failed")
+        console.print(f"[red]Setup failed: {e}[/red]")
+        ctx.exit(1)
