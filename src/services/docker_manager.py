@@ -98,6 +98,89 @@ def check_docker_availability() -> tuple[bool, str]:
     return True, f"Docker and Docker Compose ({compose_cmd}) are available"
 
 
+async def run_qdrant_container(
+    container_name: str = "docbro-qdrant",
+    port: int = 6333,
+    image: str = "qdrant/qdrant:latest"
+) -> tuple[bool, str]:
+    """Start Qdrant container using subprocess (no Docker Python package needed).
+
+    Returns:
+        tuple: (success, message)
+    """
+    import subprocess
+
+    try:
+        # Check if container already exists and is running
+        check_cmd = ["docker", "ps", "--filter", f"name={container_name}", "--format", "{{.Names}}"]
+        result = subprocess.run(check_cmd, capture_output=True, text=True, timeout=10)
+
+        if result.returncode == 0 and container_name in result.stdout:
+            return True, f"Qdrant container '{container_name}' is already running"
+
+        # Check if container exists but is stopped
+        check_all_cmd = ["docker", "ps", "-a", "--filter", f"name={container_name}", "--format", "{{.Names}}"]
+        result = subprocess.run(check_all_cmd, capture_output=True, text=True, timeout=10)
+
+        if result.returncode == 0 and container_name in result.stdout:
+            # Start existing container
+            start_cmd = ["docker", "start", container_name]
+            result = subprocess.run(start_cmd, capture_output=True, text=True, timeout=30)
+
+            if result.returncode == 0:
+                return True, f"Started existing Qdrant container '{container_name}'"
+            else:
+                return False, f"Failed to start container: {result.stderr}"
+
+        # Create and run new container
+        run_cmd = [
+            "docker", "run", "-d",
+            "--name", container_name,
+            "-p", f"{port}:6333",
+            image
+        ]
+
+        result = subprocess.run(run_cmd, capture_output=True, text=True, timeout=60)
+
+        if result.returncode == 0:
+            container_id = result.stdout.strip()[:12]  # First 12 chars of container ID
+            return True, f"Created and started Qdrant container '{container_name}' ({container_id})"
+        else:
+            return False, f"Failed to create container: {result.stderr}"
+
+    except subprocess.TimeoutExpired:
+        return False, "Docker command timed out"
+    except Exception as e:
+        return False, f"Error running Docker command: {e}"
+
+
+async def stop_qdrant_container(container_name: str = "docbro-qdrant") -> tuple[bool, str]:
+    """Stop Qdrant container using subprocess.
+
+    Returns:
+        tuple: (success, message)
+    """
+    import subprocess
+
+    try:
+        stop_cmd = ["docker", "stop", container_name]
+        result = subprocess.run(stop_cmd, capture_output=True, text=True, timeout=30)
+
+        if result.returncode == 0:
+            return True, f"Stopped Qdrant container '{container_name}'"
+        else:
+            # Container might not exist or already stopped
+            if "No such container" in result.stderr:
+                return True, f"Container '{container_name}' does not exist"
+            else:
+                return False, f"Failed to stop container: {result.stderr}"
+
+    except subprocess.TimeoutExpired:
+        return False, "Docker stop command timed out"
+    except Exception as e:
+        return False, f"Error stopping container: {e}"
+
+
 class DockerManager:
     """Manages Docker container operations for DocBro setup."""
 
@@ -115,7 +198,7 @@ class DockerManager:
             timeout: Connection timeout in seconds (default 5.0)
         """
         if not DOCKER_AVAILABLE:
-            raise ExternalDependencyError("Docker Python package not available. This is only needed for Qdrant setup.")
+            raise ExternalDependencyError("Docker Python package not available. Advanced Docker operations unavailable.")
 
         try:
             # First try the compatibility manager

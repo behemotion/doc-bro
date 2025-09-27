@@ -37,7 +37,7 @@ def _get_sqlite_vec_install_guidance() -> str:
     """Get UV-specific guidance for installing sqlite-vec."""
     return (
         "Install sqlite-vec using UV:\n"
-        "  1. uv pip install sqlite-vec\n"
+        "  1. uv pip install --system sqlite-vec\n"
         "  2. Or reinstall docbro: uvx install --force git+https://github.com/behemotion/doc-bro"
     )
 
@@ -497,12 +497,13 @@ async def _setup_sqlite_vec(progress: InitProgressDisplay) -> Dict[str, Any]:
                 import shutil
 
                 # Use UV for package management - this app is UV-dependent
-                install_cmd = ["uv", "pip", "install", "sqlite-vec"]
+                # Use --system flag to install into the current environment (UVX isolated env)
+                install_cmd = ["uv", "pip", "install", "--system", "sqlite-vec"]
 
-                # Verify UV is available
+                # Verify UV is available and supports --system flag
                 try:
                     test_result = subprocess.run(
-                        ["uv", "pip", "--help"],
+                        ["uv", "pip", "install", "--help"],
                         capture_output=True,
                         text=True,
                         timeout=5
@@ -514,6 +515,16 @@ async def _setup_sqlite_vec(progress: InitProgressDisplay) -> Dict[str, Any]:
                             "error": "UV package manager not available",
                             "setup_message": "DocBro requires UV. Install UV from: https://docs.astral.sh/uv/"
                         }
+
+                    # Check if --system flag is supported
+                    if "--system" not in test_result.stdout:
+                        progress.add_warning("UV version too old - --system flag not supported")
+                        return {
+                            "success": False,
+                            "error": "UV version incompatible",
+                            "setup_message": "Update UV to a newer version: pip install --upgrade uv"
+                        }
+
                 except (subprocess.TimeoutExpired, FileNotFoundError):
                     progress.add_warning("UV not found - DocBro requires UV package manager")
                     return {
@@ -646,12 +657,43 @@ async def _setup_qdrant(progress: InitProgressDisplay) -> Dict[str, Any]:
         qdrant_status = await detection.check_qdrant()
 
         if not qdrant_status.available:
-            progress.add_warning("Qdrant service not running")
-            return {
-                "success": True,
-                "warning": "Qdrant service not running",
-                "setup_message": "Start Qdrant with: docker run -d -p 6333:6333 qdrant/qdrant"
-            }
+            progress.add_warning("Qdrant service not running - attempting to start container")
+
+            # Try to start Qdrant container using subprocess (no Docker Python package needed)
+            from src.services.docker_manager import run_qdrant_container
+            try:
+                container_success, container_message = await run_qdrant_container()
+                if container_success:
+                    progress.add_step("Qdrant container started", "✓")
+
+                    # Wait a moment for Qdrant to fully start
+                    await asyncio.sleep(3)
+
+                    # Re-check Qdrant availability
+                    qdrant_status = await detection.check_qdrant()
+                    if qdrant_status.available:
+                        progress.add_step("Qdrant service ready", "✓")
+                    else:
+                        progress.add_warning("Qdrant container started but service not yet ready")
+                        return {
+                            "success": True,
+                            "warning": "Qdrant starting up",
+                            "setup_message": "Qdrant container started but may need a few more seconds to be ready"
+                        }
+                else:
+                    progress.add_warning(f"Failed to start Qdrant container: {container_message}")
+                    return {
+                        "success": True,
+                        "warning": "Could not start Qdrant automatically",
+                        "setup_message": f"Manual start needed: docker run -d -p 6333:6333 --name docbro-qdrant qdrant/qdrant\nError: {container_message}"
+                    }
+            except Exception as e:
+                progress.add_warning(f"Error starting Qdrant container: {e}")
+                return {
+                    "success": True,
+                    "warning": "Could not start Qdrant automatically",
+                    "setup_message": "Start Qdrant manually with: docker run -d -p 6333:6333 --name docbro-qdrant qdrant/qdrant"
+                }
 
         # Test basic connectivity
         import httpx
