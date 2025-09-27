@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 def detect_sqlite_vec() -> Tuple[bool, str]:
     """Detect if sqlite-vec extension is available."""
     if not SQLITE_VEC_AVAILABLE:
-        return False, "sqlite-vec not installed. Run: pip install sqlite-vec"
+        return False, "sqlite-vec not installed. Run: uv pip install sqlite-vec"
 
     try:
         # Test loading the extension
@@ -87,7 +87,7 @@ class SQLiteVecService:
         """Get installation suggestion for missing extension."""
         return (
             "To install sqlite-vec:\n"
-            "  1. Run: pip install sqlite-vec\n"
+            "  1. Run: uv pip install sqlite-vec\n"
             "  2. Run: docbro services setup --service sqlite-vec\n"
         )
 

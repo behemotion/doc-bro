@@ -199,7 +199,7 @@ class SystemRequirementsService:
     def detect_sqlite_vec(self) -> Tuple[bool, str]:
         """Detect SQLite-vec extension availability with detailed message."""
         if not SQLITE_VEC_AVAILABLE:
-            return False, "sqlite-vec not installed. Run: pip install sqlite-vec"
+            return False, "sqlite-vec not installed. Run: uv pip install sqlite-vec"
 
         try:
             conn = sqlite3.connect(":memory:")

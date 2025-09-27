@@ -33,6 +33,15 @@ console = Console()
 logger = logging.getLogger(__name__)
 
 
+def _get_sqlite_vec_install_guidance() -> str:
+    """Get UV-specific guidance for installing sqlite-vec."""
+    return (
+        "Install sqlite-vec using UV:\n"
+        "  1. uv pip install sqlite-vec\n"
+        "  2. Or reinstall docbro: uvx install --force git+https://github.com/behemotion/doc-bro"
+    )
+
+
 class InitProgressDisplay:
     """Progress display for initialization with box interface."""
 
@@ -234,6 +243,10 @@ async def _prompt_vector_store_selection(detection_service) -> VectorStoreProvid
     qdrant_available = service_checks.get('qdrant', type('', (), {'available': False})).available
     sqlite_vec_available, sqlite_message = detect_sqlite_vec()
 
+    # Check Docker availability for Qdrant
+    from src.services.docker_manager import check_docker_availability
+    docker_available, docker_message = check_docker_availability()
+
     # Show options with availability status
     options = []
 
@@ -245,11 +258,14 @@ async def _prompt_vector_store_selection(detection_service) -> VectorStoreProvid
     options.append((VectorStoreProvider.SQLITE_VEC, sqlite_vec_available))
 
     # Qdrant option
-    status_icon = "[green]✓[/green]" if qdrant_available else "[yellow]⚠[/yellow]"
-    console.print(f"2. {status_icon} Qdrant (recommended for large deployments)")
-    if not qdrant_available:
+    qdrant_fully_available = qdrant_available and docker_available
+    status_icon = "[green]✓[/green]" if qdrant_fully_available else "[yellow]⚠[/yellow]"
+    console.print(f"2. {status_icon} Qdrant (recommended for large deployments, requires Docker)")
+    if not docker_available:
+        console.print(f"   [dim]Docker requirement: {docker_message}[/dim]")
+    elif not qdrant_available:
         console.print("   [dim]Qdrant service not running[/dim]")
-    options.append((VectorStoreProvider.QDRANT, qdrant_available))
+    options.append((VectorStoreProvider.QDRANT, qdrant_fully_available))
 
     console.print()
 
@@ -259,11 +275,27 @@ async def _prompt_vector_store_selection(detection_service) -> VectorStoreProvid
             if choice in [1, 2]:
                 selected_provider, available = options[choice - 1]
 
-                if not available:
-                    console.print(f"[yellow]⚠[/yellow] {selected_provider.value} is not currently available.")
-                    if click.confirm("Do you want to proceed anyway and set it up later?", default=False):
-                        return selected_provider
-                    continue
+                # Special handling for Qdrant selection
+                if selected_provider == VectorStoreProvider.QDRANT:
+                    if not docker_available:
+                        console.print(f"\n[yellow]⚠[/yellow] Qdrant requires Docker and Docker Compose.")
+                        console.print(f"   Issue: {docker_message}")
+                        console.print("   Please install Docker from: https://docs.docker.com/get-docker/")
+
+                        if not click.confirm("\nDo you want to continue anyway? (You'll need to install Docker later)", default=False):
+                            continue
+                    elif not qdrant_available:
+                        console.print(f"\n[yellow]ℹ[/yellow] Qdrant service is not currently running.")
+                        console.print("   DocBro can help you start Qdrant with Docker when needed.")
+
+                        if not click.confirm("Continue with Qdrant setup?", default=True):
+                            continue
+
+                # For SQLite-vec, check if user wants to proceed despite missing dependency
+                elif selected_provider == VectorStoreProvider.SQLITE_VEC and not available:
+                    console.print(f"[yellow]⚠[/yellow] {sqlite_message}")
+                    if not click.confirm("Do you want to proceed? (DocBro will attempt to install sqlite-vec automatically)", default=True):
+                        continue
 
                 return selected_provider
             else:
@@ -306,8 +338,19 @@ async def _run_setup_with_provider(setup_service, settings_service, detection_se
 
         vector_setup_result = await _setup_vector_store(vector_store_provider, progress)
         if not vector_setup_result["success"]:
-            progress.add_error(vector_setup_result["error"])
-            raise SetupConfigurationError(vector_setup_result["error"])
+            error_msg = vector_setup_result["error"]
+            progress.add_error(error_msg)
+
+            # For Docker-related errors with Qdrant, provide helpful guidance
+            if vector_store_provider == VectorStoreProvider.QDRANT and "Docker" in error_msg:
+                setup_msg = vector_setup_result.get("setup_message", "")
+                progress.add_error(f"Setup aborted: {setup_msg}")
+                console.print(f"\n[red]✗[/red] Setup cannot continue without Docker for Qdrant.")
+                console.print(f"[yellow]💡 Suggestion:[/yellow] Use SQLite-vec instead (no Docker required)")
+                console.print(f"    or install Docker and run [cyan]docbro init --force[/cyan] again")
+                raise SetupConfigurationError(f"Docker required for Qdrant: {setup_msg}")
+
+            raise SetupConfigurationError(error_msg)
 
         progress.add_step(f"{vector_store_provider.value.title()} vector store", "✓")
 
@@ -451,17 +494,44 @@ async def _setup_sqlite_vec(progress: InitProgressDisplay) -> Dict[str, Any]:
             try:
                 import subprocess
                 import sys
+                import shutil
 
-                # Install sqlite-vec using pip
+                # Use UV for package management - this app is UV-dependent
+                install_cmd = ["uv", "pip", "install", "sqlite-vec"]
+
+                # Verify UV is available
+                try:
+                    test_result = subprocess.run(
+                        ["uv", "pip", "--help"],
+                        capture_output=True,
+                        text=True,
+                        timeout=5
+                    )
+                    if test_result.returncode != 0:
+                        progress.add_warning("UV not available - DocBro requires UV package manager")
+                        return {
+                            "success": False,
+                            "error": "UV package manager not available",
+                            "setup_message": "DocBro requires UV. Install UV from: https://docs.astral.sh/uv/"
+                        }
+                except (subprocess.TimeoutExpired, FileNotFoundError):
+                    progress.add_warning("UV not found - DocBro requires UV package manager")
+                    return {
+                        "success": False,
+                        "error": "UV package manager not found",
+                        "setup_message": "DocBro requires UV. Install UV from: https://docs.astral.sh/uv/"
+                    }
+
+                # Run the installation command
                 result = subprocess.run(
-                    [sys.executable, "-m", "pip", "install", "sqlite-vec"],
+                    install_cmd,
                     capture_output=True,
                     text=True,
                     timeout=60
                 )
 
                 if result.returncode == 0:
-                    progress.add_step("SQLite-vec installation", "✓")
+                    progress.add_step("SQLite-vec installation (uv pip)", "✓")
 
                     # Verify installation
                     available, message = detect_sqlite_vec()
@@ -473,25 +543,27 @@ async def _setup_sqlite_vec(progress: InitProgressDisplay) -> Dict[str, Any]:
                             "setup_message": message
                         }
                 else:
-                    progress.add_warning(f"Failed to install SQLite-vec: {result.stderr}")
+                    stderr_output = result.stderr.strip() if result.stderr else "Unknown error"
+                    progress.add_warning(f"Failed to install SQLite-vec: {stderr_output}")
+
                     return {
                         "success": True,
                         "warning": "SQLite-vec automatic installation failed",
-                        "setup_message": "Run 'pip install sqlite-vec' manually to complete setup"
+                        "setup_message": _get_sqlite_vec_install_guidance()
                     }
             except subprocess.TimeoutExpired:
                 progress.add_warning("SQLite-vec installation timed out")
                 return {
                     "success": True,
                     "warning": "SQLite-vec installation timed out",
-                    "setup_message": "Run 'pip install sqlite-vec' manually to complete setup"
+                    "setup_message": _get_sqlite_vec_install_guidance()
                 }
             except Exception as e:
                 progress.add_warning(f"Failed to install SQLite-vec: {e}")
                 return {
                     "success": True,
                     "warning": "SQLite-vec automatic installation failed",
-                    "setup_message": "Run 'pip install sqlite-vec' manually to complete setup"
+                    "setup_message": _get_sqlite_vec_install_guidance()
                 }
 
         # Test basic functionality
@@ -554,17 +626,31 @@ async def _setup_qdrant(progress: InitProgressDisplay) -> Dict[str, Any]:
     """Setup Qdrant vector store."""
 
     try:
+        # First check Docker availability
+        from src.services.docker_manager import check_docker_availability
+        docker_available, docker_message = check_docker_availability()
+
+        if not docker_available:
+            progress.add_warning(f"Docker not available: {docker_message}")
+            return {
+                "success": False,
+                "error": "Docker is required for Qdrant",
+                "setup_message": f"{docker_message}\nInstall Docker from: https://docs.docker.com/get-docker/"
+            }
+
+        progress.add_step("Docker availability check", "✓")
+
         # Check if Qdrant is available
         from src.services.detection import ServiceDetectionService
         detection = ServiceDetectionService()
         qdrant_status = await detection.check_qdrant()
 
         if not qdrant_status.available:
-            progress.add_warning("Qdrant service not available - will need to start Qdrant server")
+            progress.add_warning("Qdrant service not running")
             return {
                 "success": True,
                 "warning": "Qdrant service not running",
-                "setup_message": "Run 'docker run -p 6333:6333 qdrant/qdrant' to start Qdrant"
+                "setup_message": "Start Qdrant with: docker run -d -p 6333:6333 qdrant/qdrant"
             }
 
         # Test basic connectivity
