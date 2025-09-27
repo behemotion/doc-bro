@@ -362,9 +362,123 @@ class SQLiteVecService:
                 "disk_usage_bytes": 0,
             }
 
+    async def cleanup(self) -> None:
+        """Clean up vector store connections (alias for close)."""
+        await self.close()
+
     async def close(self) -> None:
         """Close all connections."""
         for conn in self.connections.values():
             await conn.close()
         self.connections.clear()
         self.initialized = False
+
+    async def collection_exists(self, collection_name: str) -> bool:
+        """Check if collection exists."""
+        try:
+            project_dir = self.data_dir / "projects" / self._sanitize_name(collection_name)
+            db_path = project_dir / "vectors.db"
+            return db_path.exists()
+        except Exception:
+            return False
+
+    async def list_collections(self) -> List[str]:
+        """List all collections."""
+        collections = []
+        try:
+            projects_dir = self.data_dir / "projects"
+            if projects_dir.exists():
+                for project_dir in projects_dir.iterdir():
+                    if project_dir.is_dir():
+                        db_path = project_dir / "vectors.db"
+                        if db_path.exists():
+                            collections.append(project_dir.name)
+        except Exception as e:
+            logger.error(f"Failed to list collections: {e}")
+        return collections
+
+    async def upsert_documents(
+        self,
+        collection_name: str,
+        documents: List[Dict[str, Any]],
+        batch_size: int = 100
+    ) -> int:
+        """Upsert multiple documents with batching."""
+        upserted_count = 0
+        try:
+            for doc in documents:
+                await self.upsert_document(
+                    collection_name,
+                    doc["id"],
+                    doc["embedding"],
+                    doc.get("metadata", {})
+                )
+                upserted_count += 1
+        except Exception as e:
+            logger.error(f"Failed to upsert documents: {e}")
+            raise
+        return upserted_count
+
+    async def get_document(
+        self,
+        collection_name: str,
+        document_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """Get a specific document by ID."""
+        try:
+            conn = await self._get_connection(collection_name)
+            cursor = await conn.execute(
+                "SELECT content_embedding, metadata FROM vectors WHERE doc_id = ?",
+                (document_id,)
+            )
+            row = await cursor.fetchone()
+            if row:
+                embedding_str, metadata_str = row
+                return {
+                    "id": document_id,
+                    "embedding": json.loads(embedding_str),
+                    "metadata": json.loads(metadata_str) if metadata_str else {}
+                }
+        except Exception as e:
+            logger.error(f"Failed to get document {document_id}: {e}")
+        return None
+
+    async def delete_documents(
+        self,
+        collection_name: str,
+        document_ids: List[str]
+    ) -> int:
+        """Delete multiple documents from the collection."""
+        deleted_count = 0
+        try:
+            for doc_id in document_ids:
+                if await self.delete_document(collection_name, doc_id):
+                    deleted_count += 1
+        except Exception as e:
+            logger.error(f"Failed to delete documents: {e}")
+        return deleted_count
+
+    async def count_documents(self, collection_name: str) -> int:
+        """Count documents in collection."""
+        try:
+            stats = await self.get_collection_stats(collection_name)
+            return stats.get("vector_count", 0)
+        except Exception as e:
+            logger.error(f"Failed to count documents in {collection_name}: {e}")
+            return 0
+
+    async def health_check(self) -> tuple[bool, str]:
+        """Check vector store health."""
+        if not self.initialized:
+            return False, "Vector store not initialized"
+
+        try:
+            available, message = self.detect_extension()
+            if not available:
+                return False, f"SQLite-vec extension not available: {message}"
+
+            # Test basic operation
+            collections = await self.list_collections()
+            return True, f"Healthy - {len(collections)} collections"
+        except Exception as e:
+            return False, f"Health check failed: {e}"

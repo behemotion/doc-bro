@@ -71,8 +71,22 @@ class DocBroApp:
             self.db_manager = DatabaseManager(self.config)
             await self.db_manager.initialize()
 
-            self.vector_store = VectorStoreService(self.config)
-            await self.vector_store.initialize()
+            # Use factory to create appropriate vector store based on settings
+            from src.services.vector_store_factory import VectorStoreFactory
+            try:
+                self.vector_store = VectorStoreFactory.create_vector_store(self.config)
+                await self.vector_store.initialize()
+            except Exception as e:
+                # Get current provider and provide helpful suggestion
+                current_provider = VectorStoreFactory.get_current_provider()
+                suggestion = VectorStoreFactory.get_fallback_suggestion(current_provider)
+
+                error_msg = f"Failed to initialize {current_provider.value} vector store: {e}\n\n{suggestion}"
+                self.logger.error("Vector store initialization failed", extra={
+                    "provider": current_provider.value,
+                    "error": str(e)
+                })
+                raise RuntimeError(error_msg)
 
             self.embedding_service = EmbeddingService(self.config)
             await self.embedding_service.initialize()
