@@ -4,7 +4,7 @@ import click
 from typing import Optional
 from src.logic.setup.core.orchestrator import SetupOrchestrator
 from src.logic.setup.core.router import CommandRouter
-from src.lib.logging import get_logger, setup_logging
+from src.core.lib_logger import get_logger, setup_logging
 from rich.console import Console
 
 logger = get_logger(__name__)

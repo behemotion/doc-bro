@@ -13,7 +13,7 @@ from src.logic.setup.services.detector import ServiceDetector
 from src.logic.setup.services.reset_handler import ResetHandler
 from src.logic.setup.core.menu import InteractiveMenu
 from src.logic.setup.utils.prompts import confirm_action
-from src.lib.logging import get_logger
+from src.core.lib_logger import get_logger
 
 logger = get_logger(__name__)
 

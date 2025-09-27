@@ -7,7 +7,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.prompt import Prompt, Confirm
 from src.logic.setup.models.menu_state import MenuState
-from src.lib.logging import get_logger
+from src.core.lib_logger import get_logger
 
 logger = get_logger(__name__)
 

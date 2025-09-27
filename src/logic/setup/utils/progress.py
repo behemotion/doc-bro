@@ -13,7 +13,7 @@ from rich.progress import (
     TimeElapsedColumn
 )
 from rich.console import Console
-from src.lib.logging import get_logger
+from src.core.lib_logger import get_logger
 
 logger = get_logger(__name__)
 
