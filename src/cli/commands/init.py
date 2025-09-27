@@ -648,7 +648,8 @@ async def _setup_sqlite_vec(progress: InitProgressDisplay) -> Dict[str, Any]:
             test_embedding = [0.1, 0.2, 0.3, 0.4, 0.5]  # Simple test vector
 
             # Try to add and search vectors to verify functionality
-            await service.add_embeddings("test_collection", [("test_doc", test_embedding, {"test": "metadata"})])
+            await service.create_collection("test_collection", vector_size=5)
+            await service.upsert_document("test_collection", "test_doc", test_embedding, {"test": "metadata"})
 
             # Try to search
             results = await service.search("test_collection", test_embedding, limit=1)
