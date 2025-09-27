@@ -183,22 +183,23 @@ class DocumentationCrawler:
             pages_crawled = 0
             pages_errors = 0
             current_depth = 0
-            self.logger.debug(f"Starting crawl worker loop, queue at start: {self._crawl_queue}, queue size: {self._crawl_queue.qsize()}")
+            self.logger.info(f"Starting crawl worker loop, initial queue size: {self._crawl_queue.qsize()}, max_depth: {project.crawl_depth}")
 
             while not self._stop_requested:
                 if max_pages and pages_crawled >= max_pages:
-                    self.logger.debug("Maximum pages reached", extra={
-                        "max_pages": max_pages,
-                        "pages_crawled": pages_crawled
-                    })
+                    self.logger.info(f"Maximum pages reached: {pages_crawled} >= {max_pages}")
                     break
 
                 try:
                     self.logger.debug(f"Attempting to get from queue, current size: {self._crawl_queue.qsize()}")
                     # Get next URL from queue with timeout
+                    # Use a shorter timeout when we're at max depth (no more URLs expected)
+                    # Use a longer timeout when we're still crawling deeper levels
+                    timeout_seconds = 10.0 if current_depth >= project.crawl_depth else 30.0
+
                     url, depth, parent_url = await asyncio.wait_for(
                         self._crawl_queue.get(),
-                        timeout=10.0
+                        timeout=timeout_seconds
                     )
                     self.logger.debug(f"Got URL from queue: {url}, depth: {depth}")
 
@@ -216,8 +217,19 @@ class DocumentationCrawler:
                             url=url
                         )
                 except asyncio.TimeoutError:
+                    # Check if we should really stop
+                    # If we haven't exceeded max depth and we have crawled pages, we might still be processing
+                    if current_depth <= project.crawl_depth and pages_crawled > 0:
+                        # Give it more time - pages might still be processing
+                        self.logger.info(f"Queue empty but still at depth {current_depth}/{project.crawl_depth}, waiting...")
+                        await asyncio.sleep(5.0)
+                        # Check queue again
+                        if self._crawl_queue.qsize() > 0:
+                            self.logger.info(f"Queue refilled with {self._crawl_queue.qsize()} URLs, continuing...")
+                            continue
+
                     # No more URLs to process
-                    self.logger.debug(f"Queue timeout - no more URLs, final queue size: {self._crawl_queue.qsize()}")
+                    self.logger.info(f"Queue timeout - stopping crawl. Final depth: {current_depth}, Queue size: {self._crawl_queue.qsize()}")
                     break
 
                 # Skip if already visited
@@ -227,7 +239,7 @@ class DocumentationCrawler:
 
                 # Skip if depth exceeded
                 if depth > project.crawl_depth:
-                    self.logger.debug(f"Skipping URL due to depth {depth} > {project.crawl_depth}: {url}")
+                    self.logger.info(f"Skipping URL due to depth {depth} > {project.crawl_depth}: {url}")
                     continue
 
                 # Mark as visited
@@ -284,9 +296,21 @@ class DocumentationCrawler:
                         page.categorize_links(urlparse(project.source_url).netloc)
 
                         # Queue internal links
+                        self.logger.info(f"Found {len(page.internal_links)} internal links on {url} (current depth: {depth})")
+                        queued_count = 0
                         for link in page.internal_links:
                             if link not in self._visited_urls:
-                                await self._crawl_queue.put((link, depth + 1, url))
+                                new_depth = depth + 1
+                                if new_depth <= project.crawl_depth:
+                                    self.logger.debug(f"Queueing link: {link} at depth {new_depth}")
+                                    await self._crawl_queue.put((link, new_depth, url))
+                                    queued_count += 1
+                                else:
+                                    self.logger.debug(f"Skipping link (would be depth {new_depth} > {project.crawl_depth}): {link}")
+                            else:
+                                self.logger.debug(f"Skipping already visited link: {link}")
+
+                        self.logger.info(f"Queued {queued_count} new links from {url}")
 
                         pages_crawled += 1
 

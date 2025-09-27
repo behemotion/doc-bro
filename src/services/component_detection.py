@@ -107,6 +107,14 @@ class ComponentDetectionService:
             Path.home() / '.cache' / 'docbro',
         ]
 
+        # Also check for project-specific directories
+        data_dir = Path.home() / '.local' / 'share' / 'docbro'
+        if data_dir.exists():
+            # Check for projects directory
+            projects_dir = data_dir / 'projects'
+            if projects_dir.exists() and projects_dir not in paths_to_check:
+                paths_to_check.append(projects_dir)
+
         # Check environment variables for custom paths
         if 'DOCBRO_DATABASE_PATH' in os.environ:
             custom_path = Path(os.environ['DOCBRO_DATABASE_PATH']).parent
