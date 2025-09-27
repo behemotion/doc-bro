@@ -260,14 +260,28 @@ class DocumentationCrawler:
                 # Apply rate limiting
                 await self._apply_rate_limit(url, session.rate_limit)
 
-                # Create page record
-                page = await self.db_manager.create_page(
-                    project_id=project.id,
-                    session_id=session.id,
-                    url=url,
-                    crawl_depth=depth,
-                    parent_url=parent_url
-                )
+                # Check if page already exists
+                page = await self.db_manager.get_page_by_url(project.id, url)
+                if page:
+                    # Page already exists, skip if it's not in a retryable state
+                    if page.status not in [PageStatus.DISCOVERED, PageStatus.FAILED]:
+                        self.logger.debug(f"Page already processed, skipping: {url}")
+                        continue
+                    # Update session_id for retry
+                    page.session_id = session.id
+                else:
+                    # Create new page record
+                    page = await self.db_manager.create_page(
+                        project_id=project.id,
+                        session_id=session.id,
+                        url=url,
+                        crawl_depth=depth,
+                        parent_url=parent_url
+                    )
+
+                # Mark page as being crawled
+                page.mark_crawling()
+                await self.db_manager.update_page(page)
 
                 # Crawl the page
                 crawl_result = await self.crawl_page(url)

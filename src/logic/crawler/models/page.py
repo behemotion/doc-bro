@@ -120,6 +120,10 @@ class Page(BaseModel):
         self.status = PageStatus.PROCESSED
         self.processed_at = datetime.utcnow()
 
+    def mark_crawling(self) -> None:
+        """Mark page as currently being crawled."""
+        self.status = PageStatus.CRAWLING
+
     def mark_crawled(
         self,
         response_code: int,
@@ -135,7 +139,9 @@ class Page(BaseModel):
             self.error_message = error_message
             self.status = PageStatus.FAILED
         else:
-            self.status = PageStatus.CRAWLING
+            # Don't change status here - let update_content() set it to PROCESSED
+            # This method just records the crawl metadata
+            pass
 
     def mark_indexed(self) -> None:
         """Mark page as indexed."""

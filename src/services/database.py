@@ -928,6 +928,33 @@ class DatabaseManager:
 
         return page
 
+    async def get_page_by_url(self, project_id: str, url: str) -> Optional[Page]:
+        """Get page by URL for a specific project."""
+        self._ensure_initialized()
+
+        # Get project to find project name
+        project = await self.get_project(project_id)
+        if not project:
+            raise DatabaseError(f"Project {project_id} not found")
+
+        # Use project-specific database connection
+        project_conn = await self._get_project_connection(project.name)
+        cursor = await project_conn.execute("""
+            SELECT id, project_id, session_id, url, status, title, content_html,
+                   content_text, content_hash, mime_type, charset, language,
+                   size_bytes, crawl_depth, parent_url, response_code,
+                   response_time_ms, discovered_at, crawled_at, processed_at,
+                   indexed_at, error_message, retry_count, max_retries,
+                   outbound_links, internal_links, external_links, metadata
+            FROM pages WHERE project_id = ? AND url = ?
+        """, (project_id, url))
+
+        row = await cursor.fetchone()
+        if not row:
+            return None
+
+        return self._page_from_row(row)
+
     async def get_project_pages(
         self,
         project_id: str,
