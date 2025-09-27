@@ -264,7 +264,7 @@ class DocumentationCrawler:
                 page = await self.db_manager.get_page_by_url(project.id, url)
                 if page:
                     # Page already exists, skip if it's not in a retryable state
-                    if page.status not in [PageStatus.DISCOVERED, PageStatus.FAILED]:
+                    if page.status not in [PageStatus.DISCOVERED, PageStatus.FAILED, PageStatus.CRAWLING]:
                         self.logger.debug(f"Page already processed, skipping: {url}")
                         continue
                     # Update session_id for retry
