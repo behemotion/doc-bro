@@ -143,7 +143,7 @@ def crawl(ctx: click.Context, name: Optional[str], url: Optional[str], max_pages
                 project.crawl_depth = depth
 
             # Use simple progress display
-            from src.services.crawl_progress import CrawlProgressDisplay
+            from src.logic.crawler.utils.progress import CrawlProgressDisplay
             from src.logic.crawler.analytics.reporter import ErrorReporter
 
             error_reporter = ErrorReporter(project_name=name)
