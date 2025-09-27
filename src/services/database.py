@@ -403,6 +403,75 @@ class DatabaseManager:
 
         return project
 
+    async def update_project(
+        self,
+        project_id: str,
+        source_url: Optional[str] = None,
+        crawl_depth: Optional[int] = None,
+        embedding_model: Optional[str] = None,
+        chunk_size: Optional[int] = None,
+        chunk_overlap: Optional[int] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> Project:
+        """Update project fields."""
+        self._ensure_initialized()
+
+        # Build dynamic update query
+        update_fields = []
+        update_params = []
+
+        if source_url is not None:
+            update_fields.append("source_url = ?")
+            update_params.append(source_url)
+
+        if crawl_depth is not None:
+            update_fields.append("crawl_depth = ?")
+            update_params.append(crawl_depth)
+
+        if embedding_model is not None:
+            update_fields.append("embedding_model = ?")
+            update_params.append(embedding_model)
+
+        if chunk_size is not None:
+            update_fields.append("chunk_size = ?")
+            update_params.append(chunk_size)
+
+        if chunk_overlap is not None:
+            update_fields.append("chunk_overlap = ?")
+            update_params.append(chunk_overlap)
+
+        if metadata is not None:
+            update_fields.append("metadata = ?")
+            update_params.append(json.dumps(metadata))
+
+        if not update_fields:
+            # No fields to update, just return the current project
+            project = await self.get_project(project_id)
+            if not project:
+                raise DatabaseError(f"Project {project_id} not found")
+            return project
+
+        # Always update the updated_at timestamp
+        update_fields.append("updated_at = ?")
+        update_params.append(datetime.utcnow().isoformat())
+        update_params.append(project_id)
+
+        sql = f"UPDATE projects SET {', '.join(update_fields)} WHERE id = ?"
+
+        await self._connection.execute(sql, update_params)
+        await self._connection.commit()
+
+        project = await self.get_project(project_id)
+        if not project:
+            raise DatabaseError(f"Project {project_id} not found")
+
+        self.logger.info("Project updated", extra={
+            "project_id": project_id,
+            "updated_fields": update_fields
+        })
+
+        return project
+
     async def update_project_statistics(
         self,
         project_id: str,
