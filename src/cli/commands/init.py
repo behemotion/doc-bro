@@ -200,7 +200,9 @@ async def init(auto: bool, force: bool, status: bool, verbose: bool, output_json
 
         # Run initialization with progress display
         if auto or no_prompt:
-            await _run_auto_init(setup_service, settings_service, detection_service, force, config)
+            # Use specified vector store or default
+            selected_provider = VectorStoreProvider.from_string(vector_store) if vector_store else VectorStoreProvider.SQLITE_VEC
+            await _run_setup_with_provider(setup_service, settings_service, detection_service, force, config, selected_provider)
         else:
             await _run_interactive_init(setup_service, settings_service, detection_service, force, config)
 
@@ -221,8 +223,57 @@ async def init(auto: bool, force: bool, status: bool, verbose: bool, output_json
         sys.exit(1)
 
 
-async def _run_auto_init(setup_service, settings_service, detection_service, force: bool, config: tuple):
-    """Run automatic initialization with progress display."""
+async def _prompt_vector_store_selection(detection_service) -> VectorStoreProvider:
+    """Prompt user to select vector store provider."""
+
+    console.print("\n[bold cyan]Vector Database Selection[/bold cyan]")
+    console.print("Choose your vector database backend:\n")
+
+    # Check service availability
+    service_checks = await detection_service.check_all_services()
+    qdrant_available = service_checks.get('qdrant', type('', (), {'available': False})).available
+    sqlite_vec_available, sqlite_message = detect_sqlite_vec()
+
+    # Show options with availability status
+    options = []
+
+    # SQLite-vec option
+    status_icon = "[green]✓[/green]" if sqlite_vec_available else "[yellow]⚠[/yellow]"
+    console.print(f"1. {status_icon} SQLite-vec (local, no external dependencies)")
+    if not sqlite_vec_available:
+        console.print(f"   [dim]{sqlite_message}[/dim]")
+    options.append((VectorStoreProvider.SQLITE_VEC, sqlite_vec_available))
+
+    # Qdrant option
+    status_icon = "[green]✓[/green]" if qdrant_available else "[yellow]⚠[/yellow]"
+    console.print(f"2. {status_icon} Qdrant (recommended for large deployments)")
+    if not qdrant_available:
+        console.print("   [dim]Qdrant service not running[/dim]")
+    options.append((VectorStoreProvider.QDRANT, qdrant_available))
+
+    console.print()
+
+    while True:
+        try:
+            choice = click.prompt("Select option", type=int, default=1)
+            if choice in [1, 2]:
+                selected_provider, available = options[choice - 1]
+
+                if not available:
+                    console.print(f"[yellow]⚠[/yellow] {selected_provider.value} is not currently available.")
+                    if click.confirm("Do you want to proceed anyway and set it up later?", default=False):
+                        return selected_provider
+                    continue
+
+                return selected_provider
+            else:
+                console.print("[red]Please select 1 or 2[/red]")
+        except click.Abort:
+            raise UserCancellationError("User cancelled vector store selection")
+
+
+async def _run_setup_with_provider(setup_service, settings_service, detection_service, force: bool, config: tuple, vector_store_provider: VectorStoreProvider):
+    """Run initialization with progress display and selected vector store provider."""
 
     with InitProgressDisplay() as progress:
         # Step 1: Check system requirements
@@ -249,8 +300,19 @@ async def _run_auto_init(setup_service, settings_service, detection_service, for
             dir_path.mkdir(parents=True, exist_ok=True)
         progress.add_step("Directory structure", "✓")
 
-        # Step 3: Check services
-        progress.set_current("Detecting services")
+        # Step 3: Setup vector store
+        progress.set_current(f"Setting up {vector_store_provider.value} vector store")
+        await asyncio.sleep(0.3)
+
+        vector_setup_result = await _setup_vector_store(vector_store_provider, progress)
+        if not vector_setup_result["success"]:
+            progress.add_error(vector_setup_result["error"])
+            raise SetupConfigurationError(vector_setup_result["error"])
+
+        progress.add_step(f"{vector_store_provider.value.title()} vector store", "✓")
+
+        # Step 4: Check other services
+        progress.set_current("Detecting additional services")
         await asyncio.sleep(0.3)
 
         service_checks = await detection_service.check_all_services()
@@ -261,12 +323,12 @@ async def _run_auto_init(setup_service, settings_service, detection_service, for
                 status.available,
                 status.version
             )
-            if not status.available and name in ['qdrant', 'ollama']:
+            if not status.available and name in ['ollama']:
                 progress.add_warning(f"{name.title()} not available - some features may be limited")
 
         progress.add_step("Service detection", "✓")
 
-        # Step 4: Initialize settings
+        # Step 5: Initialize settings
         progress.set_current("Initializing global settings")
         await asyncio.sleep(0.3)
 
@@ -276,8 +338,8 @@ async def _run_auto_init(setup_service, settings_service, detection_service, for
             if backup_path:
                 progress.add_step(f"Backed up existing to {backup_path.name}", "↻")
 
-        # Create settings with config overrides
-        settings = GlobalSettings()
+        # Create settings with config overrides and selected vector store
+        settings = GlobalSettings(vector_store_provider=vector_store_provider)
         if config:
             for item in config:
                 if '=' in item:
@@ -297,7 +359,7 @@ async def _run_auto_init(setup_service, settings_service, detection_service, for
         settings_service.save_global_settings(settings)
         progress.add_step("Global settings", "✓")
 
-        # Step 5: Run setup service initialization
+        # Step 6: Run setup service initialization
         progress.set_current("Completing system setup")
         await asyncio.sleep(0.3)
 
@@ -315,6 +377,7 @@ async def _run_auto_init(setup_service, settings_service, detection_service, for
     console.print("\n")
     console.print(Panel(
         f"[green]✓[/green] DocBro initialization complete!\n\n"
+        f"Vector Store: {VectorStoreProvider.get_display_name(vector_store_provider)}\n"
         f"Settings: {settings_service.global_settings_path}\n"
         f"Data: {get_docbro_data_dir()}\n\n"
         f"Next steps:\n"
@@ -326,6 +389,101 @@ async def _run_auto_init(setup_service, settings_service, detection_service, for
     ))
 
 
+async def _setup_vector_store(provider: VectorStoreProvider, progress: InitProgressDisplay) -> Dict[str, Any]:
+    """Setup the selected vector store provider."""
+
+    if provider == VectorStoreProvider.SQLITE_VEC:
+        return await _setup_sqlite_vec(progress)
+    elif provider == VectorStoreProvider.QDRANT:
+        return await _setup_qdrant(progress)
+    else:
+        return {"success": False, "error": f"Unknown vector store provider: {provider}"}
+
+
+async def _setup_sqlite_vec(progress: InitProgressDisplay) -> Dict[str, Any]:
+    """Setup SQLite-vec vector store."""
+
+    try:
+        # Check if sqlite-vec is available
+        available, message = detect_sqlite_vec()
+
+        if not available:
+            progress.add_warning("SQLite-vec not available - will need to install: pip install sqlite-vec")
+            return {
+                "success": True,
+                "warning": "SQLite-vec extension not found, installation required",
+                "setup_message": "Run 'pip install sqlite-vec' to complete setup"
+            }
+
+        # Test basic functionality
+        import tempfile
+        import os
+        from src.services.sqlite_vec_service import SQLiteVecService
+        from src.core.config import DocBroConfig
+
+        # Create a test config
+        test_config = DocBroConfig(
+            data_dir=str(get_docbro_data_dir()),
+            qdrant_url="http://localhost:6333",
+            ollama_url="http://localhost:11434"
+        )
+
+        # Test SQLite-vec service
+        service = SQLiteVecService(test_config)
+        await service.initialize()
+
+        progress.add_step("SQLite-vec test", "✓")
+        return {
+            "success": True,
+            "message": "SQLite-vec configured successfully",
+            "provider": "sqlite_vec"
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to setup SQLite-vec: {str(e)}"
+        }
+
+
+async def _setup_qdrant(progress: InitProgressDisplay) -> Dict[str, Any]:
+    """Setup Qdrant vector store."""
+
+    try:
+        # Check if Qdrant is available
+        from src.services.detection import ServiceDetectionService
+        detection = ServiceDetectionService()
+        qdrant_status = await detection.check_qdrant()
+
+        if not qdrant_status.available:
+            progress.add_warning("Qdrant service not available - will need to start Qdrant server")
+            return {
+                "success": True,
+                "warning": "Qdrant service not running",
+                "setup_message": "Run 'docker run -p 6333:6333 qdrant/qdrant' to start Qdrant"
+            }
+
+        # Test basic connectivity
+        import httpx
+        async with httpx.AsyncClient() as client:
+            response = await client.get("http://localhost:6333/health")
+            if response.status_code == 200:
+                progress.add_step("Qdrant connectivity test", "✓")
+                return {
+                    "success": True,
+                    "message": "Qdrant configured successfully",
+                    "provider": "qdrant"
+                }
+            else:
+                raise Exception(f"Qdrant health check failed: {response.status_code}")
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to setup Qdrant: {str(e)}"
+        }
+
+
 async def _run_interactive_init(setup_service, settings_service, detection_service, force: bool, config: tuple):
     """Run interactive initialization."""
 
@@ -334,6 +492,7 @@ async def _run_interactive_init(setup_service, settings_service, detection_servi
         "Welcome to DocBro initialization!\n\n"
         "This wizard will help you:\n"
         "  • Validate system requirements\n"
+        "  • Choose vector database backend\n"
         "  • Configure external services\n"
         "  • Set up global settings\n"
         "  • Create necessary directories\n\n"
@@ -345,8 +504,11 @@ async def _run_interactive_init(setup_service, settings_service, detection_servi
     if not click.confirm("\nProceed with initialization?", default=True):
         raise UserCancellationError("User cancelled")
 
-    # Run the same steps as auto but with confirmations
-    await _run_auto_init(setup_service, settings_service, detection_service, force, config)
+    # Let user choose vector store provider
+    vector_store_provider = await _prompt_vector_store_selection(detection_service)
+
+    # Run the setup with selected provider
+    await _run_setup_with_provider(setup_service, settings_service, detection_service, force, config, vector_store_provider)
 
 
 async def _handle_status(setup_service: SetupLogicService, output_json: bool) -> None:

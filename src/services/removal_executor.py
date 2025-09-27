@@ -1,12 +1,12 @@
 """Removal executor service for performing removal operations."""
 
-import os
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Optional, List, Dict
-import docker
+
 import docker.errors
+
+import docker
 from src.core.lib_logger import get_logger
 
 logger = get_logger(__name__)
@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 class RemovalExecutor:
     """Executes individual removal operations."""
 
-    def __init__(self, docker_client: Optional[docker.DockerClient] = None):
+    def __init__(self, docker_client: docker.DockerClient | None = None):
         """Initialize the removal executor."""
         self.docker_client = docker_client
         self._init_docker_client()
@@ -103,6 +103,10 @@ class RemovalExecutor:
                 logger.warning(f"Directory {path} does not exist")
                 return True
 
+            if not path.is_dir():
+                logger.error(f"Path {path} is not a directory")
+                return False
+
             logger.info(f"Deleting directory {path}")
             shutil.rmtree(path, ignore_errors=False)
             return True
@@ -111,6 +115,27 @@ class RemovalExecutor:
             return False
         except OSError as e:
             logger.error(f"Failed to delete directory {path}: {e}")
+            return False
+
+    async def delete_file(self, path: Path) -> bool:
+        """Delete a single file."""
+        try:
+            if not path.exists():
+                logger.warning(f"File {path} does not exist")
+                return True
+
+            if not path.is_file():
+                logger.error(f"Path {path} is not a file")
+                return False
+
+            logger.info(f"Deleting file {path}")
+            path.unlink()
+            return True
+        except PermissionError as e:
+            logger.error(f"Permission denied deleting {path}: {e}")
+            return False
+        except OSError as e:
+            logger.error(f"Failed to delete file {path}: {e}")
             return False
 
     async def uninstall_package(self) -> bool:
@@ -182,16 +207,13 @@ class RemovalExecutor:
 
         try:
             containers = self.docker_client.containers.list(all=True)
-            docbro_using = False
             non_docbro_using = False
 
             for container in containers:
                 mounts = container.attrs.get('Mounts', [])
                 for mount in mounts:
                     if mount.get('Type') == 'volume' and mount.get('Name') == volume_name:
-                        if container.name.startswith('docbro-'):
-                            docbro_using = True
-                        else:
+                        if not container.name.startswith('docbro-'):
                             non_docbro_using = True
 
             # Preserve if used by non-DocBro containers
@@ -205,7 +227,7 @@ class RemovalExecutor:
         # Anonymous volumes have 64 hexadecimal character names
         return bool(re.match(r'^[a-f0-9]{64}$', volume.name))
 
-    async def filter_removable_volumes(self, volumes: List) -> List:
+    async def filter_removable_volumes(self, volumes: list) -> list:
         """Filter volumes to get only removable ones."""
         removable = []
         for volume in volumes:
