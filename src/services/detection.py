@@ -87,11 +87,21 @@ class ServiceDetectionService:
         """Check Ollama availability via HTTP endpoint."""
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
+                # First check if service is running
                 response = await client.get(f"{endpoint}/api/tags")
 
                 if response.status_code == 200:
-                    # Try to get version from headers or response
-                    version = response.headers.get("ollama-version", "unknown")
+                    # Try to get version from version endpoint
+                    version = "unknown"
+                    try:
+                        version_response = await client.get(f"{endpoint}/api/version")
+                        if version_response.status_code == 200:
+                            version_data = version_response.json()
+                            version = version_data.get("version", "unknown")
+                    except Exception:
+                        # If version endpoint fails, keep "unknown"
+                        pass
+
                     return ServiceStatus(
                         name="ollama",
                         available=True,
