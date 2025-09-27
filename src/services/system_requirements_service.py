@@ -7,7 +7,8 @@ import subprocess
 import sqlite3
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
-from src.models.installation_profile import SystemInfo, SystemRequirements
+from src.models.installation_profile import SystemInfo
+from src.models.system_requirements import SystemRequirements
 from src.core.lib_logger import get_logger
 
 logger = get_logger(__name__)
