@@ -244,10 +244,6 @@ class DocumentationCrawler:
                     self.logger.info(f"Skipping URL due to depth {depth} > {project.crawl_depth}: {url}")
                     continue
 
-                # Mark as visited
-                self._visited_urls.add(url)
-                self.logger.debug(f"Marked URL as visited: {url}")
-
                 # Check robots.txt
                 self.logger.debug(f"Checking robots.txt for URL: {url}")
                 robots_allowed = await self.check_robots_allowed(url, session.user_agent)
@@ -354,6 +350,10 @@ class DocumentationCrawler:
                             "error_count": session.error_count
                         })
                         break
+
+                # Mark URL as visited after processing (successful or failed)
+                self._visited_urls.add(url)
+                self.logger.debug(f"Marked URL as visited: {url}")
 
                 # Update page in database
                 await self.db_manager.update_page(page)
