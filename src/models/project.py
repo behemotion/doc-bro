@@ -23,7 +23,7 @@ class Project(BaseModel):
 
     id: str = Field(description="Unique project identifier")
     name: str = Field(description="Human-readable project name")
-    source_url: str = Field(description="Base URL to start crawling from")
+    source_url: Optional[str] = Field(default=None, description="Base URL to start crawling from")
     status: ProjectStatus = Field(default=ProjectStatus.CREATED, description="Current project status")
 
     # Crawl configuration
@@ -71,7 +71,7 @@ class Project(BaseModel):
     @classmethod
     def validate_source_url(cls, v):
         """Validate source URL."""
-        if not v.startswith(('http://', 'https://')):
+        if v is not None and not v.startswith(('http://', 'https://')):
             raise ValueError("Source URL must be a valid HTTP/HTTPS URL")
         return v
 

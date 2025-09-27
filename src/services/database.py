@@ -86,7 +86,7 @@ class DatabaseManager:
         CREATE TABLE IF NOT EXISTS projects (
             id TEXT PRIMARY KEY,
             name TEXT UNIQUE NOT NULL,
-            source_url TEXT NOT NULL,
+            source_url TEXT,
             status TEXT NOT NULL DEFAULT 'created',
             crawl_depth INTEGER NOT NULL DEFAULT 2,
             embedding_model TEXT NOT NULL DEFAULT 'mxbai-embed-large',
@@ -94,12 +94,12 @@ class DatabaseManager:
             chunk_overlap INTEGER NOT NULL DEFAULT 100,
             created_at TIMESTAMP NOT NULL,
             updated_at TIMESTAMP NOT NULL,
-            last_crawl_at TIMESTAMP NULL,
+            last_crawl_at TIMESTAMP,
             total_pages INTEGER NOT NULL DEFAULT 0,
             total_size_bytes INTEGER NOT NULL DEFAULT 0,
             successful_pages INTEGER NOT NULL DEFAULT 0,
             failed_pages INTEGER NOT NULL DEFAULT 0,
-            metadata TEXT NULL
+            metadata TEXT
         );
 
         -- Crawl sessions table
@@ -112,19 +112,19 @@ class DatabaseManager:
             rate_limit REAL NOT NULL DEFAULT 1.0,
             timeout INTEGER NOT NULL DEFAULT 30,
             created_at TIMESTAMP NOT NULL,
-            started_at TIMESTAMP NULL,
-            completed_at TIMESTAMP NULL,
+            started_at TIMESTAMP,
+            completed_at TIMESTAMP,
             updated_at TIMESTAMP NOT NULL,
             pages_discovered INTEGER NOT NULL DEFAULT 0,
             pages_crawled INTEGER NOT NULL DEFAULT 0,
             pages_failed INTEGER NOT NULL DEFAULT 0,
             pages_skipped INTEGER NOT NULL DEFAULT 0,
             total_size_bytes INTEGER NOT NULL DEFAULT 0,
-            error_message TEXT NULL,
+            error_message TEXT,
             error_count INTEGER NOT NULL DEFAULT 0,
             max_errors INTEGER NOT NULL DEFAULT 50,
-            metadata TEXT NULL,
-            archived BOOLEAN NOT NULL DEFAULT FALSE,
+            metadata TEXT,
+            archived INTEGER NOT NULL DEFAULT 0,
             FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE
         );
 
@@ -135,29 +135,29 @@ class DatabaseManager:
             session_id TEXT NOT NULL,
             url TEXT NOT NULL,
             status TEXT NOT NULL DEFAULT 'discovered',
-            title TEXT NULL,
-            content_html TEXT NULL,
-            content_text TEXT NULL,
-            content_hash TEXT NULL,
+            title TEXT,
+            content_html TEXT,
+            content_text TEXT,
+            content_hash TEXT,
             mime_type TEXT NOT NULL DEFAULT 'text/html',
             charset TEXT NOT NULL DEFAULT 'utf-8',
-            language TEXT NULL,
+            language TEXT,
             size_bytes INTEGER NOT NULL DEFAULT 0,
             crawl_depth INTEGER NOT NULL,
-            parent_url TEXT NULL,
-            response_code INTEGER NULL,
-            response_time_ms INTEGER NULL,
+            parent_url TEXT,
+            response_code INTEGER,
+            response_time_ms INTEGER,
             discovered_at TIMESTAMP NOT NULL,
-            crawled_at TIMESTAMP NULL,
-            processed_at TIMESTAMP NULL,
-            indexed_at TIMESTAMP NULL,
-            error_message TEXT NULL,
+            crawled_at TIMESTAMP,
+            processed_at TIMESTAMP,
+            indexed_at TIMESTAMP,
+            error_message TEXT,
             retry_count INTEGER NOT NULL DEFAULT 0,
             max_retries INTEGER NOT NULL DEFAULT 3,
-            outbound_links TEXT NULL,
-            internal_links TEXT NULL,
-            external_links TEXT NULL,
-            metadata TEXT NULL,
+            outbound_links TEXT,
+            internal_links TEXT,
+            external_links TEXT,
+            metadata TEXT,
             FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE,
             FOREIGN KEY (session_id) REFERENCES crawl_sessions (id) ON DELETE CASCADE
         );
@@ -174,7 +174,7 @@ class DatabaseManager:
         CREATE INDEX IF NOT EXISTS idx_pages_content_hash ON pages (content_hash);
 
         -- Insert current schema version
-        INSERT OR REPLACE INTO schema_version (version) VALUES (1);
+        INSERT OR REPLACE INTO schema_version (version) VALUES (2);
         """
 
         await self._connection.executescript(schema_sql)
@@ -189,6 +189,61 @@ class DatabaseManager:
         except:
             return 0
 
+    async def _apply_migrations(self) -> None:
+        """Apply database migrations."""
+        current_version = await self._get_schema_version()
+
+        # Migration to version 2: Make source_url nullable
+        if current_version < 2:
+            self.logger.info("Applying migration to version 2: Making source_url nullable")
+            try:
+                # Create new table with nullable source_url
+                await self._connection.execute("""
+                    CREATE TABLE projects_new (
+                        id TEXT PRIMARY KEY,
+                        name TEXT UNIQUE NOT NULL,
+                        source_url TEXT,
+                        status TEXT NOT NULL DEFAULT 'created',
+                        crawl_depth INTEGER NOT NULL DEFAULT 2,
+                        embedding_model TEXT NOT NULL DEFAULT 'mxbai-embed-large',
+                        chunk_size INTEGER NOT NULL DEFAULT 1000,
+                        chunk_overlap INTEGER NOT NULL DEFAULT 100,
+                        created_at TIMESTAMP NOT NULL,
+                        updated_at TIMESTAMP NOT NULL,
+                        last_crawl_at TIMESTAMP,
+                        total_pages INTEGER NOT NULL DEFAULT 0,
+                        total_size_bytes INTEGER NOT NULL DEFAULT 0,
+                        successful_pages INTEGER NOT NULL DEFAULT 0,
+                        failed_pages INTEGER NOT NULL DEFAULT 0,
+                        metadata TEXT
+                    )
+                """)
+
+                # Copy data from old table
+                await self._connection.execute("""
+                    INSERT INTO projects_new
+                    SELECT * FROM projects
+                """)
+
+                # Drop old table and rename new one
+                await self._connection.execute("DROP TABLE projects")
+                await self._connection.execute("ALTER TABLE projects_new RENAME TO projects")
+
+                # Recreate indexes
+                await self._connection.execute("CREATE INDEX IF NOT EXISTS idx_projects_name ON projects (name)")
+                await self._connection.execute("CREATE INDEX IF NOT EXISTS idx_projects_status ON projects (status)")
+
+                # Update schema version
+                await self._connection.execute("INSERT OR REPLACE INTO schema_version (version) VALUES (2)")
+                await self._connection.commit()
+
+                self.logger.info("Migration to version 2 completed successfully")
+
+            except Exception as e:
+                await self._connection.rollback()
+                self.logger.error(f"Migration to version 2 failed: {e}")
+                raise DatabaseError(f"Migration failed: {e}")
+
     def _ensure_initialized(self) -> None:
         """Ensure database is initialized."""
         if not self._initialized:
@@ -199,7 +254,7 @@ class DatabaseManager:
     async def create_project(
         self,
         name: str,
-        source_url: str,
+        source_url: Optional[str] = None,
         crawl_depth: int = 2,
         embedding_model: str = "mxbai-embed-large",
         chunk_size: int = 1000,

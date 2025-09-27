@@ -5,6 +5,7 @@ from typing import Optional
 
 import click
 from rich.console import Console
+from rich.panel import Panel
 
 # Optional uvloop for better performance
 try:
@@ -73,9 +74,11 @@ def create(ctx: click.Context, name: Optional[str], url: Optional[str], depth: i
         else:
             # Support lazy creation - URL is optional when name is provided
             if not url:
-                app.console.print(f"[yellow]Creating project '{name}' without URL.[/yellow]")
-                app.console.print("[yellow]You can provide the URL later when crawling:[/yellow]")
-                app.console.print(f"[yellow]  docbro crawl {name} --url \"YOUR_URL_HERE\"[/yellow]")
+                info_content = f"Creating project '{name}' without URL.\n\n"
+                info_content += "You can provide the URL later when crawling:\n"
+                info_content += f"  [cyan]docbro crawl {name} --url \"YOUR_URL_HERE\"[/cyan]"
+                app.console.print()
+                app.console.print(Panel(info_content, title="Project Creation", expand=False))
                 url_to_use = None
             else:
                 url_to_use = url
@@ -89,16 +92,20 @@ def create(ctx: click.Context, name: Optional[str], url: Optional[str], depth: i
         try:
             # Check if URL looks suspicious (might have been affected by shell glob expansion)
             if url_to_use and not url_to_use.startswith(('http://', 'https://', 'file://')):
-                app.console.print("[yellow]⚠ Warning: URL doesn't start with http://, https://, or file://[/yellow]")
-                app.console.print("[yellow]  If your URL contains special characters (?, &, *, [, ]), you must quote it:[/yellow]")
-                app.console.print('[yellow]  Example: docbro create myproject -u "https://example.com?param=value"[/yellow]')
+                warning_content = "⚠ Warning: URL doesn't start with http://, https://, or file://\n\n"
+                warning_content += "If your URL contains special characters (?, &, *, [, ]), you must quote it:\n"
+                warning_content += '[cyan]Example: docbro create myproject -u "https://example.com?param=value"[/cyan]'
+                app.console.print()
+                app.console.print(Panel(warning_content, title="[yellow]URL Warning[/yellow]", expand=False))
 
             # Additional check for common shell expansion issues
             import os
             if url_to_use and os.path.exists(url_to_use) and not url_to_use.startswith('file://'):
-                app.console.print("[yellow]⚠ Warning: URL appears to be a local file path.[/yellow]")
-                app.console.print("[yellow]  This might be due to shell glob expansion of special characters.[/yellow]")
-                app.console.print('[yellow]  Try quoting your URL: docbro create myproject -u "YOUR_URL_HERE"[/yellow]')
+                warning_content = "⚠ Warning: URL appears to be a local file path.\n\n"
+                warning_content += "This might be due to shell glob expansion of special characters.\n"
+                warning_content += '[cyan]Try quoting your URL: docbro create myproject -u "YOUR_URL_HERE"[/cyan]'
+                app.console.print()
+                app.console.print(Panel(warning_content, title="[yellow]Path Warning[/yellow]", expand=False))
 
             # Create project with optional URL
             project = await app.db_manager.create_project(
@@ -108,20 +115,24 @@ def create(ctx: click.Context, name: Optional[str], url: Optional[str], depth: i
                 embedding_model=model_to_use
             )
 
-            app.console.print(f"[green]✓[/green] Project '{name_to_use}' created successfully")
-            app.console.print(f"  ID: {project.id}")
+            # Create success message with details
+            success_content = f"[green]✓ Project '{name_to_use}' created successfully[/green]\n\n"
+            success_content += f"ID: {project.id}\n"
             if project.source_url:
-                app.console.print(f"  URL: {project.source_url}")
+                success_content += f"URL: {project.source_url}\n"
             else:
-                app.console.print(f"  URL: [yellow]Not set (provide when crawling)[/yellow]")
-            app.console.print(f"  Depth: {project.crawl_depth}")
+                success_content += f"URL: [yellow]Not set (provide when crawling)[/yellow]\n"
+            success_content += f"Depth: {project.crawl_depth}\n\n"
 
             if not url_to_use:
-                app.console.print("\n[cyan]Next steps:[/cyan]")
-                app.console.print(f"  1. Crawl documentation: [cyan]docbro crawl {name_to_use} --url \"YOUR_URL\"[/cyan]")
-                app.console.print(f"  2. Start MCP server: [cyan]docbro serve[/cyan]")
+                success_content += "[cyan]Next steps:[/cyan]\n"
+                success_content += f"  • Crawl documentation: [cyan]docbro crawl {name_to_use} --url \"YOUR_URL\"[/cyan]\n"
+                success_content += f"  • Start MCP server: [cyan]docbro serve[/cyan]"
             else:
-                app.console.print("\n[cyan]Next step:[/cyan] Run [cyan]docbro crawl {name_to_use}[/cyan] to start crawling")
+                success_content += f"[cyan]Next step:[/cyan] Run [cyan]docbro crawl {name_to_use}[/cyan] to start crawling"
+
+            app.console.print()
+            app.console.print(Panel(success_content.strip(), title="Project Created", expand=False))
 
         except Exception as e:
             # Check for common URL-related errors
