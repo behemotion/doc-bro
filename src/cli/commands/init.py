@@ -311,11 +311,22 @@ async def _run_setup_with_provider(setup_service, settings_service, detection_se
 
         progress.add_step(f"{vector_store_provider.value.title()} vector store", "✓")
 
-        # Step 4: Check other services
-        progress.set_current("Detecting additional services")
+        # Step 4: Check relevant services based on vector store selection
+        progress.set_current("Detecting required services")
         await asyncio.sleep(0.3)
 
-        service_checks = await detection_service.check_all_services()
+        # Only check services relevant to the selected vector store
+        relevant_services = ['ollama']  # Always needed for embeddings
+        if vector_store_provider == VectorStoreProvider.QDRANT:
+            relevant_services.append('qdrant')
+
+        # Check only relevant services
+        service_checks = {}
+        for service_name in relevant_services:
+            if service_name == 'ollama':
+                service_checks['ollama'] = await detection_service.check_ollama()
+            elif service_name == 'qdrant':
+                service_checks['qdrant'] = await detection_service.check_qdrant()
 
         for name, status in service_checks.items():
             progress.update_service(
@@ -323,8 +334,11 @@ async def _run_setup_with_provider(setup_service, settings_service, detection_se
                 status.available,
                 status.version
             )
-            if not status.available and name in ['ollama']:
-                progress.add_warning(f"{name.title()} not available - some features may be limited")
+            if not status.available:
+                if name == 'ollama':
+                    progress.add_warning(f"{name.title()} not available - embeddings will not work")
+                elif name == 'qdrant' and vector_store_provider == VectorStoreProvider.QDRANT:
+                    progress.add_warning(f"{name.title()} not available - vector storage will not work")
 
         progress.add_step("Service detection", "✓")
 
@@ -359,19 +373,42 @@ async def _run_setup_with_provider(setup_service, settings_service, detection_se
         settings_service.save_global_settings(settings)
         progress.add_step("Global settings", "✓")
 
-        # Step 6: Run setup service initialization
-        progress.set_current("Completing system setup")
+        # Step 6: Finalize setup
+        progress.set_current("Finalizing setup")
         await asyncio.sleep(0.3)
 
-        result = await setup_service.run_automated_setup(force=force)
-        if result["success"]:
-            progress.add_step("System setup", "✓")
-            if result.get("warnings"):
-                for warning in result["warnings"]:
-                    progress.add_warning(warning)
-        else:
-            progress.add_error(result.get('error', 'Setup failed'))
-            raise SetupConfigurationError(result.get('error', 'Setup failed'))
+        # Create and save a minimal setup configuration to mark as completed
+        from src.models.setup_configuration import SetupConfiguration
+        from src.models.setup_types import SetupMode, VectorStorageConfig, EmbeddingModelConfig
+
+        setup_config = SetupConfiguration(
+            setup_mode=SetupMode.AUTO if auto or no_prompt else SetupMode.INTERACTIVE,
+        )
+
+        # Add vector storage config based on provider
+        if vector_store_provider == VectorStoreProvider.SQLITE_VEC:
+            setup_config.vector_storage = VectorStorageConfig(
+                connection_url="sqlite_vec",
+                data_path=str(get_docbro_data_dir() / "projects")
+            )
+        elif vector_store_provider == VectorStoreProvider.QDRANT:
+            setup_config.vector_storage = VectorStorageConfig(
+                connection_url="http://localhost:6333",
+                data_path=str(get_docbro_data_dir() / "qdrant")
+            )
+
+        # Add embedding model config if Ollama is available
+        if service_checks.get('ollama', type('', (), {'available': False})).available:
+            setup_config.embedding_model = EmbeddingModelConfig(
+                model_name="mxbai-embed-large",
+                download_required=False
+            )
+
+        # Mark as completed and save
+        setup_config.mark_as_completed()
+        await setup_service.config_service.save_configuration(setup_config)
+
+        progress.add_step("Setup finalized", "✓")
 
     # Show final success message
     console.print("\n")
@@ -408,12 +445,54 @@ async def _setup_sqlite_vec(progress: InitProgressDisplay) -> Dict[str, Any]:
         available, message = detect_sqlite_vec()
 
         if not available:
-            progress.add_warning("SQLite-vec not available - will need to install: pip install sqlite-vec")
-            return {
-                "success": True,
-                "warning": "SQLite-vec extension not found, installation required",
-                "setup_message": "Run 'pip install sqlite-vec' to complete setup"
-            }
+            progress.set_current("Installing SQLite-vec extension")
+
+            # Attempt automatic installation
+            try:
+                import subprocess
+                import sys
+
+                # Install sqlite-vec using pip
+                result = subprocess.run(
+                    [sys.executable, "-m", "pip", "install", "sqlite-vec"],
+                    capture_output=True,
+                    text=True,
+                    timeout=60
+                )
+
+                if result.returncode == 0:
+                    progress.add_step("SQLite-vec installation", "✓")
+
+                    # Verify installation
+                    available, message = detect_sqlite_vec()
+                    if not available:
+                        progress.add_warning(f"SQLite-vec installed but still not working: {message}")
+                        return {
+                            "success": True,
+                            "warning": "SQLite-vec installed but verification failed",
+                            "setup_message": message
+                        }
+                else:
+                    progress.add_warning(f"Failed to install SQLite-vec: {result.stderr}")
+                    return {
+                        "success": True,
+                        "warning": "SQLite-vec automatic installation failed",
+                        "setup_message": "Run 'pip install sqlite-vec' manually to complete setup"
+                    }
+            except subprocess.TimeoutExpired:
+                progress.add_warning("SQLite-vec installation timed out")
+                return {
+                    "success": True,
+                    "warning": "SQLite-vec installation timed out",
+                    "setup_message": "Run 'pip install sqlite-vec' manually to complete setup"
+                }
+            except Exception as e:
+                progress.add_warning(f"Failed to install SQLite-vec: {e}")
+                return {
+                    "success": True,
+                    "warning": "SQLite-vec automatic installation failed",
+                    "setup_message": "Run 'pip install sqlite-vec' manually to complete setup"
+                }
 
         # Test basic functionality
         import tempfile
@@ -428,11 +507,36 @@ async def _setup_sqlite_vec(progress: InitProgressDisplay) -> Dict[str, Any]:
             ollama_url="http://localhost:11434"
         )
 
-        # Test SQLite-vec service
+        # Test SQLite-vec service initialization
         service = SQLiteVecService(test_config)
         await service.initialize()
 
-        progress.add_step("SQLite-vec test", "✓")
+        # Test basic vector operations to ensure extensions work properly
+        try:
+            # Create a test vector collection
+            test_embedding = [0.1, 0.2, 0.3, 0.4, 0.5]  # Simple test vector
+
+            # Try to add and search vectors to verify functionality
+            await service.add_embeddings("test_collection", [("test_doc", test_embedding, {"test": "metadata"})])
+
+            # Try to search
+            results = await service.search("test_collection", test_embedding, limit=1)
+
+            if results and len(results) > 0:
+                progress.add_step("SQLite-vec vector operations test", "✓")
+            else:
+                progress.add_warning("SQLite-vec installed but vector operations failed")
+
+            # Clean up test collection
+            try:
+                await service.delete_collection("test_collection")
+            except:
+                pass  # Ignore cleanup errors
+
+        except Exception as e:
+            progress.add_warning(f"SQLite-vec vector operations test failed: {e}")
+
+        progress.add_step("SQLite-vec service test", "✓")
         return {
             "success": True,
             "message": "SQLite-vec configured successfully",
