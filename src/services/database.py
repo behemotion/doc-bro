@@ -30,7 +30,8 @@ class DatabaseManager:
         self.logger = get_component_logger("database")
 
         # Connection pool
-        self._connection: Optional[aiosqlite.Connection] = None
+        self._connection: Optional[aiosqlite.Connection] = None  # Main DB connection
+        self._project_connections: Dict[str, aiosqlite.Connection] = {}  # Project-specific connections
         self._initialized = False
 
     async def initialize(self) -> None:
@@ -67,6 +68,12 @@ class DatabaseManager:
 
     async def cleanup(self) -> None:
         """Clean up database connections."""
+        # Close project-specific connections
+        for project_id, conn in self._project_connections.items():
+            await conn.close()
+        self._project_connections.clear()
+
+        # Close main connection
         if self._connection:
             await self._connection.close()
             self._connection = None
@@ -74,7 +81,7 @@ class DatabaseManager:
         self.logger.info("Database connections closed")
 
     async def _create_schema(self) -> None:
-        """Create database schema."""
+        """Create main database schema (projects only)."""
         schema_sql = """
         -- Schema version tracking
         CREATE TABLE IF NOT EXISTS schema_version (
@@ -82,7 +89,7 @@ class DatabaseManager:
             applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
-        -- Projects table
+        -- Projects table (main database only stores project metadata)
         CREATE TABLE IF NOT EXISTS projects (
             id TEXT PRIMARY KEY,
             name TEXT UNIQUE NOT NULL,
@@ -100,6 +107,53 @@ class DatabaseManager:
             successful_pages INTEGER NOT NULL DEFAULT 0,
             failed_pages INTEGER NOT NULL DEFAULT 0,
             metadata TEXT
+        );
+
+        -- Indexes for performance
+        CREATE INDEX IF NOT EXISTS idx_projects_name ON projects (name);
+        CREATE INDEX IF NOT EXISTS idx_projects_status ON projects (status);
+
+        -- Insert current schema version
+        INSERT OR REPLACE INTO schema_version (version) VALUES (3);
+        """
+
+        await self._connection.executescript(schema_sql)
+        await self._connection.commit()
+
+    async def _get_schema_version(self) -> int:
+        """Get current schema version."""
+        try:
+            cursor = await self._connection.execute("SELECT version FROM schema_version ORDER BY version DESC LIMIT 1")
+            row = await cursor.fetchone()
+            return row[0] if row else 0
+        except:
+            return 0
+
+    def _get_project_db_path(self, project_name: str) -> Path:
+        """Get database path for a specific project."""
+        projects_dir = Path.home() / ".local" / "share" / "docbro" / "projects"
+        projects_dir.mkdir(parents=True, exist_ok=True)
+        return projects_dir / f"{project_name}.db"
+
+    async def _get_project_connection(self, project_name: str) -> aiosqlite.Connection:
+        """Get or create database connection for a specific project."""
+        if project_name in self._project_connections:
+            return self._project_connections[project_name]
+
+        # Create project database path
+        project_db_path = self._get_project_db_path(project_name)
+
+        # Create connection
+        conn = await aiosqlite.connect(str(project_db_path))
+        await conn.execute("PRAGMA foreign_keys = ON")
+        await conn.execute("PRAGMA journal_mode = WAL")
+
+        # Create project-specific schema (only sessions and pages)
+        project_schema_sql = """
+        -- Schema version tracking
+        CREATE TABLE IF NOT EXISTS schema_version (
+            version INTEGER PRIMARY KEY,
+            applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
         -- Crawl sessions table
@@ -124,8 +178,7 @@ class DatabaseManager:
             error_count INTEGER NOT NULL DEFAULT 0,
             max_errors INTEGER NOT NULL DEFAULT 50,
             metadata TEXT,
-            archived INTEGER NOT NULL DEFAULT 0,
-            FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE
+            archived INTEGER NOT NULL DEFAULT 0
         );
 
         -- Pages table
@@ -158,13 +211,10 @@ class DatabaseManager:
             internal_links TEXT,
             external_links TEXT,
             metadata TEXT,
-            FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE,
             FOREIGN KEY (session_id) REFERENCES crawl_sessions (id) ON DELETE CASCADE
         );
 
         -- Indexes for performance
-        CREATE INDEX IF NOT EXISTS idx_projects_name ON projects (name);
-        CREATE INDEX IF NOT EXISTS idx_projects_status ON projects (status);
         CREATE INDEX IF NOT EXISTS idx_sessions_project_id ON crawl_sessions (project_id);
         CREATE INDEX IF NOT EXISTS idx_sessions_status ON crawl_sessions (status);
         CREATE INDEX IF NOT EXISTS idx_pages_project_id ON pages (project_id);
@@ -177,17 +227,18 @@ class DatabaseManager:
         INSERT OR REPLACE INTO schema_version (version) VALUES (2);
         """
 
-        await self._connection.executescript(schema_sql)
-        await self._connection.commit()
+        await conn.executescript(project_schema_sql)
+        await conn.commit()
 
-    async def _get_schema_version(self) -> int:
-        """Get current schema version."""
-        try:
-            cursor = await self._connection.execute("SELECT version FROM schema_version ORDER BY version DESC LIMIT 1")
-            row = await cursor.fetchone()
-            return row[0] if row else 0
-        except:
-            return 0
+        # Cache the connection
+        self._project_connections[project_name] = conn
+
+        self.logger.info("Project database initialized", extra={
+            "project_name": project_name,
+            "db_path": str(project_db_path)
+        })
+
+        return conn
 
     async def _apply_migrations(self) -> None:
         """Apply database migrations."""
@@ -535,6 +586,11 @@ class DatabaseManager:
         """Create a new crawl session."""
         self._ensure_initialized()
 
+        # Get project to find project name
+        project = await self.get_project(project_id)
+        if not project:
+            raise DatabaseError(f"Project {project_id} not found")
+
         session_id = str(uuid.uuid4())
         now = datetime.utcnow()
 
@@ -550,7 +606,9 @@ class DatabaseManager:
             updated_at=now
         )
 
-        await self._connection.execute("""
+        # Use project-specific database connection
+        project_conn = await self._get_project_connection(project.name)
+        await project_conn.execute("""
             INSERT INTO crawl_sessions (
                 id, project_id, status, crawl_depth, user_agent, rate_limit,
                 timeout, created_at, updated_at, pages_discovered, pages_crawled,
@@ -565,33 +623,56 @@ class DatabaseManager:
             session.pages_skipped, session.total_size_bytes, session.error_count,
             session.max_errors, session.archived
         ))
-        await self._connection.commit()
+        await project_conn.commit()
 
         self.logger.info("Crawl session created", extra={
             "session_id": session.id,
-            "project_id": project_id
+            "project_id": project_id,
+            "project_name": project.name
         })
 
         return session
 
     async def get_crawl_session(self, session_id: str) -> Optional[CrawlSession]:
-        """Get crawl session by ID."""
+        """Get crawl session by ID from any project database."""
         self._ensure_initialized()
 
-        cursor = await self._connection.execute("""
-            SELECT id, project_id, status, crawl_depth, user_agent, rate_limit,
-                   timeout, created_at, started_at, completed_at, updated_at,
-                   pages_discovered, pages_crawled, pages_failed, pages_skipped,
-                   total_size_bytes, error_message, error_count, max_errors,
-                   metadata, archived
-            FROM crawl_sessions WHERE id = ?
-        """, (session_id,))
+        # First, try to find which project this session belongs to
+        # Check all project databases
+        for project_name, project_conn in self._project_connections.items():
+            cursor = await project_conn.execute("""
+                SELECT id, project_id, status, crawl_depth, user_agent, rate_limit,
+                       timeout, created_at, started_at, completed_at, updated_at,
+                       pages_discovered, pages_crawled, pages_failed, pages_skipped,
+                       total_size_bytes, error_message, error_count, max_errors,
+                       metadata, archived
+                FROM crawl_sessions WHERE id = ?
+            """, (session_id,))
 
-        row = await cursor.fetchone()
-        if not row:
-            return None
+            row = await cursor.fetchone()
+            if row:
+                return self._session_from_row(row)
 
-        return self._session_from_row(row)
+        # If not found in cached connections, check all projects
+        projects_cursor = await self._connection.execute("SELECT id, name FROM projects")
+        projects = await projects_cursor.fetchall()
+
+        for project_id, project_name in projects:
+            project_conn = await self._get_project_connection(project_name)
+            cursor = await project_conn.execute("""
+                SELECT id, project_id, status, crawl_depth, user_agent, rate_limit,
+                       timeout, created_at, started_at, completed_at, updated_at,
+                       pages_discovered, pages_crawled, pages_failed, pages_skipped,
+                       total_size_bytes, error_message, error_count, max_errors,
+                       metadata, archived
+                FROM crawl_sessions WHERE id = ?
+            """, (session_id,))
+
+            row = await cursor.fetchone()
+            if row:
+                return self._session_from_row(row)
+
+        return None
 
     def _project_from_row(self, row: Tuple) -> Project:
         """Create Project from database row."""
@@ -654,7 +735,14 @@ class DatabaseManager:
         """Update crawl session."""
         self._ensure_initialized()
 
-        await self._connection.execute("""
+        # Get project to find project name
+        project = await self.get_project(session.project_id)
+        if not project:
+            raise DatabaseError(f"Project {session.project_id} not found")
+
+        # Use project-specific database connection
+        project_conn = await self._get_project_connection(project.name)
+        await project_conn.execute("""
             UPDATE crawl_sessions SET
                 status = ?, started_at = ?, completed_at = ?, updated_at = ?,
                 pages_discovered = ?, pages_crawled = ?, pages_failed = ?,
@@ -670,7 +758,7 @@ class DatabaseManager:
             session.pages_skipped, session.total_size_bytes, session.error_message,
             session.error_count, json.dumps(session.metadata), session.id
         ))
-        await self._connection.commit()
+        await project_conn.commit()
 
         return session
 
@@ -717,6 +805,11 @@ class DatabaseManager:
         """Create a new page record."""
         self._ensure_initialized()
 
+        # Get project to find project name
+        project = await self.get_project(project_id)
+        if not project:
+            raise DatabaseError(f"Project {project_id} not found")
+
         page_id = str(uuid.uuid4())
         now = datetime.utcnow()
 
@@ -730,7 +823,9 @@ class DatabaseManager:
             discovered_at=now
         )
 
-        await self._connection.execute("""
+        # Use project-specific database connection
+        project_conn = await self._get_project_connection(project.name)
+        await project_conn.execute("""
             INSERT INTO pages (
                 id, project_id, session_id, url, status, crawl_depth,
                 parent_url, discovered_at, retry_count, max_retries
@@ -740,7 +835,7 @@ class DatabaseManager:
             page.status.value, page.crawl_depth, page.parent_url,
             page.discovered_at.isoformat(), page.retry_count, page.max_retries
         ))
-        await self._connection.commit()
+        await project_conn.commit()
 
         return page
 
@@ -768,7 +863,14 @@ class DatabaseManager:
         """Update page record."""
         self._ensure_initialized()
 
-        await self._connection.execute("""
+        # Get project to find project name
+        project = await self.get_project(page.project_id)
+        if not project:
+            raise DatabaseError(f"Project {page.project_id} not found")
+
+        # Use project-specific database connection
+        project_conn = await self._get_project_connection(project.name)
+        await project_conn.execute("""
             UPDATE pages SET
                 status = ?, title = ?, content_html = ?, content_text = ?,
                 content_hash = ?, mime_type = ?, charset = ?, language = ?,
@@ -791,7 +893,7 @@ class DatabaseManager:
             json.dumps(page.metadata),
             page.id
         ))
-        await self._connection.commit()
+        await project_conn.commit()
 
         return page
 
