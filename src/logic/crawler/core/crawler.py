@@ -195,9 +195,9 @@ class DocumentationCrawler:
                 try:
                     self.logger.debug(f"Attempting to get from queue, current size: {self._crawl_queue.qsize()}")
                     # Get next URL from queue with timeout
-                    # Use a shorter timeout when we're at max depth (no more URLs expected)
-                    # Use a longer timeout when we're still crawling deeper levels
-                    timeout_seconds = 10.0 if current_depth >= project.crawl_depth else 30.0
+                    # Use a longer timeout to ensure we wait for pages to be processed
+                    # This prevents premature stopping when pages are still being fetched
+                    timeout_seconds = 60.0 if current_depth < project.crawl_depth else 30.0
 
                     url, depth, parent_url = await asyncio.wait_for(
                         self._crawl_queue.get(),
@@ -221,10 +221,10 @@ class DocumentationCrawler:
                 except asyncio.TimeoutError:
                     # Check if we should really stop
                     # If we haven't exceeded max depth and we have crawled pages, we might still be processing
-                    if current_depth <= project.crawl_depth and pages_crawled > 0:
+                    if current_depth < project.crawl_depth and pages_crawled > 0:
                         # Give it more time - pages might still be processing
-                        self.logger.info(f"Queue empty but still at depth {current_depth}/{project.crawl_depth}, waiting...")
-                        await asyncio.sleep(5.0)
+                        self.logger.info(f"Queue empty but still at depth {current_depth}/{project.crawl_depth}, waiting for more URLs...")
+                        await asyncio.sleep(10.0)  # Wait longer for pages to be processed
                         # Check queue again
                         if self._crawl_queue.qsize() > 0:
                             self.logger.info(f"Queue refilled with {self._crawl_queue.qsize()} URLs, continuing...")
