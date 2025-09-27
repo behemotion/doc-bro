@@ -30,6 +30,74 @@ from .docker_compatibility import DockerManagerCompatible, DockerAPICompatibilit
 logger = logging.getLogger(__name__)
 
 
+def check_docker_availability() -> tuple[bool, str]:
+    """Check if Docker and Docker Compose are available on the system.
+
+    Returns:
+        tuple: (is_available, message)
+    """
+    import subprocess
+    import shutil
+
+    # Check if docker command exists
+    docker_cmd = shutil.which("docker")
+    if not docker_cmd:
+        return False, "Docker command not found. Please install Docker from https://docs.docker.com/get-docker/"
+
+    # Check if docker daemon is running
+    try:
+        result = subprocess.run(
+            ["docker", "version", "--format", "{{.Server.Version}}"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode != 0:
+            return False, "Docker daemon not running. Please start Docker service."
+    except subprocess.TimeoutExpired:
+        return False, "Docker command timed out. Please check Docker installation."
+    except Exception as e:
+        return False, f"Docker check failed: {e}"
+
+    # Check for docker compose
+    compose_available = False
+    compose_cmd = None
+
+    # Try docker compose (newer syntax)
+    try:
+        result = subprocess.run(
+            ["docker", "compose", "version"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0:
+            compose_available = True
+            compose_cmd = "docker compose"
+    except:
+        pass
+
+    # Try docker-compose (legacy syntax) if docker compose failed
+    if not compose_available:
+        try:
+            result = subprocess.run(
+                ["docker-compose", "version"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                compose_available = True
+                compose_cmd = "docker-compose"
+        except:
+            pass
+
+    if not compose_available:
+        return False, "Docker Compose not found. Please install Docker Compose."
+
+    return True, f"Docker and Docker Compose ({compose_cmd}) are available"
+
+
 class DockerManager:
     """Manages Docker container operations for DocBro setup."""
 
@@ -47,7 +115,7 @@ class DockerManager:
             timeout: Connection timeout in seconds (default 5.0)
         """
         if not DOCKER_AVAILABLE:
-            raise ExternalDependencyError("Docker package not installed. Install with: pip install docker")
+            raise ExternalDependencyError("Docker Python package not available. This is only needed for Qdrant setup.")
 
         try:
             # First try the compatibility manager
