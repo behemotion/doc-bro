@@ -188,6 +188,7 @@ class DocBroConfig(PydanticBaseSettings):
 
 
 # Global configuration instance
+# Initialize with defaults, will be updated from settings if available
 config = DocBroConfig()
 
 
@@ -199,5 +200,44 @@ def get_config() -> DocBroConfig:
 def reload_config() -> DocBroConfig:
     """Reload configuration from environment and files."""
     global config
-    config = DocBroConfig()
+    try:
+        # Try to load from settings first
+        config = create_config_from_settings()
+    except Exception:
+        # Fallback to default if settings not available
+        config = DocBroConfig()
     return config
+
+
+def create_config_from_settings() -> DocBroConfig:
+    """Create DocBroConfig with values from global settings."""
+    from src.services.settings_service import SettingsService
+
+    # Get global settings
+    settings_service = SettingsService()
+    global_settings = settings_service.get_global_settings()
+
+    # Create config with overrides from settings
+    config_dict = {}
+
+    # Map settings to config fields
+    if global_settings.chunk_size is not None:
+        config_dict['chunk_size'] = global_settings.chunk_size
+    if global_settings.chunk_overlap is not None:
+        config_dict['chunk_overlap'] = global_settings.chunk_overlap
+    if global_settings.embedding_model:
+        config_dict['embedding_model'] = global_settings.embedding_model
+        config_dict['default_embedding_model'] = global_settings.embedding_model
+    if global_settings.crawl_depth is not None:
+        config_dict['default_crawl_depth'] = global_settings.crawl_depth
+    if global_settings.rate_limit is not None:
+        config_dict['default_rate_limit'] = global_settings.rate_limit
+    if global_settings.qdrant_url:
+        config_dict['qdrant_url'] = global_settings.qdrant_url
+    if global_settings.ollama_url:
+        config_dict['ollama_url'] = global_settings.ollama_url
+    # Note: timeout and max_retries are in settings but not in DocBroConfig
+    # They could be added if needed, but for now we'll skip them
+
+    # Create config with settings values
+    return DocBroConfig(**config_dict)

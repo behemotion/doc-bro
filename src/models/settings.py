@@ -52,6 +52,13 @@ class GlobalSettings(BaseModel):
         description="Default text chunk size (100-10000 characters)"
     )
 
+    chunk_overlap: int = Field(
+        default=100,
+        ge=0,
+        le=1000,
+        description="Overlap between text chunks (0-1000 characters)"
+    )
+
     # Service Endpoints (non-overridable)
     qdrant_url: str = Field(
         default="http://localhost:6333",

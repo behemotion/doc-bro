@@ -176,7 +176,9 @@ class SQLiteVecService:
                 raise RuntimeError(f"Failed to enable extensions: {e}")
 
             try:
-                await conn.load_extension(sqlite_vec.__file__)
+                # Use sqlite_vec's loadable_path() to get the correct extension path
+                vec_lib_path = sqlite_vec.loadable_path()
+                await conn.load_extension(vec_lib_path)
             except Exception as e:
                 await conn.close()
                 raise RuntimeError(f"Failed to load sqlite-vec extension: {e}")
@@ -199,26 +201,35 @@ class SQLiteVecService:
         """Create a new collection for vectors."""
         conn = await self._get_connection(name)
 
-        # Create virtual table for vectors
+        # Create virtual table for vectors (vec0 only supports the vector column)
         await conn.execute(
             f"""
             CREATE VIRTUAL TABLE IF NOT EXISTS vectors USING vec0(
-                content_embedding FLOAT[{vector_size}],
-                +doc_id TEXT,
-                +chunk_index INTEGER,
-                +page_url TEXT,
-                +metadata JSON,
-                +created_at TEXT
+                content_embedding FLOAT[{vector_size}]
             )
             """
         )
 
-        # Create indexes
+        # Create a regular table for metadata
         await conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_vectors_doc_id ON vectors(doc_id)"
+            """
+            CREATE TABLE IF NOT EXISTS documents (
+                rowid INTEGER PRIMARY KEY,
+                doc_id TEXT UNIQUE NOT NULL,
+                chunk_index INTEGER,
+                page_url TEXT,
+                metadata JSON,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+
+        # Create indexes on metadata table
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_documents_doc_id ON documents(doc_id)"
         )
         await conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_vectors_page_url ON vectors(page_url)"
+            "CREATE INDEX IF NOT EXISTS idx_documents_page_url ON documents(page_url)"
         )
 
         await conn.commit()
@@ -234,32 +245,78 @@ class SQLiteVecService:
         """Insert or update a document with its embedding."""
         conn = await self._get_connection(collection)
 
-        # Convert embedding to JSON string
+        # Convert embedding to JSON string for vec0
         embedding_str = json.dumps(embedding)
 
         # Convert metadata to JSON
         metadata_str = json.dumps(metadata)
 
-        # Delete existing document if present
-        await conn.execute("DELETE FROM vectors WHERE doc_id = ?", (doc_id,))
+        # Start transaction
+        await conn.execute("BEGIN TRANSACTION")
 
-        # Insert new document
-        await conn.execute(
-            """
-            INSERT INTO vectors (
-                content_embedding, doc_id, chunk_index, page_url, metadata, created_at
-            ) VALUES (?, ?, ?, ?, ?, datetime('now'))
-            """,
-            (
-                embedding_str,
-                doc_id,
-                metadata.get("chunk_index", 0),
-                metadata.get("page_url", ""),
-                metadata_str,
-            ),
-        )
+        try:
+            # Check if document exists
+            cursor = await conn.execute(
+                "SELECT rowid FROM documents WHERE doc_id = ?", (doc_id,)
+            )
+            existing = await cursor.fetchone()
 
-        await conn.commit()
+            if existing:
+                # Update existing document
+                rowid = existing[0]
+
+                # Update metadata
+                await conn.execute(
+                    """
+                    UPDATE documents SET
+                        chunk_index = ?,
+                        page_url = ?,
+                        metadata = ?,
+                        created_at = datetime('now')
+                    WHERE rowid = ?
+                    """,
+                    (
+                        metadata.get("chunk_index", 0),
+                        metadata.get("page_url", ""),
+                        metadata_str,
+                        rowid,
+                    ),
+                )
+
+                # Update vector (delete and re-insert with same rowid)
+                await conn.execute(
+                    "DELETE FROM vectors WHERE rowid = ?", (rowid,)
+                )
+                await conn.execute(
+                    "INSERT INTO vectors (rowid, content_embedding) VALUES (?, ?)",
+                    (rowid, embedding_str),
+                )
+            else:
+                # Insert new document - first metadata
+                cursor = await conn.execute(
+                    """
+                    INSERT INTO documents (doc_id, chunk_index, page_url, metadata)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (
+                        doc_id,
+                        metadata.get("chunk_index", 0),
+                        metadata.get("page_url", ""),
+                        metadata_str,
+                    ),
+                )
+                rowid = cursor.lastrowid
+
+                # Insert vector with the same rowid
+                await conn.execute(
+                    "INSERT INTO vectors (rowid, content_embedding) VALUES (?, ?)",
+                    (rowid, embedding_str),
+                )
+
+            await conn.execute("COMMIT")
+        except Exception as e:
+            await conn.execute("ROLLBACK")
+            raise
 
     async def search(
         self, collection: str, query_embedding: List[float], limit: int = 10
@@ -270,16 +327,20 @@ class SQLiteVecService:
         # Convert query embedding to JSON
         query_str = json.dumps(query_embedding)
 
-        # Perform KNN search
+        # Perform KNN search with join to get metadata
+        # Note: vec0 requires k parameter in WHERE clause for KNN queries
         cursor = await conn.execute(
             f"""
-            SELECT doc_id, distance, metadata
-            FROM vectors
-            WHERE content_embedding MATCH ?
-            ORDER BY distance
-            LIMIT ?
+            SELECT
+                d.doc_id,
+                v.distance,
+                d.metadata
+            FROM vectors v
+            JOIN documents d ON v.rowid = d.rowid
+            WHERE v.content_embedding MATCH ? AND k = {int(limit)}
+            ORDER BY v.distance
             """,
-            (query_str, limit),
+            (query_str,),
         )
 
         results = []
@@ -302,12 +363,21 @@ class SQLiteVecService:
         """Delete a document from the collection."""
         conn = await self._get_connection(collection)
 
+        # Get rowid first
         cursor = await conn.execute(
-            "DELETE FROM vectors WHERE doc_id = ?", (doc_id,)
+            "SELECT rowid FROM documents WHERE doc_id = ?", (doc_id,)
         )
-        await conn.commit()
+        row = await cursor.fetchone()
 
-        return cursor.rowcount > 0
+        if row:
+            rowid = row[0]
+            # Delete from both tables
+            await conn.execute("DELETE FROM vectors WHERE rowid = ?", (rowid,))
+            await conn.execute("DELETE FROM documents WHERE rowid = ?", (rowid,))
+            await conn.commit()
+            return True
+
+        return False
 
     async def delete_collection(self, name: str) -> bool:
         """Delete an entire collection."""
@@ -338,8 +408,8 @@ class SQLiteVecService:
         try:
             conn = await self._get_connection(name)
 
-            # Count vectors
-            cursor = await conn.execute("SELECT COUNT(*) FROM vectors")
+            # Count documents (vectors and documents tables should have same count)
+            cursor = await conn.execute("SELECT COUNT(*) FROM documents")
             count = (await cursor.fetchone())[0]
 
             # Get database file size
@@ -428,7 +498,12 @@ class SQLiteVecService:
         try:
             conn = await self._get_connection(collection_name)
             cursor = await conn.execute(
-                "SELECT content_embedding, metadata FROM vectors WHERE doc_id = ?",
+                """
+                SELECT v.content_embedding, d.metadata
+                FROM documents d
+                JOIN vectors v ON v.rowid = d.rowid
+                WHERE d.doc_id = ?
+                """,
                 (document_id,)
             )
             row = await cursor.fetchone()
@@ -461,8 +536,10 @@ class SQLiteVecService:
     async def count_documents(self, collection_name: str) -> int:
         """Count documents in collection."""
         try:
-            stats = await self.get_collection_stats(collection_name)
-            return stats.get("vector_count", 0)
+            conn = await self._get_connection(collection_name)
+            cursor = await conn.execute("SELECT COUNT(*) FROM documents")
+            count = (await cursor.fetchone())[0]
+            return count
         except Exception as e:
             logger.error(f"Failed to count documents in {collection_name}: {e}")
             return 0
