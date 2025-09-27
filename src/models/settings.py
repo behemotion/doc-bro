@@ -6,10 +6,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional, Set
 from pydantic import BaseModel, Field, PrivateAttr, field_validator
+from .vector_store_types import VectorStoreProvider
 
 # Non-overridable fields at project level
 NON_OVERRIDABLE_FIELDS = {
     "vector_storage",
+    "vector_store_provider",
     "qdrant_url",
     "ollama_url"
 }
@@ -24,6 +26,11 @@ class GlobalSettings(BaseModel):
     )
 
     # Vector Storage Configuration
+    vector_store_provider: VectorStoreProvider = Field(
+        default=VectorStoreProvider.SQLITE_VEC,
+        description="Vector store backend provider (non-overridable)"
+    )
+
     vector_storage: str = Field(
         default="~/.local/share/docbro/vectors",
         description="Default vector storage location (non-overridable)"
@@ -118,6 +125,7 @@ class GlobalSettings(BaseModel):
         json_schema_extra = {
             "example": {
                 "embedding_model": "mxbai-embed-large",
+                "vector_store_provider": "sqlite_vec",
                 "vector_storage": "~/.local/share/docbro/vectors",
                 "crawl_depth": 3,
                 "chunk_size": 1500,

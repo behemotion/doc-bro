@@ -1,24 +1,25 @@
 """Uninstall service orchestrator for managing the uninstall process."""
 
-from typing import Dict, Any, List, Optional
 from pathlib import Path
+from typing import Any
+
 import click
+
+import docker
+from src.core.lib_logger import get_logger
+from src.models.component_status import ComponentStatus
+from src.models.removal_operation import OperationType, RemovalOperation
 from src.models.uninstall_config import UninstallConfig
+from src.models.uninstall_inventory import ComponentType, UninstallComponent
 from src.models.uninstall_progress import UninstallProgress
-from src.models.component_status import ComponentStatus, RemovalStatus
-from src.models.removal_operation import RemovalOperation, OperationType
-from src.models.uninstall_inventory import UninstallComponent, ComponentType
+from src.services.backup_service import BackupService
 from src.services.component_detection import ComponentDetectionService
 from src.services.removal_executor import RemovalExecutor
-from src.services.backup_service import BackupService
-from src.core.lib_logger import get_logger
-import docker
-import asyncio
 
 
 class UninstallWarning:
     """Uninstall warning data structure for contract compliance"""
-    def __init__(self, message: str, data_types: List[str], is_irreversible: bool, estimated_data_loss: str):
+    def __init__(self, message: str, data_types: list[str], is_irreversible: bool, estimated_data_loss: str):
         self.message = message
         self.data_types = data_types
         self.is_irreversible = is_irreversible
@@ -37,7 +38,7 @@ class UninstallService:
         self.backup_service = BackupService()
         self.progress = UninstallProgress()
 
-    async def validate_installation(self) -> List[ComponentStatus]:
+    async def validate_installation(self) -> list[ComponentStatus]:
         """Detect what needs removal."""
         components = await self.detection_service.detect_all_components()
 
@@ -61,7 +62,7 @@ class UninstallService:
 
         return all_components
 
-    async def create_backup(self, config: UninstallConfig, components: Dict[str, Any]) -> Optional[Dict]:
+    async def create_backup(self, config: UninstallConfig, components: dict[str, Any]) -> dict | None:
         """Create backup if requested."""
         if not config.backup:
             return None
@@ -85,9 +86,9 @@ class UninstallService:
     async def execute(
         self,
         config: UninstallConfig,
-        components: Optional[Dict[str, Any]] = None,
+        components: dict[str, Any] | None = None,
         preserve_external: bool = True
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Perform uninstall operation."""
         # Detect components if not provided
         if components is None:
@@ -144,7 +145,7 @@ class UninstallService:
             'summary': self.progress.get_summary()
         }
 
-    def handle_failure(self, component: Optional[ComponentStatus], error_message: str) -> bool:
+    def handle_failure(self, component: ComponentStatus | None, error_message: str) -> bool:
         """Prompt user on failure (without --force)."""
         logger.error(error_message)
 
@@ -159,9 +160,9 @@ class UninstallService:
 
     def _create_operations_queue(
         self,
-        components: Dict[str, Any],
+        components: dict[str, Any],
         preserve_external: bool
-    ) -> List[RemovalOperation]:
+    ) -> list[RemovalOperation]:
         """Create ordered queue of removal operations."""
         operations = []
 
@@ -268,7 +269,7 @@ class UninstallService:
                 return await self.removal_executor.delete_directory(Path(operation.target))
 
             elif operation.operation_type == OperationType.DELETE_CONFIG:
-                return await self.removal_executor.delete_directory(Path(operation.target))
+                return await self.removal_executor.delete_file(Path(operation.target))
 
             elif operation.operation_type == OperationType.UNINSTALL_PACKAGE:
                 return await self.removal_executor.uninstall_package()
@@ -289,7 +290,7 @@ class UninstallService:
 
             return False
 
-    async def scan_installed_components(self) -> List[UninstallComponent]:
+    async def scan_installed_components(self) -> list[UninstallComponent]:
         """Scan and return all installed DocBro components."""
         components = await self.detection_service.detect_all_components()
         uninstall_components = []
@@ -350,7 +351,7 @@ class UninstallService:
 
         return uninstall_components
 
-    async def check_running_services(self) -> List[str]:
+    async def check_running_services(self) -> list[str]:
         """Check for running DocBro services that need shutdown."""
         running_services = []
 
@@ -370,7 +371,7 @@ class UninstallService:
 
         return running_services
 
-    def generate_uninstall_warning(self, components: List[UninstallComponent]) -> UninstallWarning:
+    def generate_uninstall_warning(self, components: list[UninstallComponent]) -> UninstallWarning:
         """Generate warning about data loss and irreversible actions."""
         data_types = []
         total_size = sum(comp.size_mb for comp in components)
@@ -401,7 +402,7 @@ class UninstallService:
             estimated_data_loss=f"{total_size:.1f}MB" if total_size > 0 else "Unknown size"
         )
 
-    async def stop_all_services(self, service_names: List[str]) -> Dict[str, bool]:
+    async def stop_all_services(self, service_names: list[str]) -> dict[str, bool]:
         """Stop all running DocBro services before uninstall."""
         results = {}
 
@@ -432,10 +433,10 @@ class UninstallService:
 
     async def execute_uninstall(
         self,
-        components: List[UninstallComponent],
+        components: list[UninstallComponent],
         force: bool = False,
         preserve_external: bool = True
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Execute the uninstall process."""
         # Convert UninstallComponent list to the format expected by existing execute method
         components_dict = {

@@ -37,7 +37,14 @@ class SettingsService:
                 with open(self.global_settings_path, 'r') as f:
                     data = yaml.safe_load(f)
                     if data and 'settings' in data:
-                        return GlobalSettings(**data['settings'])
+                        settings_data = data['settings']
+
+                        # Convert string back to VectorStoreProvider enum
+                        if 'vector_store_provider' in settings_data and isinstance(settings_data['vector_store_provider'], str):
+                            from src.models.vector_store_types import VectorStoreProvider
+                            settings_data['vector_store_provider'] = VectorStoreProvider.from_string(settings_data['vector_store_provider'])
+
+                        return GlobalSettings(**settings_data)
             except Exception as e:
                 print(f"Warning: Failed to load global settings: {e}")
 
@@ -53,9 +60,16 @@ class SettingsService:
             updated_at=datetime.now()
         )
 
+        # Convert settings to dict with proper enum serialization
+        settings_dict = settings.model_dump()
+
+        # Convert VectorStoreProvider enum to string value
+        if 'vector_store_provider' in settings_dict:
+            settings_dict['vector_store_provider'] = settings_dict['vector_store_provider'].value
+
         data = {
             'version': self.settings_version,
-            'settings': settings.model_dump(),
+            'settings': settings_dict,
             'metadata': {
                 'created_at': metadata.created_at.isoformat(),
                 'updated_at': metadata.updated_at.isoformat(),
