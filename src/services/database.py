@@ -771,6 +771,14 @@ class DatabaseManager:
         """Get sessions for a project."""
         self._ensure_initialized()
 
+        # Get project to find project name
+        project = await self.get_project(project_id)
+        if not project:
+            raise DatabaseError(f"Project {project_id} not found")
+
+        # Use project-specific database connection
+        project_conn = await self._get_project_connection(project.name)
+
         sql = """
             SELECT id, project_id, status, crawl_depth, user_agent, rate_limit,
                    timeout, created_at, started_at, completed_at, updated_at,
@@ -787,7 +795,7 @@ class DatabaseManager:
 
         sql += " ORDER BY created_at DESC"
 
-        cursor = await self._connection.execute(sql, params)
+        cursor = await project_conn.execute(sql, params)
         rows = await cursor.fetchall()
 
         return [self._session_from_row(row) for row in rows]
@@ -840,24 +848,47 @@ class DatabaseManager:
         return page
 
     async def get_page(self, page_id: str) -> Optional[Page]:
-        """Get page by ID."""
+        """Get page by ID from any project database."""
         self._ensure_initialized()
 
-        cursor = await self._connection.execute("""
-            SELECT id, project_id, session_id, url, status, title, content_html,
-                   content_text, content_hash, mime_type, charset, language,
-                   size_bytes, crawl_depth, parent_url, response_code,
-                   response_time_ms, discovered_at, crawled_at, processed_at,
-                   indexed_at, error_message, retry_count, max_retries,
-                   outbound_links, internal_links, external_links, metadata
-            FROM pages WHERE id = ?
-        """, (page_id,))
+        # First, try to find which project this page belongs to
+        # Check all project databases
+        for project_name, project_conn in self._project_connections.items():
+            cursor = await project_conn.execute("""
+                SELECT id, project_id, session_id, url, status, title, content_html,
+                       content_text, content_hash, mime_type, charset, language,
+                       size_bytes, crawl_depth, parent_url, response_code,
+                       response_time_ms, discovered_at, crawled_at, processed_at,
+                       indexed_at, error_message, retry_count, max_retries,
+                       outbound_links, internal_links, external_links, metadata
+                FROM pages WHERE id = ?
+            """, (page_id,))
 
-        row = await cursor.fetchone()
-        if not row:
-            return None
+            row = await cursor.fetchone()
+            if row:
+                return self._page_from_row(row)
 
-        return self._page_from_row(row)
+        # If not found in cached connections, check all projects
+        projects_cursor = await self._connection.execute("SELECT id, name FROM projects")
+        projects = await projects_cursor.fetchall()
+
+        for project_id, project_name in projects:
+            project_conn = await self._get_project_connection(project_name)
+            cursor = await project_conn.execute("""
+                SELECT id, project_id, session_id, url, status, title, content_html,
+                       content_text, content_hash, mime_type, charset, language,
+                       size_bytes, crawl_depth, parent_url, response_code,
+                       response_time_ms, discovered_at, crawled_at, processed_at,
+                       indexed_at, error_message, retry_count, max_retries,
+                       outbound_links, internal_links, external_links, metadata
+                FROM pages WHERE id = ?
+            """, (page_id,))
+
+            row = await cursor.fetchone()
+            if row:
+                return self._page_from_row(row)
+
+        return None
 
     async def update_page(self, page: Page) -> Page:
         """Update page record."""
@@ -906,6 +937,14 @@ class DatabaseManager:
         """Get pages for a project."""
         self._ensure_initialized()
 
+        # Get project to find project name
+        project = await self.get_project(project_id)
+        if not project:
+            raise DatabaseError(f"Project {project_id} not found")
+
+        # Use project-specific database connection
+        project_conn = await self._get_project_connection(project.name)
+
         sql = """
             SELECT id, project_id, session_id, url, status, title, content_html,
                    content_text, content_hash, mime_type, charset, language,
@@ -927,7 +966,7 @@ class DatabaseManager:
             sql += " LIMIT ?"
             params.append(limit)
 
-        cursor = await self._connection.execute(sql, params)
+        cursor = await project_conn.execute(sql, params)
         rows = await cursor.fetchall()
 
         return [self._page_from_row(row) for row in rows]
@@ -1000,8 +1039,11 @@ class DatabaseManager:
         if not project:
             raise DatabaseError(f"Project {project_id} not found")
 
+        # Use project-specific database connection
+        project_conn = await self._get_project_connection(project.name)
+
         # Get page statistics
-        cursor = await self._connection.execute("""
+        cursor = await project_conn.execute("""
             SELECT
                 COUNT(*) as total_pages,
                 SUM(size_bytes) as total_size,
@@ -1016,7 +1058,7 @@ class DatabaseManager:
         stats = await cursor.fetchone()
 
         # Get latest session info
-        sessions = await self.get_project_sessions(project_id, limit=1)
+        sessions = await self.get_project_sessions(project_id)
         latest_session = sessions[0] if sessions else None
 
         return {
