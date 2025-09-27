@@ -22,6 +22,7 @@ from .service_config import (
     ServiceName,
     ServiceStatusType,
 )
+from .vector_store_types import VectorStoreProvider
 
 __all__ = [
     "Project",
@@ -46,4 +47,5 @@ __all__ = [
     "ServiceConfiguration",
     "ServiceName",
     "ServiceStatusType",
+    "VectorStoreProvider",
 ]

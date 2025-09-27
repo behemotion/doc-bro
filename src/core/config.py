@@ -17,6 +17,7 @@ class ServiceDeployment(str, Enum):
     DOCKER = "docker"
     LOCAL = "local"
     AUTO = "auto"
+    SQLITE_VEC = "sqlite_vec"  # SQLite-vec vector store option
 
 
 class DocBroConfig(PydanticBaseSettings):
@@ -30,6 +31,9 @@ class DocBroConfig(PydanticBaseSettings):
     qdrant_deployment: ServiceDeployment = Field(default=ServiceDeployment.DOCKER, env="DOCBRO_QDRANT_DEPLOYMENT")
     # Redis removed - no longer supported
     ollama_deployment: ServiceDeployment = Field(default=ServiceDeployment.LOCAL, env="DOCBRO_OLLAMA_DEPLOYMENT")
+
+    # Vector store configuration
+    vector_store_provider: str = Field(default="qdrant", env="DOCBRO_VECTOR_STORE")  # "qdrant" or "sqlite_vec"
 
     # Qdrant configuration
     qdrant_url: str = Field(default="http://localhost:6333", env="DOCBRO_QDRANT_URL")

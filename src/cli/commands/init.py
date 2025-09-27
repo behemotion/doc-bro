@@ -26,6 +26,8 @@ from src.models.setup_types import (
 from src.services.setup_logic_service import SetupLogicService
 from src.services.detection import ServiceDetectionService
 from src.lib.utils import run_async, async_command
+from src.services.sqlite_vec_service import detect_sqlite_vec
+from src.models.vector_store_types import VectorStoreProvider
 
 console = Console()
 logger = logging.getLogger(__name__)
@@ -148,8 +150,10 @@ class InitProgressDisplay:
 @click.option('--json', 'output_json', is_flag=True, help='Output status in JSON format')
 @click.option('--no-prompt', is_flag=True, help='Skip all interactive prompts (use defaults)')
 @click.option('--config', multiple=True, help='Initial configuration key=value pairs')
+@click.option('--vector-store', type=click.Choice(['qdrant', 'sqlite_vec']), help='Vector store backend to use')
+@click.option('--sqlite-vec-path', type=click.Path(), help='Custom path for SQLite-vec databases')
 @async_command
-async def init(auto: bool, force: bool, status: bool, verbose: bool, output_json: bool, no_prompt: bool, config: tuple):
+async def init(auto: bool, force: bool, status: bool, verbose: bool, output_json: bool, no_prompt: bool, config: tuple, vector_store: str, sqlite_vec_path: str):
     """Initialize DocBro system with all required components.
 
     This command handles:
