@@ -312,7 +312,8 @@ async def _run_auto_init(setup_service, settings_service, detection_service, for
             raise SetupConfigurationError(result.get('error', 'Setup failed'))
 
     # Show final success message
-    console.print("\n" + Panel(
+    console.print("\n")
+    console.print(Panel(
         f"[green]✓[/green] DocBro initialization complete!\n\n"
         f"Settings: {settings_service.global_settings_path}\n"
         f"Data: {get_docbro_data_dir()}\n\n"

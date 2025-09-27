@@ -26,6 +26,7 @@ from .docker_manager import DockerManager
 from .ollama_manager import OllamaManager
 from .mcp_detector import MCPDetector
 from .config_service import ConfigService
+from .system_requirements_service import SystemRequirementsService
 
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,7 @@ class SetupLogicService:
         self.ollama_manager = OllamaManager()
         self.mcp_detector = MCPDetector()
         self.config_service = ConfigService()
+        self.requirements_service = SystemRequirementsService()
 
     async def run_interactive_setup(self) -> bool:
         """Run interactive setup with user prompts."""
@@ -347,3 +349,77 @@ class SetupLogicService:
                 "persist_settings"
             ]
         }
+
+    async def check_system_requirements(self) -> Dict[str, Any]:
+        """Check system requirements for DocBro."""
+        try:
+            validation_results = await self.requirements_service.validate_all_requirements()
+
+            # Check if all critical requirements are met
+            critical_requirements = ["python_version", "memory", "disk"]
+            meets_requirements = all(
+                validation_results.get(req, False) for req in critical_requirements
+            )
+
+            # Collect issues
+            issues = []
+            if not validation_results.get("python_version", False):
+                issues.append("Python 3.13+ is required")
+            if not validation_results.get("memory", False):
+                issues.append("At least 4GB of RAM is required")
+            if not validation_results.get("disk", False):
+                issues.append("At least 2GB of free disk space is required")
+
+            return {
+                "meets_requirements": meets_requirements,
+                "validation_results": validation_results,
+                "issues": issues,
+                "warnings": []
+            }
+        except Exception as e:
+            logger.error(f"Failed to check system requirements: {e}")
+            return {
+                "meets_requirements": False,
+                "validation_results": {},
+                "issues": [str(e)],
+                "warnings": []
+            }
+
+    async def run_automated_setup(self, force: bool = False) -> Dict[str, Any]:
+        """Run automated setup with minimal user interaction."""
+        try:
+            logger.info("Starting automated setup")
+
+            # Check if setup already exists and not forcing
+            if not force:
+                existing_setup = await self.config_service.check_existing_setup()
+                if existing_setup and existing_setup.get("setup_completed"):
+                    return {
+                        "success": False,
+                        "error": "Setup already completed. Use --force to re-run.",
+                        "existing_setup": existing_setup
+                    }
+
+            # Run auto setup
+            success = await self.run_auto_setup()
+
+            if success:
+                return {
+                    "success": True,
+                    "message": "Automated setup completed successfully",
+                    "warnings": []
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": "Automated setup failed",
+                    "warnings": []
+                }
+
+        except Exception as e:
+            logger.error(f"Automated setup failed: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "warnings": []
+            }
