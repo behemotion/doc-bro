@@ -94,6 +94,10 @@ class UninstallService:
         if components is None:
             components = await self.detection_service.detect_all_components()
 
+        # If force flag is used, remove all projects first
+        if config.force:
+            await self._remove_all_projects()
+
         # Count total components
         total = 0
         for key in ['containers', 'volumes', 'directories', 'configs']:
@@ -430,6 +434,43 @@ class UninstallService:
                 results[service_name] = False
 
         return results
+
+    async def _remove_all_projects(self) -> None:
+        """Remove all projects and their data."""
+        try:
+            logger.info("Removing all projects as part of uninstall")
+            # Import database manager to get projects
+            from src.services.database import DatabaseManager
+            from src.core.config import DocBroConfig
+
+            config = DocBroConfig()
+            db_manager = DatabaseManager(config)
+            await db_manager.initialize()
+
+            # Get all projects
+            projects = await db_manager.list_projects()
+
+            if projects:
+                logger.info(f"Found {len(projects)} project(s) to remove")
+                for project in projects:
+                    try:
+                        logger.info(f"Removing project: {project.name}")
+                        cleanup_result = await db_manager.cleanup_project(project.id)
+                        if cleanup_result["success"]:
+                            logger.info(f"Successfully removed project '{project.name}'")
+                        else:
+                            logger.warning(f"Failed to remove project '{project.name}': {cleanup_result.get('error')}")
+                    except Exception as e:
+                        logger.warning(f"Error removing project '{project.name}': {e}")
+                        # Continue with other projects even if one fails
+            else:
+                logger.info("No projects found to remove")
+
+            await db_manager.cleanup()
+
+        except Exception as e:
+            logger.warning(f"Error during project removal: {e}")
+            # Don't fail the entire uninstall if project removal fails
 
     async def execute_uninstall(
         self,
