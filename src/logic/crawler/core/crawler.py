@@ -14,7 +14,9 @@ import httpx
 from bs4 import BeautifulSoup
 from bs4.element import Comment
 
-from src.models import Project, CrawlSession, Page, CrawlStatus, PageStatus
+from src.models import Project, CrawlStatus, PageStatus
+from ..models.session import CrawlSession
+from ..models.page import Page
 from src.services.database import DatabaseManager
 from src.core.config import DocBroConfig
 from src.core.lib_logger import get_component_logger

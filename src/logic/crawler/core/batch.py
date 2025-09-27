@@ -5,11 +5,11 @@ import logging
 from typing import List, Dict, Any, Optional, Callable
 from datetime import datetime
 
-from src.models.batch_operation import BatchOperation
+from ..models.batch import BatchOperation
 from src.models.project_status import ProjectStatus
-from src.services.crawler import DocumentationCrawler
-from src.services.error_reporter import ErrorReporter
-from src.services.progress_reporter import ProgressReporter, CrawlPhase
+from .crawler import DocumentationCrawler
+from ..analytics.reporter import ErrorReporter
+from ..utils.progress import ProgressReporter, CrawlPhase
 from src.services.project_manager import ProjectManager
 
 logger = logging.getLogger(__name__)
