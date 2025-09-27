@@ -37,8 +37,8 @@ class RAGSearchService:
         # Search configuration
         self.default_limit = 10
         self.default_score_threshold = 0.7
-        self.chunk_size = 1000
-        self.chunk_overlap = 100
+        self.chunk_size = self.config.chunk_size  # Use config value
+        self.chunk_overlap = self.config.chunk_overlap  # Use config value
 
         # Query cache
         self._query_cache: Dict[str, QueryResponse] = {}
