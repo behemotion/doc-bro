@@ -25,7 +25,6 @@ from .service_config import (
     ServiceStatusType,
 )
 from .vector_store_types import VectorStoreProvider
-from .setup_session import SetupSession
 
 __all__ = [
     "Project",
@@ -51,5 +50,4 @@ __all__ = [
     "ServiceName",
     "ServiceStatusType",
     "VectorStoreProvider",
-    "SetupSession",
 ]
