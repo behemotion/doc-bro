@@ -84,6 +84,9 @@ class InitProgressDisplay:
     def add_step(self, step: str, status: str = "✓"):
         """Add a completed step."""
         self.steps_completed.append((step, status))
+        # Clear current step if it matches the completed step
+        if self.current_step == step:
+            self.current_step = None
         self.update()
 
     def set_current(self, step: str):
@@ -135,7 +138,9 @@ class InitProgressDisplay:
 
             for name, status in self.service_status.items():
                 icon = "[green]✓[/green]" if status['available'] else "[red]✗[/red]"
-                version_str = f" (v{status['version']})" if status.get('version') else ""
+                version_str = ""
+                if status.get('version') and status['version'] != "unknown":
+                    version_str = f" (v{status['version']})"
                 table.add_row(f"  {icon} {name}", f"{'Available' if status['available'] else 'Not available'}{version_str}")
 
         # Add warnings
@@ -486,7 +491,7 @@ async def _run_setup_with_provider(setup_service, settings_service, detection_se
         setup_config.mark_as_completed()
         await setup_service.config_service.save_configuration(setup_config)
 
-        progress.add_step("Setup finalized", "✓")
+        progress.add_step("Finalizing setup", "✓")
 
     # Show final success message
     console.print("\n")
