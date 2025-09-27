@@ -35,11 +35,28 @@ logger = logging.getLogger(__name__)
 
 def _get_sqlite_vec_install_guidance() -> str:
     """Get UV-specific guidance for installing sqlite-vec."""
-    return (
-        "Install sqlite-vec using UV:\n"
-        "  1. uv pip install --system sqlite-vec\n"
-        "  2. Or reinstall docbro: uvx install --force git+https://github.com/behemotion/doc-bro"
-    )
+    from src.services.sqlite_vec_service import detect_sqlite_vec
+
+    available, message = detect_sqlite_vec()
+
+    if not available and "compiled without extension support" in message:
+        return (
+            "SQLite extension support issue detected:\n"
+            "  • Your Python's SQLite3 was compiled without extension support\n"
+            "  • This is common on macOS with certain Python installations\n\n"
+            "Recommended solution:\n"
+            "  Use Qdrant instead: docbro init --vector-store qdrant --force\n\n"
+            "Alternative solutions:\n"
+            "  1. Install Python with Homebrew: brew install python@3.13\n"
+            "  2. Use pyenv with correct build flags\n\n"
+            "Qdrant provides better performance and reliability for vector operations."
+        )
+    else:
+        return (
+            "Install sqlite-vec using UV:\n"
+            "  1. uv pip install --system sqlite-vec\n"
+            "  2. Or reinstall docbro: uvx install --force git+https://github.com/behemotion/doc-bro"
+        )
 
 
 class InitProgressDisplay:
@@ -211,7 +228,7 @@ async def init(auto: bool, force: bool, status: bool, verbose: bool, output_json
         if auto or no_prompt:
             # Use specified vector store or default
             selected_provider = VectorStoreProvider.from_string(vector_store) if vector_store else VectorStoreProvider.SQLITE_VEC
-            await _run_setup_with_provider(setup_service, settings_service, detection_service, force, config, selected_provider)
+            await _run_setup_with_provider(setup_service, settings_service, detection_service, force, config, selected_provider, auto, no_prompt)
         else:
             await _run_interactive_init(setup_service, settings_service, detection_service, force, config)
 
@@ -254,13 +271,23 @@ async def _prompt_vector_store_selection(detection_service) -> VectorStoreProvid
     status_icon = "[green]✓[/green]" if sqlite_vec_available else "[yellow]⚠[/yellow]"
     console.print(f"1. {status_icon} SQLite-vec (local, no external dependencies)")
     if not sqlite_vec_available:
-        console.print(f"   [dim]{sqlite_message}[/dim]")
+        if "compiled without extension support" in sqlite_message:
+            console.print(f"   [dim]{sqlite_message}[/dim]")
+            console.print(f"   [yellow]Note:[/yellow] Your Python lacks SQLite extension support")
+        else:
+            console.print(f"   [dim]{sqlite_message}[/dim]")
     options.append((VectorStoreProvider.SQLITE_VEC, sqlite_vec_available))
 
     # Qdrant option
     qdrant_fully_available = qdrant_available and docker_available
     status_icon = "[green]✓[/green]" if qdrant_fully_available else "[yellow]⚠[/yellow]"
-    console.print(f"2. {status_icon} Qdrant (recommended for large deployments, requires Docker)")
+
+    # Add recommendation if SQLite has extension issues
+    qdrant_description = "Qdrant (recommended for large deployments, requires Docker)"
+    if not sqlite_vec_available and "compiled without extension support" in sqlite_message:
+        qdrant_description = "Qdrant ([bold green]RECOMMENDED[/bold green] - better performance, requires Docker)"
+
+    console.print(f"2. {status_icon} {qdrant_description}")
     if not docker_available:
         console.print(f"   [dim]Docker requirement: {docker_message}[/dim]")
     elif not qdrant_available:
@@ -304,7 +331,7 @@ async def _prompt_vector_store_selection(detection_service) -> VectorStoreProvid
             raise UserCancellationError("User cancelled vector store selection")
 
 
-async def _run_setup_with_provider(setup_service, settings_service, detection_service, force: bool, config: tuple, vector_store_provider: VectorStoreProvider):
+async def _run_setup_with_provider(setup_service, settings_service, detection_service, force: bool, config: tuple, vector_store_provider: VectorStoreProvider, auto: bool = False, no_prompt: bool = False):
     """Run initialization with progress display and selected vector store provider."""
 
     with InitProgressDisplay() as progress:
@@ -423,29 +450,37 @@ async def _run_setup_with_provider(setup_service, settings_service, detection_se
         # Create and save a minimal setup configuration to mark as completed
         from src.models.setup_configuration import SetupConfiguration
         from src.models.setup_types import SetupMode, VectorStorageConfig, EmbeddingModelConfig
+        from src.version import __version__
 
-        setup_config = SetupConfiguration(
-            setup_mode=SetupMode.AUTO if auto or no_prompt else SetupMode.INTERACTIVE,
-        )
-
-        # Add vector storage config based on provider
+        # Prepare vector storage config based on provider
+        vector_storage_config = None
         if vector_store_provider == VectorStoreProvider.SQLITE_VEC:
-            setup_config.vector_storage = VectorStorageConfig(
-                connection_url="sqlite_vec",
-                data_path=str(get_docbro_data_dir() / "projects")
+            vector_storage_config = VectorStorageConfig(
+                provider="sqlite_vec",
+                connection_url="sqlite:///" + str(get_docbro_data_dir() / "projects"),
+                data_path=get_docbro_data_dir() / "projects"
             )
         elif vector_store_provider == VectorStoreProvider.QDRANT:
-            setup_config.vector_storage = VectorStorageConfig(
+            vector_storage_config = VectorStorageConfig(
+                provider="qdrant",
                 connection_url="http://localhost:6333",
-                data_path=str(get_docbro_data_dir() / "qdrant")
+                data_path=get_docbro_data_dir() / "qdrant"
             )
 
-        # Add embedding model config if Ollama is available
+        # Prepare embedding model config if Ollama is available
+        embedding_model_config = None
         if service_checks.get('ollama', type('', (), {'available': False})).available:
-            setup_config.embedding_model = EmbeddingModelConfig(
+            embedding_model_config = EmbeddingModelConfig(
                 model_name="mxbai-embed-large",
                 download_required=False
             )
+
+        setup_config = SetupConfiguration(
+            setup_mode=SetupMode.AUTO if auto or no_prompt else SetupMode.INTERACTIVE,
+            version=__version__,
+            vector_storage=vector_storage_config,
+            embedding_model=embedding_model_config,
+        )
 
         # Mark as completed and save
         setup_config.mark_as_completed()
@@ -547,12 +582,25 @@ async def _setup_sqlite_vec(progress: InitProgressDisplay) -> Dict[str, Any]:
                     # Verify installation
                     available, message = detect_sqlite_vec()
                     if not available:
-                        progress.add_warning(f"SQLite-vec installed but still not working: {message}")
-                        return {
-                            "success": True,
-                            "warning": "SQLite-vec installed but verification failed",
-                            "setup_message": message
-                        }
+                        if "compiled without extension support" in message:
+                            progress.add_warning("SQLite extension support unavailable - Python SQLite3 lacks extension loading")
+                            progress.add_warning("RECOMMENDATION: Use Qdrant instead for better performance")
+                            return {
+                                "success": True,
+                                "warning": "SQLite extension support unavailable",
+                                "setup_message": (
+                                    "Your Python installation lacks SQLite extension support.\n"
+                                    "Consider using Qdrant instead: docbro init --vector-store qdrant --force\n"
+                                    "Qdrant offers better performance and doesn't require SQLite extensions."
+                                )
+                            }
+                        else:
+                            progress.add_warning(f"SQLite-vec installed but still not working: {message}")
+                            return {
+                                "success": True,
+                                "warning": "SQLite-vec installed but verification failed",
+                                "setup_message": message
+                            }
                 else:
                     stderr_output = result.stderr.strip() if result.stderr else "Unknown error"
                     progress.add_warning(f"Failed to install SQLite-vec: {stderr_output}")
@@ -740,7 +788,7 @@ async def _run_interactive_init(setup_service, settings_service, detection_servi
     vector_store_provider = await _prompt_vector_store_selection(detection_service)
 
     # Run the setup with selected provider
-    await _run_setup_with_provider(setup_service, settings_service, detection_service, force, config, vector_store_provider)
+    await _run_setup_with_provider(setup_service, settings_service, detection_service, force, config, vector_store_provider, auto=False, no_prompt=False)
 
 
 async def _handle_status(setup_service: SetupLogicService, output_json: bool) -> None:

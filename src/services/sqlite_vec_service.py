@@ -32,15 +32,42 @@ def detect_sqlite_vec() -> Tuple[bool, str]:
     try:
         # Test loading the extension
         conn = sqlite3.connect(":memory:")
-        conn.enable_load_extension(True)
-        sqlite_vec.load(conn)
+
+        # Check if enable_load_extension is available
+        if not hasattr(conn, 'enable_load_extension'):
+            conn.close()
+            return False, (
+                "SQLite was compiled without extension support. "
+                "For full SQLite-vec functionality, consider using Qdrant instead. "
+                "Run 'docbro init --vector-store qdrant' to use Qdrant."
+            )
+
+        try:
+            conn.enable_load_extension(True)
+        except AttributeError:
+            conn.close()
+            return False, "SQLite enable_load_extension not available"
+        except Exception as e:
+            conn.close()
+            return False, f"Failed to enable extensions: {e}"
+
+        try:
+            sqlite_vec.load(conn)
+        except Exception as e:
+            conn.close()
+            return False, f"Failed to load sqlite-vec extension: {e}"
+
         conn.enable_load_extension(False)
 
         # Get version
-        cursor = conn.execute("SELECT vec_version()")
-        version = cursor.fetchone()[0]
-        conn.close()
+        try:
+            cursor = conn.execute("SELECT vec_version()")
+            version = cursor.fetchone()[0]
+        except Exception as e:
+            conn.close()
+            return False, f"Failed to get sqlite-vec version: {e}"
 
+        conn.close()
         return True, f"sqlite-vec {version} available"
     except Exception as e:
         return False, f"Failed to load sqlite-vec: {e}"
@@ -85,11 +112,25 @@ class SQLiteVecService:
 
     def get_installation_suggestion(self) -> str:
         """Get installation suggestion for missing extension."""
-        return (
-            "To install sqlite-vec:\n"
-            "  1. Run: uv pip install --system sqlite-vec\n"
-            "  2. Run: docbro services setup --service sqlite-vec\n"
-        )
+        available, message = self.detect_extension()
+
+        if not available and "compiled without extension support" in message:
+            return (
+                "SQLite extension support issue detected:\n"
+                "  • Your Python's SQLite3 was compiled without extension support\n"
+                "  • This is common on macOS with certain Python installations\n\n"
+                "Solutions:\n"
+                "  1. Use Qdrant instead: docbro init --vector-store qdrant --force\n"
+                "  2. Or install Python with Homebrew: brew install python@3.13\n"
+                "  3. Or use UV's managed Python: uv python install 3.12 (requires updating project)\n\n"
+                "Qdrant provides better performance for large document collections."
+            )
+        else:
+            return (
+                "To install sqlite-vec:\n"
+                "  1. Run: uv pip install --system sqlite-vec\n"
+                "  2. Run: docbro services setup --service sqlite-vec\n"
+            )
 
     async def initialize(self) -> None:
         """Initialize the SQLite-vec service."""
@@ -125,8 +166,21 @@ class SQLiteVecService:
             await conn.execute("PRAGMA foreign_keys = ON")
 
             # Load sqlite-vec extension
-            await conn.enable_load_extension(True)
-            await conn.load_extension(sqlite_vec.__file__)
+            try:
+                await conn.enable_load_extension(True)
+            except AttributeError:
+                await conn.close()
+                raise RuntimeError("SQLite was compiled without extension support")
+            except Exception as e:
+                await conn.close()
+                raise RuntimeError(f"Failed to enable extensions: {e}")
+
+            try:
+                await conn.load_extension(sqlite_vec.__file__)
+            except Exception as e:
+                await conn.close()
+                raise RuntimeError(f"Failed to load sqlite-vec extension: {e}")
+
             await conn.enable_load_extension(False)
 
             self.connections[collection] = conn

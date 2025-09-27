@@ -83,7 +83,7 @@ class VectorStorageConfig(BaseModel):
     @classmethod
     def validate_provider(cls, v: str) -> str:
         """Validate that provider is supported."""
-        if v != "qdrant":
+        if v not in ["qdrant", "sqlite_vec"]:
             raise ValueError(f"Unsupported vector storage provider: {v}")
         return v
 
@@ -91,8 +91,8 @@ class VectorStorageConfig(BaseModel):
     @classmethod
     def validate_connection_url(cls, v: str) -> str:
         """Validate connection URL format."""
-        if not (v.startswith('http://') or v.startswith('https://')):
-            raise ValueError("Connection URL must start with http:// or https://")
+        if not (v.startswith('http://') or v.startswith('https://') or v.startswith('sqlite://')):
+            raise ValueError("Connection URL must start with http://, https://, or sqlite://")
         return v
 
 

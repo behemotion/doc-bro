@@ -193,7 +193,11 @@ class SystemRequirementsService:
             return True
 
         except Exception as e:
-            logger.warning(f"SQLite-vec validation failed: {e}")
+            error_msg = str(e)
+            if "compiled without extension support" in error_msg or "enable_load_extension" in error_msg:
+                logger.info(f"SQLite-vec unavailable: {error_msg}")
+            else:
+                logger.warning(f"SQLite-vec validation failed: {e}")
             return False
 
     def detect_sqlite_vec(self) -> Tuple[bool, str]:
