@@ -37,6 +37,11 @@ def get_docbro_data_dir() -> Path:
     """Get DocBro data directory."""
     data_dir = get_xdg_data_home() / 'docbro'
     data_dir.mkdir(parents=True, exist_ok=True)
+
+    # Ensure projects subdirectory exists
+    projects_dir = data_dir / 'projects'
+    projects_dir.mkdir(parents=True, exist_ok=True)
+
     return data_dir
 
 def get_docbro_cache_dir() -> Path:
@@ -44,6 +49,11 @@ def get_docbro_cache_dir() -> Path:
     cache_dir = get_xdg_cache_home() / 'docbro'
     cache_dir.mkdir(parents=True, exist_ok=True)
     return cache_dir
+
+def get_docbro_projects_dir() -> Path:
+    """Get DocBro projects directory."""
+    # This will automatically create the projects directory via get_docbro_data_dir()
+    return get_docbro_data_dir() / 'projects'
 
 def get_global_settings_path() -> Path:
     """Get path to global settings file."""
