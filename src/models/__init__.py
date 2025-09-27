@@ -1,8 +1,10 @@
 """Data models for DocBro."""
 
 from .project import Project, ProjectStatus
-from .crawl_session import CrawlSession, CrawlStatus
-from .page import Page, PageStatus
+# CrawlSession moved to src.logic.crawler.models.session
+from src.logic.crawler.models.session import CrawlSession, CrawlStatus
+# Page moved to src.logic.crawler.models.page
+from src.logic.crawler.models.page import Page, PageStatus
 from .query_result import QueryResult, QueryResponse
 from .installation import (
     InstallationContext,

@@ -6,7 +6,7 @@ from enum import Enum
 from pydantic import ConfigDict, BaseModel, Field, field_validator
 from uuid import uuid4
 
-from src.models.error_entry import ErrorEntry
+from ..models.error import ErrorEntry
 
 
 class CrawlStatus(str, Enum):

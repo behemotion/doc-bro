@@ -21,7 +21,7 @@ from src.services.database import DatabaseManager
 from src.services.vector_store import VectorStoreService
 from src.services.embeddings import EmbeddingService
 from src.services.rag import RAGSearchService
-from src.services.crawler import DocumentationCrawler
+from src.logic.crawler.core.crawler import DocumentationCrawler
 from src.version import __version__
 
 

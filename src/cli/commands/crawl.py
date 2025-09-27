@@ -67,8 +67,8 @@ def crawl(ctx: click.Context, name: Optional[str], url: Optional[str], max_pages
             if not update:
                 raise click.ClickException("--all requires --update flag")
 
-            from src.services.batch_crawler import BatchCrawler
-            from src.services.progress_reporter import ProgressReporter
+            from src.logic.crawler.core.batch import BatchCrawler
+            from src.logic.crawler.utils.progress import ProgressReporter
 
             try:
                 # Get all projects
@@ -144,7 +144,7 @@ def crawl(ctx: click.Context, name: Optional[str], url: Optional[str], max_pages
 
             # Use simple progress display
             from src.services.crawl_progress import CrawlProgressDisplay
-            from src.services.error_reporter import ErrorReporter
+            from src.logic.crawler.analytics.reporter import ErrorReporter
 
             error_reporter = ErrorReporter(project_name=name)
 
