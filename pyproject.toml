@@ -150,6 +150,7 @@ markers = [
     "docker_required: marks tests that require Docker to be running",
     "uv_required: marks tests that require UV to be installed",
     "performance: marks tests that validate performance requirements",
+    "setup: marks tests related to setup operations",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
