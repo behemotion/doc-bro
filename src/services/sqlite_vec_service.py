@@ -482,3 +482,26 @@ class SQLiteVecService:
             return True, f"Healthy - {len(collections)} collections"
         except Exception as e:
             return False, f"Health check failed: {e}"
+
+    async def add_embeddings(
+        self,
+        collection_name: str,
+        embeddings: List[List[float]],
+        ids: List[str],
+        metadatas: Optional[List[Dict[str, Any]]] = None
+    ) -> int:
+        """Add embeddings to collection (compatibility method).
+
+        This method provides compatibility with code expecting an add_embeddings interface.
+        It internally uses upsert_documents for the actual implementation.
+        """
+        documents = []
+        for i, (embedding, doc_id) in enumerate(zip(embeddings, ids)):
+            metadata = metadatas[i] if metadatas and i < len(metadatas) else {}
+            documents.append({
+                "id": doc_id,
+                "embedding": embedding,
+                "metadata": metadata
+            })
+
+        return await self.upsert_documents(collection_name, documents)
