@@ -4,12 +4,21 @@ import shutil
 import platform
 import psutil
 import subprocess
+import sqlite3
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 from src.models.installation_profile import SystemInfo, SystemRequirements
 from src.core.lib_logger import get_logger
 
 logger = get_logger(__name__)
+
+# Try importing sqlite-vec for detection
+try:
+    import sqlite_vec
+    SQLITE_VEC_AVAILABLE = True
+except ImportError:
+    sqlite_vec = None
+    SQLITE_VEC_AVAILABLE = False
 
 
 class SystemRequirementsService:
@@ -40,6 +49,9 @@ class SystemRequirementsService:
 
             # System architecture
             results["architecture"] = self._validate_architecture()
+
+            # SQLite-vec availability
+            results["sqlite_vec"] = self._validate_sqlite_vec()
 
             logger.info(f"System requirements validation completed: {results}")
             return results
@@ -157,6 +169,66 @@ class SystemRequirementsService:
         except Exception as e:
             logger.error(f"Architecture validation failed: {e}")
             return False
+
+    def _validate_sqlite_vec(self) -> bool:
+        """Validate SQLite-vec extension availability."""
+        try:
+            if not SQLITE_VEC_AVAILABLE:
+                logger.info("SQLite-vec extension not installed")
+                return False
+
+            # Try to load the extension
+            conn = sqlite3.connect(":memory:")
+            conn.enable_load_extension(True)
+            sqlite_vec.load(conn)
+            conn.enable_load_extension(False)
+
+            # Get version if available
+            cursor = conn.execute("SELECT vec_version()")
+            version = cursor.fetchone()[0]
+            conn.close()
+
+            logger.info(f"SQLite-vec extension available: version {version}")
+            return True
+
+        except Exception as e:
+            logger.warning(f"SQLite-vec validation failed: {e}")
+            return False
+
+    def detect_sqlite_vec(self) -> Tuple[bool, str]:
+        """Detect SQLite-vec extension availability with detailed message."""
+        if not SQLITE_VEC_AVAILABLE:
+            return False, "sqlite-vec not installed. Run: pip install sqlite-vec"
+
+        try:
+            conn = sqlite3.connect(":memory:")
+            conn.enable_load_extension(True)
+            sqlite_vec.load(conn)
+            conn.enable_load_extension(False)
+
+            cursor = conn.execute("SELECT vec_version()")
+            version = cursor.fetchone()[0]
+            conn.close()
+
+            return True, f"sqlite-vec {version} available"
+
+        except Exception as e:
+            return False, f"Failed to load sqlite-vec: {e}"
+
+    def check_sqlite_version(self) -> Tuple[bool, str]:
+        """Check SQLite version compatibility for sqlite-vec."""
+        try:
+            version = sqlite3.sqlite_version_info
+
+            if version >= (3, 41, 0):
+                return True, f"SQLite {sqlite3.sqlite_version} is fully compatible"
+            elif version >= (3, 37, 0):
+                return True, f"SQLite {sqlite3.sqlite_version} is compatible with limited features"
+            else:
+                return False, f"SQLite {sqlite3.sqlite_version} is too old. Requires 3.37+"
+
+        except Exception as e:
+            return False, f"Failed to check SQLite version: {e}"
 
     def get_system_info(self) -> SystemInfo:
         """Get comprehensive system information."""
