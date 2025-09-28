@@ -140,11 +140,3 @@ class SettingsService:
 
         return True
 
-    # Backwards compatibility aliases (will be removed in future)
-    def get_global_settings(self) -> DocBroConfig:
-        """Alias for get_settings() for backwards compatibility."""
-        return self.get_settings()
-
-    def save_global_settings(self, settings: DocBroConfig) -> None:
-        """Alias for save_settings() for backwards compatibility."""
-        self.save_settings(settings)

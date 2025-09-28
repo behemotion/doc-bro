@@ -29,7 +29,7 @@ class AliasedGroup(click.Group):
 
     def get_command(self, ctx, cmd_name):
         """Get command by name or alias."""
-        # Define aliases (legacy create/list/remove now unified under project)
+        # Define command aliases
         aliases = {
             'create': 'project',
             'add': 'project',
@@ -271,10 +271,6 @@ def main(ctx: click.Context, config_file: str | None, debug: bool, quiet: bool,
       - Qdrant: Scalable, production-ready, requires Docker
 
     \b
-    LEGACY ALIASES (for backward compatibility):
-      create/add/new → project  |  list/ls → project  |  remove/delete/erase/rm → project
-
-    \b
     AI ASSISTANT INTEGRATION:
       Once the MCP server is running (docbro serve), AI assistants like Claude
       can access your documentation for context-aware responses.
@@ -326,7 +322,7 @@ def main(ctx: click.Context, config_file: str | None, debug: bool, quiet: bool,
                     if result.success:
                         console.print("\n✅ [bold green]Setup completed successfully![/bold green]")
                         console.print("\n[cyan]Quick start:[/cyan]")
-                        console.print("  1. Create project: [cyan]docbro create myproject -u \"URL\"[/cyan]")
+                        console.print("  1. Create project: [cyan]docbro project create myproject --type crawling[/cyan]")
                         console.print("  2. Crawl docs:    [cyan]docbro crawl myproject[/cyan]")
                         console.print("  3. Start server:  [cyan]docbro serve[/cyan]")
                         console.print("\n[dim]For more options: docbro --help[/dim]")
@@ -376,9 +372,8 @@ main.add_command(crawl)
 main.add_command(serve)
 main.add_command(health)
 main.add_command(setup)
-# Legacy commands removed - use 'docbro health --system' and 'docbro health --services' instead
 
-# Create an alias for backward compatibility with tests
+# CLI alias
 cli = main
 
 if __name__ == "__main__":

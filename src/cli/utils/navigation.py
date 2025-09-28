@@ -434,7 +434,7 @@ class ArrowNavigator:
                 return None
 
 
-# Convenience functions for backward compatibility
+# Convenience functions
 def create_navigation_choice(
     value: str,
     label: str,
