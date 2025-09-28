@@ -30,12 +30,23 @@ def initialize_services():
     """Initialize services for the read-only server."""
     global project_service, search_service, read_only_service
 
-    # In production, these would be properly initialized with configuration
+    # Initialize services with proper dependencies
     from src.services.project_manager import ProjectManager
     from src.services.rag import RAGSearchService
+    from src.services.vector_store_factory import VectorStoreFactory
+    from src.services.embedding import EmbeddingService
+    from src.core.config import get_config
 
+    # Get configuration
+    config = get_config()
+
+    # Initialize dependencies
+    vector_store = VectorStoreFactory.create()
+    embedding_service = EmbeddingService(config)
+
+    # Initialize main services
     project_service = ProjectManager()
-    search_service = RAGSearchService()
+    search_service = RAGSearchService(vector_store, embedding_service, config)
     read_only_service = ReadOnlyMcpService(project_service, search_service)
 
 
