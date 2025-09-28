@@ -7,12 +7,32 @@ import time
 from pathlib import Path
 
 import httpx
-from docker.errors import DockerException
-from docker.models.containers import Container
-from qdrant_client import QdrantClient
-from qdrant_client.http.exceptions import ResponseHandlingException
 
-import docker
+# Optional Docker imports - only needed when Docker features are used
+try:
+    import docker
+    from docker.errors import DockerException
+    from docker.models.containers import Container
+    DOCKER_AVAILABLE = True
+    ContainerType = Container
+except ImportError:
+    docker = None
+    DockerException = Exception
+    Container = None
+    DOCKER_AVAILABLE = False
+    # Use typing.Any for type hints when Docker is not available
+    from typing import Any
+    ContainerType = Any
+
+# Optional Qdrant imports - only needed when Qdrant features are used
+try:
+    from qdrant_client import QdrantClient
+    from qdrant_client.http.exceptions import ResponseHandlingException
+    QDRANT_AVAILABLE = True
+except ImportError:
+    QdrantClient = None
+    ResponseHandlingException = Exception
+    QDRANT_AVAILABLE = False
 
 from .config import DocBroConfig, ServiceDeployment
 
@@ -29,6 +49,9 @@ class DockerServiceManager:
 
     def is_docker_available(self) -> bool:
         """Check if Docker is available and running."""
+        if not DOCKER_AVAILABLE:
+            return False
+
         try:
             # Try with auto version negotiation
             client = docker.from_env(version='auto')
@@ -51,7 +74,7 @@ class DockerServiceManager:
                     return False
             return False
 
-    def get_service_containers(self) -> dict[str, Container | None]:
+    def get_service_containers(self) -> dict[str, ContainerType | None]:
         """Get containers for DocBro services."""
         if not self.is_docker_available():
             return {"qdrant": None}
