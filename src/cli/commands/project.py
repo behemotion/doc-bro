@@ -19,6 +19,7 @@ import logging
 
 from src.cli.utils.navigation import ArrowNavigator, NavigationChoice
 from src.logic.projects.models.project import ProjectStatus, ProjectType
+from src.logic.projects.core.project_manager import ProjectManager
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,11 @@ def get_app():
     return main_get_app()
 
 
+def get_project_manager():
+    """Get or create ProjectManager instance."""
+    return ProjectManager()
+
+
 # CLI Error Messages from contracts
 CLI_ERROR_MESSAGES = {
     "project_exists": "Project '{name}' already exists. Use --force to overwrite.",
@@ -55,205 +61,95 @@ CLI_ERROR_MESSAGES = {
 }
 
 
-@click.group(name="project", invoke_without_command=True)
-@click.pass_context
-def project(ctx: click.Context):
-    """Manage documentation projects.
-
-    Run without arguments to launch interactive menu:
-    docbro project
-
-    Or use subcommands directly:
-    docbro project create my-docs --type data
-    docbro project list --status active
-    docbro project remove old-project --confirm
-    docbro project show my-docs --detailed
-    docbro project update my-docs --settings '{"key": "value"}'
-    """
-    if ctx.invoked_subcommand is None:
-        # Launch interactive menu
-        run_async(interactive_project_menu())
-
-
-@project.command(name="create")
-@click.argument("name")
+@click.command(name="project")
+@click.option("--create", "-c", is_flag=True, help="Create a new project")
+@click.option("--list", "-l", "-ls", is_flag=True, help="List projects")
+@click.option("--remove", "-r", "-rm", is_flag=True, help="Remove a project")
+@click.option("--show", "-s", is_flag=True, help="Show project details")
+@click.option("--update", "-u", is_flag=True, help="Update project settings")
+@click.argument("name", required=False)
 @click.option("--type", "-t", "project_type",
               type=click.Choice(['crawling', 'data', 'storage'], case_sensitive=False),
-              required=True, help="Project type")
-@click.option("--description", "-d", help="Optional project description")
-@click.option("--settings", "-s", help="JSON settings override")
-@click.option("--force", "-f", is_flag=True, help="Overwrite existing project")
-def create_project(name: str, project_type: str, description: str | None,
-                   settings: str | None, force: bool):
-    """Create a new project with specified type and settings.
+              help="Project type (for create)")
+@click.option("--description", "-d", help="Project description")
+@click.option("--settings", help="JSON settings")
+@click.option("--force", "-f", is_flag=True, help="Force operation")
+@click.option("--status", "-st",
+              type=click.Choice(['active', 'inactive', 'error', 'processing'], case_sensitive=False),
+              help="Filter by status (for list)")
+@click.option("--limit", type=int, help="Limit results (for list)")
+@click.option("--verbose", "-v", is_flag=True, help="Verbose output")
+@click.option("--confirm", is_flag=True, help="Skip confirmation (for remove)")
+@click.option("--backup", "-b", is_flag=True, default=True, help="Create backup (for remove)")
+@click.option("--detailed", "-dt", is_flag=True, help="Detailed view (for show)")
+@click.pass_context
+def project(ctx: click.Context, create: bool, list: bool, remove: bool, show: bool, update: bool,
+           name: str | None, project_type: str | None, description: str | None, settings: str | None,
+           force: bool, status: str | None, limit: int | None, verbose: bool, confirm: bool,
+           backup: bool, detailed: bool):
+    """Manage documentation projects.
+
+    \b
+    FLAGS (mutually exclusive):
+      --create, -c      Create a new project
+      --list, -l, -ls   List projects
+      --remove, -r, -rm Remove a project
+      --show, -s        Show project details
+      --update, -u      Update project settings
+
+    \b
+    EXAMPLES:
+      docbro project                                    # Interactive menu
+      docbro project --create myproject --type data    # Create project
+      docbro project --list --status active            # List active projects
+      docbro project --remove myproject --confirm      # Remove project
+      docbro project --show myproject --detailed       # Show project details
+      docbro project --update myproject --settings '{...}'  # Update settings
 
     \b
     PROJECT TYPES:
       crawling    Web documentation crawler projects
       data        Document upload and vector search projects
       storage     File storage with inventory management
-
-    \b
-    EXAMPLES:
-      docbro project create django --type crawling --description "Django docs"
-      docbro project create mydata --type data --settings '{"chunk_size": 1000}'
-      docbro project create files --type storage --force
-
-    \b
-    ARGUMENTS:
-      NAME        Project name (must be unique)
-
-    \b
-    OPTIONS:
-      --type      Project type (required): crawling, data, or storage
-      --description Optional project description
-      --settings  JSON settings override for project configuration
-      --force     Overwrite existing project if it exists
     """
-    run_async(_create_project_impl(name, project_type, description, settings, force))
+    # Count active flags
+    active_flags = sum([create, list, remove, show, update])
 
+    if active_flags == 0:
+        # No flags specified - launch interactive menu
+        run_async(interactive_project_menu())
+        return
+    elif active_flags > 1:
+        click.echo("Error: Only one action flag can be specified at a time.", err=True)
+        ctx.exit(1)
 
-@project.command(name="list")
-@click.option("--status", "-st",
-              type=click.Choice(['active', 'inactive', 'error', 'processing'], case_sensitive=False),
-              help="Filter by status")
-@click.option("--type", "-t", "project_type",
-              type=click.Choice(['crawling', 'data', 'storage'], case_sensitive=False),
-              help="Filter by project type")
-@click.option("--limit", "-l", type=int, help="Limit number of results")
-@click.option("--verbose", "-v", is_flag=True, help="Show detailed information")
-def list_projects(status: str | None, project_type: str | None,
-                  limit: int | None, verbose: bool):
-    """List projects with optional filtering.
+    # Execute the appropriate action
+    if create:
+        if not name:
+            click.echo("Error: Project name is required for --create", err=True)
+            ctx.exit(1)
+        if not project_type:
+            click.echo("Error: --type is required for --create", err=True)
+            ctx.exit(1)
+        run_async(_create_project_impl(name, project_type, description, settings, force))
+    elif list:
+        run_async(_list_projects_impl(status, project_type, limit, verbose))
+    elif remove:
+        if not name:
+            click.echo("Error: Project name is required for --remove", err=True)
+            ctx.exit(1)
+        run_async(_remove_project_impl(name, confirm, backup, force))
+    elif show:
+        if not name:
+            click.echo("Error: Project name is required for --show", err=True)
+            ctx.exit(1)
+        run_async(_show_project_impl(name, detailed))
+    elif update:
+        if not name:
+            click.echo("Error: Project name is required for --update", err=True)
+            ctx.exit(1)
+        run_async(_update_project_impl(name, settings, description))
 
-    \b
-    FILTERING OPTIONS:
-      --status    Filter by project status (active, inactive, error, processing)
-      --type      Filter by project type (crawling, data, storage)
-      --limit     Limit number of results returned
-      --verbose   Show detailed information for each project
-
-    \b
-    EXAMPLES:
-      docbro project list                           # List all projects
-      docbro project list --status active          # List only active projects
-      docbro project list --type crawling --limit 5  # List first 5 crawling projects
-      docbro project list --verbose                # Show detailed information
-
-    \b
-    OUTPUT FORMATS:
-      Default     Table view with basic information
-      --verbose   Detailed view with statistics and settings
-    """
-    run_async(_list_projects_impl(status, project_type, limit, verbose))
-
-
-@project.command(name="remove")
-@click.argument("name")
-@click.option("--confirm", "-c", is_flag=True, help="Skip confirmation prompt")
-@click.option("--backup", "-b", is_flag=True, default=True, help="Create backup before removal")
-@click.option("--force", "-f", is_flag=True, help="Force removal even if errors")
-def remove_project(name: str, confirm: bool, backup: bool, force: bool):
-    """Remove a project and handle type-specific cleanup.
-
-    \b
-    SAFETY FEATURES:
-      - Confirmation prompt by default (use --confirm to skip)
-      - Automatic backup creation before removal (disable with --no-backup)
-      - Comprehensive cleanup of all project data and files
-
-    \b
-    WHAT GETS REMOVED:
-      - Project configuration and metadata
-      - All uploaded files and crawled content
-      - Vector embeddings and search indices
-      - Associated database entries
-      - Project directories and cached data
-
-    \b
-    EXAMPLES:
-      docbro project remove myproject                    # Remove with confirmation
-      docbro project remove myproject --confirm          # Remove without confirmation
-      docbro project remove myproject --no-backup        # Remove without backup
-      docbro project remove myproject --force            # Force removal even if errors
-
-    \b
-    ARGUMENTS:
-      NAME        Name of the project to remove
-
-    \b
-    OPTIONS:
-      --confirm   Skip confirmation prompt
-      --backup    Create backup before removal (default: enabled)
-      --force     Force removal even if errors occur
-
-    \b
-    WARNING:
-      This permanently deletes all project data. Use backups to recover if needed.
-    """
-    run_async(_remove_project_impl(name, confirm, backup, force))
-
-
-@project.command(name="show")
-@click.argument("name")
-@click.option("--detailed", "-dt", is_flag=True, help="Show detailed information")
-def show_project(name: str, detailed: bool):
-    """Show project information and status.
-
-    \b
-    INFORMATION DISPLAYED:
-      Basic       Name, type, status, creation/update dates
-      --detailed  Statistics, settings, file counts, sizes, and more
-
-    \b
-    EXAMPLES:
-      docbro project show django                    # Basic project information
-      docbro project show django --detailed        # Detailed project information
-
-    \b
-    ARGUMENTS:
-      NAME        Name of the project to display
-
-    \b
-    OPTIONS:
-      --detailed  Show comprehensive project information and statistics
-    """
-    run_async(_show_project_impl(name, detailed))
-
-
-@project.command(name="update")
-@click.argument("name")
-@click.option("--settings", "-s", help="JSON settings update")
-@click.option("--description", "-d", help="Update project description")
-def update_project(name: str, settings: str | None, description: str | None):
-    """Update project settings and metadata.
-
-    \b
-    UPDATE OPTIONS:
-      --settings    JSON string with new settings to merge with existing
-      --description Update or set project description
-
-    \b
-    EXAMPLES:
-      docbro project update django --description "Django documentation project"
-      docbro project update mydata --settings '{"chunk_size": 1000, "overlap": 100}'
-      docbro project update myproject --settings '{}' --description "Updated description"
-
-    \b
-    ARGUMENTS:
-      NAME        Name of the project to update
-
-    \b
-    OPTIONS:
-      --settings    JSON settings to merge with existing project configuration
-      --description New description for the project
-
-    \b
-    SETTINGS FORMAT:
-      Settings must be valid JSON. Existing settings will be merged with new ones.
-      Example: '{"chunk_size": 1000, "embedding_model": "custom-model"}'
-    """
-    run_async(_update_project_impl(name, settings, description))
 
 
 # Implementation functions
@@ -264,8 +160,7 @@ async def interactive_project_menu():
     navigator = ArrowNavigator()
 
     try:
-        app = get_app()
-        project_manager = app.project_manager
+        project_manager = get_project_manager()
 
         # Get existing projects
         projects = await project_manager.list_projects()
@@ -362,8 +257,7 @@ async def _interactive_list_projects():
     console = Console()
 
     try:
-        app = get_app()
-        project_manager = app.project_manager
+        project_manager = get_project_manager()
 
         projects = await project_manager.list_projects()
 
@@ -475,8 +369,7 @@ async def _interactive_project_stats(projects):
     console = Console()
 
     try:
-        app = get_app()
-        project_manager = app.project_manager
+        project_manager = get_project_manager()
 
         # Create stats table
         table = Table(title="Project Statistics")
@@ -555,8 +448,7 @@ async def _create_project_impl(name: str, project_type: str, description: str | 
     console = Console()
 
     try:
-        app = get_app()
-        project_manager = app.project_manager
+        project_manager = get_project_manager()
 
         # Validate project type
         try:
@@ -614,8 +506,7 @@ async def _list_projects_impl(status: str | None, project_type: str | None,
     console = Console()
 
     try:
-        app = get_app()
-        project_manager = app.project_manager
+        project_manager = get_project_manager()
 
         # Convert string parameters to enums
         status_filter = None
@@ -691,8 +582,7 @@ async def _remove_project_impl(name: str, confirm: bool, backup: bool, force: bo
     console = Console()
 
     try:
-        app = get_app()
-        project_manager = app.project_manager
+        project_manager = get_project_manager()
 
         # Check if project exists
         project = await project_manager.get_project(name)
@@ -732,8 +622,7 @@ async def _show_project_impl(name: str, detailed: bool):
     console = Console()
 
     try:
-        app = get_app()
-        project_manager = app.project_manager
+        project_manager = get_project_manager()
 
         # Get project
         project = await project_manager.get_project(name)
@@ -779,8 +668,7 @@ async def _update_project_impl(name: str, settings: str | None, description: str
     console = Console()
 
     try:
-        app = get_app()
-        project_manager = app.project_manager
+        project_manager = get_project_manager()
 
         # Get project
         project = await project_manager.get_project(name)
