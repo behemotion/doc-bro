@@ -1,0 +1,1 @@
+"""Health command logic."""

@@ -1,0 +1,441 @@
+"""Health orchestrator core service integrating all validators."""
+
+import asyncio
+import time
+from typing import List, Optional, Set
+
+from ..models.health_check import HealthCheck
+from ..models.health_report import HealthReport
+from ..models.category import HealthCategory
+from ..services.system_validator import SystemValidator
+from ..services.config_validator import ConfigurationValidator
+from ..services.health_reporter import HealthReporter
+
+
+class HealthOrchestrator:
+    """Main health coordinator integrating all validators and service detection."""
+
+    def __init__(self, timeout: float = 15.0, max_parallel: int = 4):
+        """Initialize health orchestrator.
+
+        Args:
+            timeout: Maximum execution timeout in seconds
+            max_parallel: Maximum parallel health checks
+        """
+        self.timeout = timeout
+        self.max_parallel = max_parallel
+        self.semaphore = asyncio.Semaphore(max_parallel)
+
+        # Initialize services
+        self.system_validator = SystemValidator()
+        self.config_validator = ConfigurationValidator()
+        self.health_reporter = HealthReporter()
+
+    async def run_comprehensive_health_check(self,
+                                           categories: Optional[Set[HealthCategory]] = None) -> HealthReport:
+        """Run comprehensive health check across all or specified categories.
+
+        Args:
+            categories: Set of categories to check, None for all categories
+
+        Returns:
+            Complete health report
+        """
+        start_time = time.time()
+        timeout_occurred = False
+
+        try:
+            # Determine which categories to check
+            check_categories = categories or {
+                HealthCategory.SYSTEM,
+                HealthCategory.SERVICES,
+                HealthCategory.CONFIGURATION
+            }
+
+            # Execute health checks with timeout
+            all_checks = await asyncio.wait_for(
+                self._execute_health_checks(check_categories),
+                timeout=self.timeout
+            )
+
+            execution_time = time.time() - start_time
+
+        except asyncio.TimeoutError:
+            execution_time = self.timeout
+            timeout_occurred = True
+
+            # Get partial results that completed before timeout
+            all_checks = await self._get_partial_results(check_categories)
+
+        # Generate and return health report
+        return self.health_reporter.generate_report(
+            checks=all_checks,
+            execution_time=execution_time,
+            timeout_occurred=timeout_occurred
+        )
+
+    async def run_system_health_check(self) -> HealthReport:
+        """Run system-only health check."""
+        return await self.run_comprehensive_health_check(
+            categories={HealthCategory.SYSTEM}
+        )
+
+    async def run_services_health_check(self) -> HealthReport:
+        """Run services-only health check."""
+        return await self.run_comprehensive_health_check(
+            categories={HealthCategory.SERVICES}
+        )
+
+    async def run_configuration_health_check(self) -> HealthReport:
+        """Run configuration-only health check."""
+        return await self.run_comprehensive_health_check(
+            categories={HealthCategory.CONFIGURATION}
+        )
+
+    async def run_projects_health_check(self) -> HealthReport:
+        """Run projects-only health check."""
+        return await self.run_comprehensive_health_check(
+            categories={HealthCategory.PROJECTS}
+        )
+
+    async def _execute_health_checks(self, categories: Set[HealthCategory]) -> List[HealthCheck]:
+        """Execute health checks for specified categories."""
+        all_checks = []
+
+        # Collect all check tasks
+        check_tasks = []
+
+        if HealthCategory.SYSTEM in categories:
+            check_tasks.extend(await self._get_system_check_tasks())
+
+        if HealthCategory.SERVICES in categories:
+            check_tasks.extend(await self._get_services_check_tasks())
+
+        if HealthCategory.CONFIGURATION in categories:
+            check_tasks.extend(await self._get_configuration_check_tasks())
+
+        if HealthCategory.PROJECTS in categories:
+            check_tasks.extend(await self._get_projects_check_tasks())
+
+        # Execute all checks with semaphore control
+        if check_tasks:
+            results = await asyncio.gather(*check_tasks, return_exceptions=True)
+
+            # Process results and handle exceptions
+            for result in results:
+                if isinstance(result, HealthCheck):
+                    all_checks.append(result)
+                elif isinstance(result, Exception):
+                    # Create error health check for failed tasks
+                    from ..models.status import HealthStatus
+                    error_check = HealthCheck(
+                        id="orchestrator.execution_error",
+                        category=HealthCategory.SYSTEM,
+                        name="Health Check Execution Error",
+                        status=HealthStatus.ERROR,
+                        message="Health check task failed",
+                        details=str(result),
+                        resolution="Check system resources and try again",
+                        execution_time=0.0
+                    )
+                    all_checks.append(error_check)
+
+        return all_checks
+
+    async def _get_system_check_tasks(self) -> List[asyncio.Task]:
+        """Get system validation tasks."""
+        return [
+            asyncio.create_task(self._run_with_semaphore(self.system_validator.validate_python_version())),
+            asyncio.create_task(self._run_with_semaphore(self.system_validator.validate_memory_requirements())),
+            asyncio.create_task(self._run_with_semaphore(self.system_validator.validate_disk_space())),
+            asyncio.create_task(self._run_with_semaphore(self.system_validator.validate_uv_installation())),
+        ]
+
+    async def _get_services_check_tasks(self) -> List[asyncio.Task]:
+        """Get service validation tasks using existing ServiceDetector."""
+        return [
+            asyncio.create_task(self._run_with_semaphore(self._check_service_docker())),
+            asyncio.create_task(self._run_with_semaphore(self._check_service_qdrant())),
+            asyncio.create_task(self._run_with_semaphore(self._check_service_ollama())),
+            asyncio.create_task(self._run_with_semaphore(self._check_service_git())),
+        ]
+
+    async def _get_configuration_check_tasks(self) -> List[asyncio.Task]:
+        """Get configuration validation tasks."""
+        return [
+            asyncio.create_task(self._run_with_semaphore(self.config_validator.validate_global_settings())),
+            asyncio.create_task(self._run_with_semaphore(self.config_validator.validate_project_configurations())),
+            asyncio.create_task(self._run_with_semaphore(self.config_validator.validate_vector_store_config())),
+        ]
+
+    async def _get_projects_check_tasks(self) -> List[asyncio.Task]:
+        """Get project-specific validation tasks."""
+        # Projects health checks would be implemented based on actual project structure
+        # For now, return a placeholder check
+        return [
+            asyncio.create_task(self._run_with_semaphore(self._check_projects_placeholder()))
+        ]
+
+    async def _run_with_semaphore(self, coro):
+        """Run coroutine with semaphore control."""
+        async with self.semaphore:
+            return await coro
+
+    async def _check_service_docker(self) -> HealthCheck:
+        """Check Docker service using existing ServiceDetector."""
+        execution_start = time.time()
+
+        try:
+            # Import and use existing ServiceDetector
+            from src.logic.setup.services.detector import ServiceDetector
+            detector = ServiceDetector()
+
+            docker_info = await detector.check_docker()
+
+            from ..models.status import HealthStatus
+            if docker_info.available:
+                status = HealthStatus.HEALTHY
+                message = f"Docker {docker_info.version} running"
+                details = f"Docker service available at {docker_info.url or 'default socket'}"
+                resolution = None
+            else:
+                status = HealthStatus.WARNING  # Docker is optional
+                message = "Docker not available"
+                details = docker_info.error_message or "Docker service not running"
+                resolution = "Install Docker for Qdrant support: https://docs.docker.com/get-docker/"
+
+            execution_time = time.time() - execution_start
+
+            return HealthCheck(
+                id="services.docker",
+                category=HealthCategory.SERVICES,
+                name="Docker Service",
+                status=status,
+                message=message,
+                details=details,
+                resolution=resolution,
+                execution_time=execution_time
+            )
+
+        except Exception as e:
+            execution_time = time.time() - execution_start
+            return HealthCheck(
+                id="services.docker",
+                category=HealthCategory.SERVICES,
+                name="Docker Service",
+                status=HealthStatus.UNAVAILABLE,
+                message="Failed to check Docker service",
+                details=str(e),
+                resolution="Check Docker installation and service status",
+                execution_time=execution_time
+            )
+
+    async def _check_service_qdrant(self) -> HealthCheck:
+        """Check Qdrant service using existing ServiceDetector."""
+        execution_start = time.time()
+
+        try:
+            from src.logic.setup.services.detector import ServiceDetector
+            detector = ServiceDetector()
+
+            qdrant_info = await detector.check_qdrant()
+
+            if qdrant_info.available:
+                status = HealthStatus.HEALTHY
+                message = f"Qdrant {qdrant_info.version} running"
+                details = f"Qdrant available at {qdrant_info.url}"
+                resolution = None
+            else:
+                status = HealthStatus.WARNING  # Qdrant is optional
+                message = "Qdrant not available"
+                details = qdrant_info.error_message or "Qdrant service not running"
+                resolution = "Start Qdrant: docker run -d -p 6333:6333 qdrant/qdrant"
+
+            execution_time = time.time() - execution_start
+
+            return HealthCheck(
+                id="services.qdrant",
+                category=HealthCategory.SERVICES,
+                name="Qdrant Database",
+                status=status,
+                message=message,
+                details=details,
+                resolution=resolution,
+                execution_time=execution_time
+            )
+
+        except Exception as e:
+            execution_time = time.time() - execution_start
+            return HealthCheck(
+                id="services.qdrant",
+                category=HealthCategory.SERVICES,
+                name="Qdrant Database",
+                status=HealthStatus.UNAVAILABLE,
+                message="Failed to check Qdrant service",
+                details=str(e),
+                resolution="Check Qdrant installation and connection",
+                execution_time=execution_time
+            )
+
+    async def _check_service_ollama(self) -> HealthCheck:
+        """Check Ollama service using existing ServiceDetector."""
+        execution_start = time.time()
+
+        try:
+            from src.logic.setup.services.detector import ServiceDetector
+            detector = ServiceDetector()
+
+            ollama_info = await detector.check_ollama()
+
+            if ollama_info.available:
+                status = HealthStatus.HEALTHY
+                message = f"Ollama {ollama_info.version} running"
+                details = f"Ollama available at {ollama_info.url}"
+                resolution = None
+            else:
+                status = HealthStatus.WARNING  # Ollama is optional
+                message = "Ollama not available"
+                details = ollama_info.error_message or "Ollama service not running"
+                resolution = "Install Ollama: https://ollama.ai/download"
+
+            execution_time = time.time() - execution_start
+
+            return HealthCheck(
+                id="services.ollama",
+                category=HealthCategory.SERVICES,
+                name="Ollama Service",
+                status=status,
+                message=message,
+                details=details,
+                resolution=resolution,
+                execution_time=execution_time
+            )
+
+        except Exception as e:
+            execution_time = time.time() - execution_start
+            return HealthCheck(
+                id="services.ollama",
+                category=HealthCategory.SERVICES,
+                name="Ollama Service",
+                status=HealthStatus.UNAVAILABLE,
+                message="Failed to check Ollama service",
+                details=str(e),
+                resolution="Check Ollama installation and service status",
+                execution_time=execution_time
+            )
+
+    async def _check_service_git(self) -> HealthCheck:
+        """Check Git using existing ServiceDetector."""
+        execution_start = time.time()
+
+        try:
+            from src.logic.setup.services.detector import ServiceDetector
+            detector = ServiceDetector()
+
+            git_info = await detector.check_git()
+
+            if git_info.available:
+                status = HealthStatus.HEALTHY
+                message = f"Git {git_info.version} available"
+                details = f"Git version: {git_info.version}"
+                resolution = None
+            else:
+                status = HealthStatus.ERROR  # Git is required
+                message = "Git not available"
+                details = git_info.error_message or "Git not found in PATH"
+                resolution = "Install Git: https://git-scm.com/downloads"
+
+            execution_time = time.time() - execution_start
+
+            return HealthCheck(
+                id="services.git",
+                category=HealthCategory.SERVICES,
+                name="Git",
+                status=status,
+                message=message,
+                details=details,
+                resolution=resolution,
+                execution_time=execution_time
+            )
+
+        except Exception as e:
+            execution_time = time.time() - execution_start
+            return HealthCheck(
+                id="services.git",
+                category=HealthCategory.SERVICES,
+                name="Git",
+                status=HealthStatus.UNAVAILABLE,
+                message="Failed to check Git",
+                details=str(e),
+                resolution="Check Git installation",
+                execution_time=execution_time
+            )
+
+    async def _check_projects_placeholder(self) -> HealthCheck:
+        """Placeholder for project-specific health checks."""
+        execution_start = time.time()
+
+        try:
+            # Check if projects directory exists and count projects
+            from pathlib import Path
+            import os
+
+            data_dir = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local' / 'share')) / 'docbro'
+            projects_dir = data_dir / 'projects'
+
+            if projects_dir.exists():
+                project_count = len([d for d in projects_dir.iterdir() if d.is_dir()])
+                status = HealthStatus.HEALTHY
+                message = f"Found {project_count} projects"
+                details = f"Projects directory: {projects_dir}"
+                resolution = None
+            else:
+                status = HealthStatus.HEALTHY  # No projects is OK
+                message = "No projects found"
+                details = "Projects directory does not exist (normal for new installation)"
+                resolution = None
+
+            execution_time = time.time() - execution_start
+
+            return HealthCheck(
+                id="projects.overview",
+                category=HealthCategory.PROJECTS,
+                name="Project Overview",
+                status=status,
+                message=message,
+                details=details,
+                resolution=resolution,
+                execution_time=execution_time
+            )
+
+        except Exception as e:
+            execution_time = time.time() - execution_start
+            return HealthCheck(
+                id="projects.overview",
+                category=HealthCategory.PROJECTS,
+                name="Project Overview",
+                status=HealthStatus.UNAVAILABLE,
+                message="Failed to check projects",
+                details=str(e),
+                resolution="Check data directory permissions",
+                execution_time=execution_time
+            )
+
+    async def _get_partial_results(self, categories: Set[HealthCategory]) -> List[HealthCheck]:
+        """Get partial results when timeout occurs."""
+        # In case of timeout, return minimal health checks indicating timeout
+        timeout_checks = []
+
+        for category in categories:
+            timeout_checks.append(HealthCheck(
+                id=f"{category.value.lower()}.timeout",
+                category=category,
+                name=f"{category.display_name} (Timeout)",
+                status=HealthStatus.UNAVAILABLE,
+                message=f"{category.display_name} checks timed out",
+                details=f"Health checks for {category.display_name} exceeded {self.timeout}s timeout",
+                resolution=f"Try running with longer timeout: --timeout 30",
+                execution_time=self.timeout
+            ))
+
+        return timeout_checks

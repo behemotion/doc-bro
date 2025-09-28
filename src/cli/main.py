@@ -340,8 +340,7 @@ from src.cli.commands.remove import remove
 from src.cli.commands.serve import serve
 from src.cli.commands.health import health
 from src.cli.commands.setup import setup
-from src.cli.commands.system_check import system_check
-from src.cli.commands.services import services_group
+# Legacy commands removed - functionality moved to unified health command
 
 # Add commands to main group
 main.add_command(create)
@@ -351,8 +350,7 @@ main.add_command(remove)
 main.add_command(serve)
 main.add_command(health)
 main.add_command(setup)
-main.add_command(system_check, name="system-check")
-main.add_command(services_group, name="services")
+# Legacy commands removed - use 'docbro health --system' and 'docbro health --services' instead
 
 # Create an alias for backward compatibility with tests
 cli = main
