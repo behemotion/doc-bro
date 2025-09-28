@@ -44,32 +44,50 @@ def health(ctx: click.Context, system: bool, services: bool, config: bool, proje
            format_type: str, verbose: bool, quiet: bool, timeout: int, parallel: int):
     """Check health status of DocBro components with comprehensive validation.
 
-    This unified health command provides comprehensive validation of:
-    - System requirements (Python version, memory, disk space)
-    - External services (Docker, Qdrant, Ollama, Git)
-    - Configuration files (settings, projects, vector store)
-    - Project-specific health (when projects exist)
+    Verify that your DocBro installation is working correctly by checking
+    system requirements, external services, configuration, and projects.
 
     \b
-    Category Options:
-      --system      System requirements only
-      --services    External services only
-      --config      Configuration files only
-      --projects    Project health only
-      (default)     All categories except projects
+    WHAT IS CHECKED:
+      System       Python version, memory, disk space, permissions
+      Services     Docker, Qdrant, Ollama, Git availability
+      Config       Settings files, vector store configuration
+      Projects     Individual project health and integrity
 
     \b
-    Output Formats:
-      table         Formatted table with status indicators (default)
-      json          Machine-readable JSON for automation
-      yaml          YAML format for configuration tools
+    CATEGORY OPTIONS:
+      --system     System requirements only (Python, memory, disk)
+      --services   External services only (Docker, Qdrant, Ollama, Git)
+      --config     Configuration files only (settings, vector store)
+      --projects   Project health only (requires existing projects)
+      (default)    System + Services + Config (recommended)
 
     \b
-    Examples:
-      docbro health                    # Complete health check
+    OUTPUT FORMATS:
+      table        Human-readable table with status indicators (default)
+      json         Machine-readable JSON for automation/scripts
+      yaml         YAML format for configuration management tools
+
+    \b
+    PERFORMANCE OPTIONS:
+      -v, --verbose       Include detailed diagnostic information
+      -q, --quiet         Suppress progress indicators
+      -t, --timeout N     Maximum check timeout (1-60 seconds, default: 15)
+      -P, --parallel N    Parallel checks (1-8 workers, default: 4)
+
+    \b
+    EXAMPLES:
+      docbro health                    # Complete health check (recommended)
       docbro health --system           # System requirements only
+      docbro health --services         # External services only
       docbro health --format json     # JSON output for scripts
-      docbro health --timeout 30      # Extended timeout
+      docbro health --verbose          # Detailed diagnostic information
+      docbro health --timeout 30      # Extended timeout for slow systems
+
+    \b
+    TROUBLESHOOTING:
+      Run this command after installation or when experiencing issues.
+      Use --verbose for detailed error information and suggested fixes.
     """
     async def _unified_health_check():
         try:

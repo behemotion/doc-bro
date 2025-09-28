@@ -64,9 +64,11 @@ def project(ctx: click.Context):
     docbro project
 
     Or use subcommands directly:
-    docbro project create --name my-docs --type data
+    docbro project create my-docs --type data
     docbro project list --status active
-    docbro project remove --name old-project --confirm
+    docbro project remove old-project --confirm
+    docbro project show my-docs --detailed
+    docbro project update my-docs --settings '{"key": "value"}'
     """
     if ctx.invoked_subcommand is None:
         # Launch interactive menu
@@ -74,7 +76,7 @@ def project(ctx: click.Context):
 
 
 @project.command(name="create")
-@click.option("--name", "-n", required=True, help="Project name")
+@click.argument("name")
 @click.option("--type", "-t", "project_type",
               type=click.Choice(['crawling', 'data', 'storage'], case_sensitive=False),
               required=True, help="Project type")
@@ -83,7 +85,31 @@ def project(ctx: click.Context):
 @click.option("--force", "-f", is_flag=True, help="Overwrite existing project")
 def create_project(name: str, project_type: str, description: str | None,
                    settings: str | None, force: bool):
-    """Create a new project with specified type and settings."""
+    """Create a new project with specified type and settings.
+
+    \b
+    PROJECT TYPES:
+      crawling    Web documentation crawler projects
+      data        Document upload and vector search projects
+      storage     File storage with inventory management
+
+    \b
+    EXAMPLES:
+      docbro project create django --type crawling --description "Django docs"
+      docbro project create mydata --type data --settings '{"chunk_size": 1000}'
+      docbro project create files --type storage --force
+
+    \b
+    ARGUMENTS:
+      NAME        Project name (must be unique)
+
+    \b
+    OPTIONS:
+      --type      Project type (required): crawling, data, or storage
+      --description Optional project description
+      --settings  JSON settings override for project configuration
+      --force     Overwrite existing project if it exists
+    """
     run_async(_create_project_impl(name, project_type, description, settings, force))
 
 
@@ -98,34 +124,135 @@ def create_project(name: str, project_type: str, description: str | None,
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed information")
 def list_projects(status: str | None, project_type: str | None,
                   limit: int | None, verbose: bool):
-    """List projects with optional filtering."""
+    """List projects with optional filtering.
+
+    \b
+    FILTERING OPTIONS:
+      --status    Filter by project status (active, inactive, error, processing)
+      --type      Filter by project type (crawling, data, storage)
+      --limit     Limit number of results returned
+      --verbose   Show detailed information for each project
+
+    \b
+    EXAMPLES:
+      docbro project list                           # List all projects
+      docbro project list --status active          # List only active projects
+      docbro project list --type crawling --limit 5  # List first 5 crawling projects
+      docbro project list --verbose                # Show detailed information
+
+    \b
+    OUTPUT FORMATS:
+      Default     Table view with basic information
+      --verbose   Detailed view with statistics and settings
+    """
     run_async(_list_projects_impl(status, project_type, limit, verbose))
 
 
 @project.command(name="remove")
-@click.option("--name", "-n", required=True, help="Project name")
+@click.argument("name")
 @click.option("--confirm", "-c", is_flag=True, help="Skip confirmation prompt")
 @click.option("--backup", "-b", is_flag=True, default=True, help="Create backup before removal")
 @click.option("--force", "-f", is_flag=True, help="Force removal even if errors")
 def remove_project(name: str, confirm: bool, backup: bool, force: bool):
-    """Remove a project and handle type-specific cleanup."""
+    """Remove a project and handle type-specific cleanup.
+
+    \b
+    SAFETY FEATURES:
+      - Confirmation prompt by default (use --confirm to skip)
+      - Automatic backup creation before removal (disable with --no-backup)
+      - Comprehensive cleanup of all project data and files
+
+    \b
+    WHAT GETS REMOVED:
+      - Project configuration and metadata
+      - All uploaded files and crawled content
+      - Vector embeddings and search indices
+      - Associated database entries
+      - Project directories and cached data
+
+    \b
+    EXAMPLES:
+      docbro project remove myproject                    # Remove with confirmation
+      docbro project remove myproject --confirm          # Remove without confirmation
+      docbro project remove myproject --no-backup        # Remove without backup
+      docbro project remove myproject --force            # Force removal even if errors
+
+    \b
+    ARGUMENTS:
+      NAME        Name of the project to remove
+
+    \b
+    OPTIONS:
+      --confirm   Skip confirmation prompt
+      --backup    Create backup before removal (default: enabled)
+      --force     Force removal even if errors occur
+
+    \b
+    WARNING:
+      This permanently deletes all project data. Use backups to recover if needed.
+    """
     run_async(_remove_project_impl(name, confirm, backup, force))
 
 
 @project.command(name="show")
-@click.option("--name", "-n", required=True, help="Project name")
+@click.argument("name")
 @click.option("--detailed", "-dt", is_flag=True, help="Show detailed information")
 def show_project(name: str, detailed: bool):
-    """Show project information and status."""
+    """Show project information and status.
+
+    \b
+    INFORMATION DISPLAYED:
+      Basic       Name, type, status, creation/update dates
+      --detailed  Statistics, settings, file counts, sizes, and more
+
+    \b
+    EXAMPLES:
+      docbro project show django                    # Basic project information
+      docbro project show django --detailed        # Detailed project information
+
+    \b
+    ARGUMENTS:
+      NAME        Name of the project to display
+
+    \b
+    OPTIONS:
+      --detailed  Show comprehensive project information and statistics
+    """
     run_async(_show_project_impl(name, detailed))
 
 
 @project.command(name="update")
-@click.option("--name", "-n", required=True, help="Project name")
+@click.argument("name")
 @click.option("--settings", "-s", help="JSON settings update")
 @click.option("--description", "-d", help="Update project description")
 def update_project(name: str, settings: str | None, description: str | None):
-    """Update project settings and metadata."""
+    """Update project settings and metadata.
+
+    \b
+    UPDATE OPTIONS:
+      --settings    JSON string with new settings to merge with existing
+      --description Update or set project description
+
+    \b
+    EXAMPLES:
+      docbro project update django --description "Django documentation project"
+      docbro project update mydata --settings '{"chunk_size": 1000, "overlap": 100}'
+      docbro project update myproject --settings '{}' --description "Updated description"
+
+    \b
+    ARGUMENTS:
+      NAME        Name of the project to update
+
+    \b
+    OPTIONS:
+      --settings    JSON settings to merge with existing project configuration
+      --description New description for the project
+
+    \b
+    SETTINGS FORMAT:
+      Settings must be valid JSON. Existing settings will be merged with new ones.
+      Example: '{"chunk_size": 1000, "embedding_model": "custom-model"}'
+    """
     run_async(_update_project_impl(name, settings, description))
 
 

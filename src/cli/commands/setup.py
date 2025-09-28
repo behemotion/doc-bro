@@ -1,5 +1,6 @@
 """Unified setup command for all setup operations."""
 
+import logging
 
 import click
 from rich.console import Console
@@ -112,18 +113,42 @@ def setup(
 ):
     """Unified setup command for DocBro configuration.
 
-    This command consolidates all setup operations:
-    - Initialize configuration (--init)
-    - Uninstall DocBro (--uninstall)
-    - Reset installation (--reset)
-    - Interactive menu (no flags)
+    The one-stop command for all DocBro setup operations. Choose between
+    interactive menu (no flags) or specific operations with flags.
 
-    Examples:
-        docbro setup                           # Interactive menu
-        docbro setup --init --auto             # Quick setup with defaults
-        docbro setup --init --vector-store sqlite_vec
-        docbro setup --uninstall --force       # Uninstall without confirmation
-        docbro setup --reset --preserve-data   # Reset but keep projects
+    \b
+    OPERATIONS:
+      --init         Initialize configuration and vector store
+      --uninstall    Remove DocBro completely from your system
+      --reset        Reset to fresh state (keeps or removes data)
+      (no flags)     Interactive menu with guided setup
+
+    \b
+    QUICK SETUPS:
+      docbro setup                           # Interactive menu with help
+      docbro setup --init --auto             # Quick setup with defaults
+      docbro setup --init --vector-store sqlite_vec  # Choose vector store
+
+    \b
+    VECTOR STORE OPTIONS:
+      sqlite_vec     Local SQLite with vector extension (recommended)
+      qdrant         Scalable vector database (requires Docker)
+
+    \b
+    UNINSTALL & RESET:
+      docbro setup --uninstall --force       # Uninstall without confirmation
+      docbro setup --uninstall --backup      # Create backup first
+      docbro setup --reset --preserve-data   # Reset but keep projects
+      docbro setup --uninstall --dry-run     # Preview what would be removed
+
+    \b
+    FLAGS:
+      --force            Skip confirmation prompts
+      --auto             Use default values (with --init)
+      --non-interactive  Disable all interactive prompts
+      --backup           Create backup before destructive operations
+      --dry-run          Preview changes without applying them
+      --preserve-data    Keep user projects during reset/uninstall
     """
 
     # Initialize router and orchestrator
