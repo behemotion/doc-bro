@@ -800,6 +800,72 @@ class DatabaseManager:
 
         return [self._session_from_row(row) for row in rows]
 
+    async def cleanup_incomplete_sessions(self, project_id: str, reset_pages: bool = False) -> Dict[str, int]:
+        """Clean up incomplete crawl sessions and optionally reset pages for fresh crawl."""
+        self._ensure_initialized()
+
+        # Get project to find project name
+        project = await self.get_project(project_id)
+        if not project:
+            raise DatabaseError(f"Project {project_id} not found")
+
+        # Use project-specific database connection
+        project_conn = await self._get_project_connection(project.name)
+
+        # Find incomplete sessions (running, paused, or created)
+        incomplete_statuses = [CrawlStatus.RUNNING.value, CrawlStatus.PAUSED.value, CrawlStatus.CREATED.value]
+
+        # Get count of incomplete sessions
+        cursor = await project_conn.execute("""
+            SELECT COUNT(*) FROM crawl_sessions
+            WHERE project_id = ? AND status IN ({})
+        """.format(','.join('?' * len(incomplete_statuses))), [project_id] + incomplete_statuses)
+
+        incomplete_count = (await cursor.fetchone())[0]
+
+        # Mark incomplete sessions as failed with cleanup reason
+        if incomplete_count > 0:
+            await project_conn.execute("""
+                UPDATE crawl_sessions
+                SET status = ?, error_message = ?, updated_at = ?
+                WHERE project_id = ? AND status IN ({})
+            """.format(','.join('?' * len(incomplete_statuses))),
+            [CrawlStatus.FAILED.value, "Session interrupted - cleaned up for new crawl",
+             datetime.utcnow().isoformat(), project_id] + incomplete_statuses)
+
+        pages_reset = 0
+        if reset_pages:
+            # Reset all pages to discovered status for fresh crawl
+            cursor = await project_conn.execute("""
+                SELECT COUNT(*) FROM pages WHERE project_id = ?
+            """, (project_id,))
+            pages_reset = (await cursor.fetchone())[0]
+
+            if pages_reset > 0:
+                await project_conn.execute("""
+                    UPDATE pages
+                    SET status = ?, session_id = NULL,
+                        crawled_at = NULL, response_code = NULL, response_time_ms = NULL,
+                        content_html = NULL, content_text = NULL, content_hash = NULL,
+                        outbound_links = NULL, internal_links = NULL, external_links = NULL,
+                        updated_at = ?
+                    WHERE project_id = ?
+                """, (PageStatus.DISCOVERED.value, datetime.utcnow().isoformat(), project_id))
+
+        await project_conn.commit()
+
+        self.logger.info("Cleaned up incomplete crawl sessions", extra={
+            "project_id": project_id,
+            "incomplete_sessions": incomplete_count,
+            "pages_reset": pages_reset,
+            "reset_pages": reset_pages
+        })
+
+        return {
+            "incomplete_sessions_cleaned": incomplete_count,
+            "pages_reset": pages_reset
+        }
+
     # Page operations
 
     async def create_page(

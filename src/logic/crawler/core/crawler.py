@@ -155,6 +155,7 @@ class DocumentationCrawler:
         if not project:
             raise CrawlerError(f"Project {project_id} not found")
 
+
         # Create crawl session
         session = await self.db_manager.create_crawl_session(
             project_id=project_id,

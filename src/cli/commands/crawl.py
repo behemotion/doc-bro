@@ -142,6 +142,7 @@ def crawl(ctx: click.Context, name: Optional[str], url: Optional[str], max_pages
                 original_depth = project.crawl_depth
                 project.crawl_depth = depth
 
+
             # Use standardized progress display
             from src.cli.interface.factories.progress_factory import ProgressFactory
             from src.cli.interface.models.enums import ProcessingState, CompletionStatus
@@ -157,6 +158,25 @@ def crawl(ctx: click.Context, name: Optional[str], url: Optional[str], max_pages
                 progress_coordinator.start_operation(f"Crawling {name}", name)
 
                 try:
+                    # Clean up any incomplete sessions before starting
+                    app.console.print(f"[cyan]Preparing project '{name}' for crawling...[/cyan]")
+                    cleanup_result = await app.db_manager.cleanup_incomplete_sessions(
+                        project_id=project.id,
+                        reset_pages=True  # Reset pages to ensure fresh crawl from beginning
+                    )
+
+                    # Show cleanup results to user
+                    if cleanup_result["incomplete_sessions_cleaned"] > 0:
+                        app.console.print(f"[yellow]⚠[/yellow] Cleaned up {cleanup_result['incomplete_sessions_cleaned']} incomplete session(s)")
+
+                    if cleanup_result["pages_reset"] > 0:
+                        app.console.print(f"[yellow]⚠[/yellow] Reset {cleanup_result['pages_reset']} page(s) for fresh crawl")
+
+                    if cleanup_result["incomplete_sessions_cleaned"] == 0 and cleanup_result["pages_reset"] == 0:
+                        app.console.print(f"[green]✓[/green] Project is ready for crawling")
+                    else:
+                        app.console.print(f"[green]✓[/green] Project prepared - starting fresh crawl")
+
                     # Start crawl
                     session = await app.crawler.start_crawl(
                         project_id=project.id,
@@ -193,6 +213,25 @@ def crawl(ctx: click.Context, name: Optional[str], url: Optional[str], max_pages
                     raise
             else:
                 # Debug mode or no progress - simple output
+                # Clean up any incomplete sessions before starting
+                app.console.print(f"[cyan]Preparing project '{name}' for crawling...[/cyan]")
+                cleanup_result = await app.db_manager.cleanup_incomplete_sessions(
+                    project_id=project.id,
+                    reset_pages=True  # Reset pages to ensure fresh crawl from beginning
+                )
+
+                # Show cleanup results to user
+                if cleanup_result["incomplete_sessions_cleaned"] > 0:
+                    app.console.print(f"[yellow]⚠[/yellow] Cleaned up {cleanup_result['incomplete_sessions_cleaned']} incomplete session(s)")
+
+                if cleanup_result["pages_reset"] > 0:
+                    app.console.print(f"[yellow]⚠[/yellow] Reset {cleanup_result['pages_reset']} page(s) for fresh crawl")
+
+                if cleanup_result["incomplete_sessions_cleaned"] == 0 and cleanup_result["pages_reset"] == 0:
+                    app.console.print(f"[green]✓[/green] Project is ready for crawling")
+                else:
+                    app.console.print(f"[green]✓[/green] Project prepared - starting fresh crawl")
+
                 session = await app.crawler.start_crawl(
                     project_id=project.id,
                     rate_limit=rate_limit,
