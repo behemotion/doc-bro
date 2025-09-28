@@ -162,6 +162,7 @@ class DatabaseManager:
             project_id TEXT NOT NULL,
             status TEXT NOT NULL DEFAULT 'created',
             crawl_depth INTEGER NOT NULL,
+            current_depth INTEGER NOT NULL DEFAULT 0,
             user_agent TEXT NOT NULL DEFAULT 'DocBro/1.0',
             rate_limit REAL NOT NULL DEFAULT 1.0,
             timeout INTEGER NOT NULL DEFAULT 30,
@@ -174,6 +175,7 @@ class DatabaseManager:
             pages_failed INTEGER NOT NULL DEFAULT 0,
             pages_skipped INTEGER NOT NULL DEFAULT 0,
             total_size_bytes INTEGER NOT NULL DEFAULT 0,
+            queue_size INTEGER NOT NULL DEFAULT 0,
             error_message TEXT,
             error_count INTEGER NOT NULL DEFAULT 0,
             max_errors INTEGER NOT NULL DEFAULT 50,
@@ -610,17 +612,17 @@ class DatabaseManager:
         project_conn = await self._get_project_connection(project.name)
         await project_conn.execute("""
             INSERT INTO crawl_sessions (
-                id, project_id, status, crawl_depth, user_agent, rate_limit,
+                id, project_id, status, crawl_depth, current_depth, user_agent, rate_limit,
                 timeout, created_at, updated_at, pages_discovered, pages_crawled,
-                pages_failed, pages_skipped, total_size_bytes, error_count,
+                pages_failed, pages_skipped, total_size_bytes, queue_size, error_count,
                 max_errors, archived
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             session.id, session.project_id, session.status.value, session.crawl_depth,
-            session.user_agent, session.rate_limit, session.timeout,
+            session.current_depth, session.user_agent, session.rate_limit, session.timeout,
             session.created_at.isoformat(), session.updated_at.isoformat(),
             session.pages_discovered, session.pages_crawled, session.pages_failed,
-            session.pages_skipped, session.total_size_bytes, session.error_count,
+            session.pages_skipped, session.total_size_bytes, session.queue_size, session.error_count,
             session.max_errors, session.archived
         ))
         await project_conn.commit()
@@ -641,10 +643,10 @@ class DatabaseManager:
         # Check all project databases
         for project_name, project_conn in self._project_connections.items():
             cursor = await project_conn.execute("""
-                SELECT id, project_id, status, crawl_depth, user_agent, rate_limit,
+                SELECT id, project_id, status, crawl_depth, current_depth, user_agent, rate_limit,
                        timeout, created_at, started_at, completed_at, updated_at,
                        pages_discovered, pages_crawled, pages_failed, pages_skipped,
-                       total_size_bytes, error_message, error_count, max_errors,
+                       total_size_bytes, queue_size, error_message, error_count, max_errors,
                        metadata, archived
                 FROM crawl_sessions WHERE id = ?
             """, (session_id,))
@@ -660,10 +662,10 @@ class DatabaseManager:
         for project_id, project_name in projects:
             project_conn = await self._get_project_connection(project_name)
             cursor = await project_conn.execute("""
-                SELECT id, project_id, status, crawl_depth, user_agent, rate_limit,
+                SELECT id, project_id, status, crawl_depth, current_depth, user_agent, rate_limit,
                        timeout, created_at, started_at, completed_at, updated_at,
                        pages_discovered, pages_crawled, pages_failed, pages_skipped,
-                       total_size_bytes, error_message, error_count, max_errors,
+                       total_size_bytes, queue_size, error_message, error_count, max_errors,
                        metadata, archived
                 FROM crawl_sessions WHERE id = ?
             """, (session_id,))
@@ -701,10 +703,10 @@ class DatabaseManager:
 
     def _session_from_row(self, row: Tuple) -> CrawlSession:
         """Create CrawlSession from database row."""
-        (id, project_id, status, crawl_depth, user_agent, rate_limit,
+        (id, project_id, status, crawl_depth, current_depth, user_agent, rate_limit,
          timeout, created_at, started_at, completed_at, updated_at,
          pages_discovered, pages_crawled, pages_failed, pages_skipped,
-         total_size_bytes, error_message, error_count, max_errors,
+         total_size_bytes, queue_size, error_message, error_count, max_errors,
          metadata, archived) = row
 
         return CrawlSession(
@@ -712,6 +714,7 @@ class DatabaseManager:
             project_id=project_id,
             status=CrawlStatus(status),
             crawl_depth=crawl_depth,
+            current_depth=current_depth,
             user_agent=user_agent,
             rate_limit=rate_limit,
             timeout=timeout,
@@ -724,6 +727,7 @@ class DatabaseManager:
             pages_failed=pages_failed,
             pages_skipped=pages_skipped,
             total_size_bytes=total_size_bytes,
+            queue_size=queue_size,
             error_message=error_message,
             error_count=error_count,
             max_errors=max_errors,
@@ -744,18 +748,18 @@ class DatabaseManager:
         project_conn = await self._get_project_connection(project.name)
         await project_conn.execute("""
             UPDATE crawl_sessions SET
-                status = ?, started_at = ?, completed_at = ?, updated_at = ?,
+                status = ?, current_depth = ?, started_at = ?, completed_at = ?, updated_at = ?,
                 pages_discovered = ?, pages_crawled = ?, pages_failed = ?,
-                pages_skipped = ?, total_size_bytes = ?, error_message = ?,
+                pages_skipped = ?, total_size_bytes = ?, queue_size = ?, error_message = ?,
                 error_count = ?, metadata = ?
             WHERE id = ?
         """, (
-            session.status.value,
+            session.status.value, session.current_depth,
             session.started_at.isoformat() if session.started_at else None,
             session.completed_at.isoformat() if session.completed_at else None,
             session.updated_at.isoformat(),
             session.pages_discovered, session.pages_crawled, session.pages_failed,
-            session.pages_skipped, session.total_size_bytes, session.error_message,
+            session.pages_skipped, session.total_size_bytes, session.queue_size, session.error_message,
             session.error_count, json.dumps(session.metadata), session.id
         ))
         await project_conn.commit()
@@ -780,10 +784,10 @@ class DatabaseManager:
         project_conn = await self._get_project_connection(project.name)
 
         sql = """
-            SELECT id, project_id, status, crawl_depth, user_agent, rate_limit,
+            SELECT id, project_id, status, crawl_depth, current_depth, user_agent, rate_limit,
                    timeout, created_at, started_at, completed_at, updated_at,
                    pages_discovered, pages_crawled, pages_failed, pages_skipped,
-                   total_size_bytes, error_message, error_count, max_errors,
+                   total_size_bytes, queue_size, error_message, error_count, max_errors,
                    metadata, archived
             FROM crawl_sessions WHERE project_id = ? AND archived = ?
         """
