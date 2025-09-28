@@ -41,16 +41,21 @@ src/
 │   └── utils/           # Universal CLI utilities (navigation, etc.)
 ├── lib/                 # Utilities and logging
 └── logic/               # Reorganized business logic
-    ├── setup/           # Setup operations (NEW)
+    ├── setup/           # Setup operations
     │   ├── core/        # SetupOrchestrator, CommandRouter, InteractiveMenu
     │   ├── services/    # SetupInitializer, Uninstaller, Configurator, etc.
     │   ├── models/      # SetupOperation, Configuration, MenuState, etc.
     │   └── utils/       # ProgressReporter, user prompts
-    └── crawler/         # Crawler logic
-        ├── core/        # DocumentationCrawler, BatchCrawler
-        ├── analytics/   # ErrorReporter, CrawlReport
-        ├── utils/       # ProgressReporter, CrawlProgressDisplay
-        └── models/      # CrawlSession, Page, BatchOperation, ErrorEntry
+    ├── crawler/         # Crawler logic
+    │   ├── core/        # DocumentationCrawler, BatchCrawler
+    │   ├── analytics/   # ErrorReporter, CrawlReport
+    │   ├── utils/       # ProgressReporter, CrawlProgressDisplay
+    │   └── models/      # CrawlSession, Page, BatchOperation, ErrorEntry
+    └── mcp/             # MCP server logic (NEW)
+        ├── core/        # McpReadOnlyServer, McpAdminServer, ServerOrchestrator
+        ├── services/    # ReadOnlyMcpService, AdminMcpService, CommandExecutor
+        ├── models/      # McpServerConfig, McpResponse, FileAccessRequest
+        └── utils/       # PortManager, ConfigGenerator, Security
 tests/
 ├── contract/            # API contract tests (setup, crawl, MCP)
 ├── integration/         # End-to-end tests (setup flows, legacy commands)
@@ -110,7 +115,8 @@ docbro setup --uninstall --force       # Force uninstall
 docbro setup --reset --preserve-data   # Reset keeping projects
 
 # Server Operations
-docbro serve [--host 0.0.0.0] [--port 9382] [--foreground]
+docbro serve [--host 0.0.0.0] [--port 9382] [--foreground]    # Read-only MCP server (default)
+docbro serve --admin [--host 127.0.0.1] [--port 9384]         # Admin MCP server (localhost only)
 docbro health [--system] [--services] [--config] [--projects]
 ```
 
@@ -150,8 +156,10 @@ DOCBRO_CHUNK_OVERLAP=50
 # Crawling & Server
 DOCBRO_DEFAULT_CRAWL_DEPTH=3
 DOCBRO_DEFAULT_RATE_LIMIT=1.0
-DOCBRO_MCP_HOST=localhost
-DOCBRO_MCP_PORT=9382
+DOCBRO_MCP_READ_ONLY_HOST=0.0.0.0
+DOCBRO_MCP_READ_ONLY_PORT=9383
+DOCBRO_MCP_ADMIN_HOST=127.0.0.1
+DOCBRO_MCP_ADMIN_PORT=9384
 DOCBRO_LOG_LEVEL=WARNING|INFO|DEBUG
 ```
 
@@ -177,10 +185,34 @@ DOCBRO_LOG_LEVEL=WARNING|INFO|DEBUG
 5. Service availability warnings with setup instructions
 
 ### MCP Integration
-- **FastAPI Server**: REST API for AI assistants
-- **Claude Code**: Official CLI integration
-- **Standard Protocol**: Compatible with any MCP client
-- **Real-time Context**: Documentation access during coding
+
+#### Dual Server Architecture
+- **Read-Only Server** (Port 9383): Provides safe read access to projects and documentation
+  - Server name: `docbro` (renamed from doc-bro-mcp)
+  - Project listing and search capabilities
+  - File access with project-type-based restrictions
+  - Vector search across project content
+  - Health monitoring endpoints
+- **Admin Server** (Port 9384): Full administrative control with security restrictions
+  - Server name: `docbro-admin` (renamed from doc-bro-mcp-admin)
+  - Complete DocBro command execution (with restrictions)
+  - Project creation and management
+  - Crawling operations and batch processing
+  - Localhost-only binding for security
+  - **BLOCKED OPERATIONS**: Uninstall, reset, and delete-all-projects operations are prohibited via MCP admin for security
+
+#### Security Features
+- **Network Isolation**: Admin server restricted to localhost (127.0.0.1) only
+- **Access Control**: File access varies by project type (crawling=metadata, storage=full)
+- **Input Sanitization**: Command injection and path traversal protection
+- **Resource Limits**: Timeout enforcement and memory management
+- **Operation Restrictions**: Critical system operations (uninstall, reset, delete-all) blocked via MCP admin
+
+#### MCP Client Configuration
+- **Auto-Generated Configs**: Client configuration files created in `mcp/` directory
+- **Claude Code Integration**: Official CLI with dedicated MCP tools
+- **Universal Compatibility**: Works with any MCP-compliant AI assistant
+- **Concurrent Operations**: Both servers can run simultaneously on different ports
 
 ## Universal Arrow Navigation Architecture
 

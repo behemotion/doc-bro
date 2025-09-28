@@ -157,6 +157,8 @@ class HealthOrchestrator:
             asyncio.create_task(self._run_with_semaphore(self._check_service_qdrant())),
             asyncio.create_task(self._run_with_semaphore(self._check_service_ollama())),
             asyncio.create_task(self._run_with_semaphore(self._check_service_git())),
+            asyncio.create_task(self._run_with_semaphore(self._check_mcp_read_only_server())),
+            asyncio.create_task(self._run_with_semaphore(self._check_mcp_admin_server())),
         ]
 
     async def _get_configuration_check_tasks(self) -> list[asyncio.Task]:
@@ -416,6 +418,165 @@ class HealthOrchestrator:
                 message="Failed to check projects",
                 details=str(e),
                 resolution="Check data directory permissions",
+                execution_time=execution_time
+            )
+
+    async def _check_mcp_read_only_server(self) -> HealthCheck:
+        """Check MCP read-only server status."""
+        execution_start = time.time()
+
+        try:
+            import socket
+            import httpx
+            from src.logic.mcp.models.server_type import McpServerType
+
+            server_type = McpServerType.READ_ONLY
+            host = server_type.default_host
+            port = server_type.default_port
+
+            # Check if port is open
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.settimeout(2)
+                connection_result = sock.connect_ex((host, port))
+
+            if connection_result == 0:
+                # Server is running, try to get health info
+                try:
+                    async with httpx.AsyncClient(timeout=3.0) as client:
+                        response = await client.get(f"http://{host}:{port}/mcp/v1/health")
+                        if response.status_code == 200:
+                            data = response.json()
+                            if data.get('success'):
+                                server_data = data.get('data', {})
+                                status = HealthStatus.HEALTHY
+                                message = f"Read-only MCP server running on {host}:{port}"
+                                details = f"Server status: {server_data.get('status', 'healthy')}"
+                                resolution = None
+                            else:
+                                status = HealthStatus.WARNING
+                                message = f"Read-only MCP server responding but unhealthy"
+                                details = f"Health endpoint returned: {data}"
+                                resolution = "Check server logs or restart server"
+                        else:
+                            status = HealthStatus.WARNING
+                            message = f"Read-only MCP server running but health check failed"
+                            details = f"HTTP {response.status_code} from health endpoint"
+                            resolution = "Check server configuration or restart server"
+                except Exception as e:
+                    status = HealthStatus.WARNING
+                    message = f"Read-only MCP server running but unreachable"
+                    details = f"Port {port} open but health check failed: {e}"
+                    resolution = "Check if server is properly configured"
+            else:
+                status = HealthStatus.UNAVAILABLE
+                message = f"Read-only MCP server not running"
+                details = f"No service listening on {host}:{port}"
+                resolution = "Start server with: docbro serve"
+
+            execution_time = time.time() - execution_start
+
+            return HealthCheck(
+                id="services.mcp_read_only",
+                category=HealthCategory.SERVICES,
+                name="MCP Read-Only Server",
+                status=status,
+                message=message,
+                details=details,
+                resolution=resolution,
+                execution_time=execution_time
+            )
+
+        except Exception as e:
+            execution_time = time.time() - execution_start
+            return HealthCheck(
+                id="services.mcp_read_only",
+                category=HealthCategory.SERVICES,
+                name="MCP Read-Only Server",
+                status=HealthStatus.UNAVAILABLE,
+                message="Failed to check read-only MCP server",
+                details=str(e),
+                resolution="Check system connectivity and try again",
+                execution_time=execution_time
+            )
+
+    async def _check_mcp_admin_server(self) -> HealthCheck:
+        """Check MCP admin server status."""
+        execution_start = time.time()
+
+        try:
+            import socket
+            import httpx
+            from src.logic.mcp.models.server_type import McpServerType
+
+            server_type = McpServerType.ADMIN
+            host = server_type.default_host  # Should be 127.0.0.1
+            port = server_type.default_port
+
+            # Check if port is open
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.settimeout(2)
+                connection_result = sock.connect_ex((host, port))
+
+            if connection_result == 0:
+                # Server is running, try to get health info
+                try:
+                    async with httpx.AsyncClient(timeout=3.0) as client:
+                        response = await client.get(f"http://{host}:{port}/mcp/v1/health")
+                        if response.status_code == 200:
+                            data = response.json()
+                            if data.get('success'):
+                                server_data = data.get('data', {})
+                                security_data = server_data.get('security_status', {})
+                                localhost_only = security_data.get('localhost_only', True)
+
+                                status = HealthStatus.HEALTHY
+                                message = f"Admin MCP server running on {host}:{port}"
+                                details = f"Server status: {server_data.get('status', 'healthy')}, Localhost only: {localhost_only}"
+                                resolution = None
+                            else:
+                                status = HealthStatus.WARNING
+                                message = f"Admin MCP server responding but unhealthy"
+                                details = f"Health endpoint returned: {data}"
+                                resolution = "Check server logs or restart admin server"
+                        else:
+                            status = HealthStatus.WARNING
+                            message = f"Admin MCP server running but health check failed"
+                            details = f"HTTP {response.status_code} from health endpoint"
+                            resolution = "Check server configuration or restart admin server"
+                except Exception as e:
+                    status = HealthStatus.WARNING
+                    message = f"Admin MCP server running but unreachable"
+                    details = f"Port {port} open but health check failed: {e}"
+                    resolution = "Check if admin server is properly configured"
+            else:
+                status = HealthStatus.UNAVAILABLE
+                message = f"Admin MCP server not running"
+                details = f"No service listening on {host}:{port}"
+                resolution = "Start admin server with: docbro serve --admin"
+
+            execution_time = time.time() - execution_start
+
+            return HealthCheck(
+                id="services.mcp_admin",
+                category=HealthCategory.SERVICES,
+                name="MCP Admin Server",
+                status=status,
+                message=message,
+                details=details,
+                resolution=resolution,
+                execution_time=execution_time
+            )
+
+        except Exception as e:
+            execution_time = time.time() - execution_start
+            return HealthCheck(
+                id="services.mcp_admin",
+                category=HealthCategory.SERVICES,
+                name="MCP Admin Server",
+                status=HealthStatus.UNAVAILABLE,
+                message="Failed to check admin MCP server",
+                details=str(e),
+                resolution="Check system connectivity and try again",
                 execution_time=execution_time
             )
 

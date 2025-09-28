@@ -5,7 +5,8 @@ This module provides compatibility models that wrap the unified DocBroConfig
 from src.core.config to maintain existing test contracts.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
+from typing import List, Dict, Any
 
 from src.core.config import DocBroConfig
 from src.models.vector_store_types import VectorStoreProvider
@@ -41,13 +42,111 @@ class GlobalSettings(BaseModel):
     ollama_url: str = Field(default="http://localhost:11434")
     ollama_timeout: int = Field(default=300)
 
-    # MCP Server configuration
+    # Legacy MCP Server configuration (kept for backward compatibility)
     mcp_host: str = Field(default="localhost")
     mcp_port: int = Field(default=9382)
     mcp_auth_token: str | None = Field(default=None)
 
+    # MCP Server Configurations (structured approach)
+    mcp_server_configs: Dict[str, Dict[str, Any]] = Field(
+        default_factory=lambda: {
+            "read-only": {
+                "server_type": "read-only",
+                "host": "0.0.0.0",
+                "port": 9383,
+                "enabled": True
+            },
+            "admin": {
+                "server_type": "admin",
+                "host": "127.0.0.1",
+                "port": 9384,
+                "enabled": True
+            }
+        }
+    )
+
+    # Individual MCP settings for backward compatibility
+    mcp_read_only_host: str = Field(default="0.0.0.0")
+    mcp_read_only_port: int = Field(default=9383, ge=1024, le=65535)
+    mcp_admin_host: str = Field(default="127.0.0.1")
+    mcp_admin_port: int = Field(default=9384, ge=1024, le=65535)
+    mcp_read_only_enabled: bool = Field(default=True)
+    mcp_admin_enabled: bool = Field(default=True)
+
     # Logging configuration
     log_level: str = Field(default="WARNING")
+
+    @validator("mcp_server_configs")
+    def validate_mcp_server_configs(cls, v: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+        """Validate MCP server configurations."""
+        if not isinstance(v, dict):
+            raise ValueError("mcp_server_configs must be a dictionary")
+
+        # Check for required server types
+        required_types = {"read-only", "admin"}
+        existing_types = set(v.keys())
+
+        if not required_types.issubset(existing_types):
+            missing = required_types - existing_types
+            raise ValueError(f"Missing required server configurations: {missing}")
+
+        # Validate each server configuration
+        for server_name, config in v.items():
+            if not isinstance(config, dict):
+                raise ValueError(f"Server config for '{server_name}' must be a dictionary")
+
+            # Validate required fields
+            required_fields = {"server_type", "host", "port", "enabled"}
+            missing_fields = required_fields - set(config.keys())
+            if missing_fields:
+                raise ValueError(f"Server '{server_name}' missing required fields: {missing_fields}")
+
+            # Validate port range
+            port = config.get("port")
+            if not isinstance(port, int) or port < 1024 or port > 65535:
+                raise ValueError(f"Server '{server_name}' port must be an integer between 1024 and 65535")
+
+            # Validate admin server localhost restriction
+            if config.get("server_type") == "admin":
+                host = config.get("host")
+                if host not in ["127.0.0.1", "localhost"]:
+                    raise ValueError("Admin server must be bound to localhost (127.0.0.1) for security")
+
+        return v
+
+    @validator("mcp_admin_host")
+    def validate_admin_host(cls, v: str) -> str:
+        """Validate that admin host is localhost for security."""
+        if v not in ["127.0.0.1", "localhost"]:
+            raise ValueError("Admin server must be bound to localhost (127.0.0.1 or localhost) for security")
+        return v
+
+    def get_mcp_server_configs(self) -> List[Dict[str, Any]]:
+        """Get MCP server configurations as a list."""
+        configs = []
+        for server_name, config in self.mcp_server_configs.items():
+            # Add server name to config for identification
+            config_with_name = config.copy()
+            config_with_name["name"] = server_name
+            configs.append(config_with_name)
+        return configs
+
+    def validate_port_conflicts(self) -> bool:
+        """Check for port conflicts between MCP servers."""
+        ports = []
+        for config in self.mcp_server_configs.values():
+            if config.get("enabled", False):
+                ports.append(config.get("port"))
+
+        # Check for duplicates
+        return len(ports) == len(set(ports))
+
+    def get_enabled_mcp_servers(self) -> Dict[str, Dict[str, Any]]:
+        """Get only enabled MCP server configurations."""
+        return {
+            name: config for name, config in self.mcp_server_configs.items()
+            if config.get("enabled", False)
+        }
 
     @classmethod
     def from_config(cls, config: DocBroConfig) -> "GlobalSettings":
@@ -101,9 +200,21 @@ class EffectiveSettings(BaseModel):
     qdrant_api_key: str | None
     ollama_url: str
     ollama_timeout: int
+    # Legacy MCP configuration
     mcp_host: str
     mcp_port: int
     mcp_auth_token: str | None
+
+    # Structured MCP configuration
+    mcp_server_configs: Dict[str, Dict[str, Any]]
+
+    # Individual MCP settings (for backward compatibility)
+    mcp_read_only_host: str
+    mcp_read_only_port: int
+    mcp_admin_host: str
+    mcp_admin_port: int
+    mcp_read_only_enabled: bool
+    mcp_admin_enabled: bool
     log_level: str
 
     @classmethod

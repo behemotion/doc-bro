@@ -499,9 +499,21 @@ async def _create_project_impl(name: str, project_type: str, description: str | 
             )
 
         console.print(f"[green]✓[/green] Project '{name}' created successfully!")
-        console.print(f"  Type: {project.type.value}")
-        console.print(f"  Status: {project.status.value}")
-        console.print(f"  Created: {project.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
+        # Check if project is a dict or object and handle accordingly
+        if isinstance(project, dict):
+            console.print(f"  Type: {project.get('type', 'unknown')}")
+            console.print(f"  Status: {project.get('status', 'unknown')}")
+            created_at = project.get('created_at')
+            if created_at:
+                if isinstance(created_at, str):
+                    console.print(f"  Created: {created_at}")
+                else:
+                    console.print(f"  Created: {created_at.strftime('%Y-%m-%d %H:%M:%S')}")
+        else:
+            # Assume it's a Project object
+            console.print(f"  Type: {project.type.value if hasattr(project.type, 'value') else project.type}")
+            console.print(f"  Status: {project.status.value if hasattr(project.status, 'value') else project.status}")
+            console.print(f"  Created: {project.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
 
         if description:
             # Update project with description (if supported by project manager)
@@ -509,8 +521,10 @@ async def _create_project_impl(name: str, project_type: str, description: str | 
             pass
 
     except Exception as e:
-        logger.error(f"Error creating project: {e}")
+        import traceback
+        logger.error(f"Error creating project: {e}", exc_info=True)
         console.print(f"[red]Error creating project: {str(e)}[/red]")
+        console.print(f"[dim]Full error: {traceback.format_exc()}[/dim]")
 
 
 async def _list_projects_impl(status: str | None, project_type: str | None,
