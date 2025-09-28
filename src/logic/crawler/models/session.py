@@ -26,6 +26,7 @@ class CrawlSession(BaseModel):
     # Session configuration
     crawl_depth: int = Field(description="Maximum depth for this session")
     current_depth: int = Field(default=0, ge=0, description="Current crawling depth")
+    current_url: Optional[str] = Field(default=None, description="Currently processing URL")
     user_agent: str = Field(default="DocBro/1.0", description="User agent for requests")
     rate_limit: float = Field(default=1.0, ge=0.1, le=10.0, description="Requests per second")
     timeout: int = Field(default=30, ge=5, le=300, description="Request timeout in seconds")
@@ -126,6 +127,7 @@ class CrawlSession(BaseModel):
         pages_skipped: Optional[int] = None,
         total_size_bytes: Optional[int] = None,
         current_depth: Optional[int] = None,
+        current_url: Optional[str] = None,
         queue_size: Optional[int] = None
     ) -> None:
         """Update session progress."""
@@ -141,6 +143,8 @@ class CrawlSession(BaseModel):
             self.total_size_bytes = total_size_bytes
         if current_depth is not None:
             self.current_depth = current_depth
+        if current_url is not None:
+            self.current_url = current_url
         if queue_size is not None:
             self.queue_size = queue_size
 
@@ -192,6 +196,7 @@ class CrawlSession(BaseModel):
             "status": self.status.value,
             "crawl_depth": self.crawl_depth,
             "current_depth": self.current_depth,
+            "current_url": self.current_url,
             "user_agent": self.user_agent,
             "rate_limit": self.rate_limit,
             "timeout": self.timeout,

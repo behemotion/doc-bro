@@ -238,6 +238,13 @@ class DocumentationCrawler:
                     # Update progress with current depth and counts
                     if depth != current_depth:
                         current_depth = depth
+                        # Update session current_depth in database
+                        session.update_progress(
+                            current_depth=current_depth,
+                            current_url=url,
+                            queue_size=self._crawl_queue.qsize()
+                        )
+                        await self.db_manager.update_crawl_session(session)
 
                     # Update progress display if available
                     if progress_display:
@@ -398,11 +405,14 @@ class DocumentationCrawler:
                 # Update page in database
                 await self.db_manager.update_page(page)
 
-                # Update session progress
+                # Update session progress with current metrics
                 session.update_progress(
                     pages_discovered=len(self._visited_urls),
                     pages_crawled=pages_crawled,
-                    pages_failed=session.error_count
+                    pages_failed=session.error_count,
+                    current_depth=current_depth,
+                    current_url=url,
+                    queue_size=self._crawl_queue.qsize()
                 )
                 await self.db_manager.update_crawl_session(session)
 
