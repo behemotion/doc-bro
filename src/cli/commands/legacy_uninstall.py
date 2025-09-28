@@ -1,11 +1,13 @@
 """Legacy uninstall command - redirects to setup --uninstall."""
 
 import click
+import sys
 from rich.console import Console
+from rich.panel import Panel
+from rich.prompt import Confirm
 from src.cli.commands.setup import setup
 
 console = Console()
-
 
 @click.command(deprecated=True)
 @click.option(
@@ -30,9 +32,23 @@ def uninstall(ctx: click.Context, force: bool, backup: bool, dry_run: bool):
     This command is deprecated. Use 'docbro setup --uninstall' instead.
     """
     # Show deprecation warning
-    console.print("[yellow]⚠ Warning:[/yellow] 'docbro uninstall' is deprecated.")
-    console.print("Use [cyan]docbro setup --uninstall[/cyan] instead.")
-    console.print()
+    warning_panel = Panel(
+        "This command is deprecated. Use 'docbro setup --uninstall' instead.",
+        title="⚠️  Deprecation Warning",
+        style="yellow",
+        border_style="yellow"
+    )
+    console.print(warning_panel)
+
+    # Skip confirmation if force flag is used
+    if not force:
+        # Show confirmation prompt with consequences
+        if not Confirm.ask(
+            "[yellow]This will remove all DocBro data and configuration[/yellow]\n[bold]Continue?[/bold]",
+            default=False
+        ):
+            console.print("Operation cancelled", style="yellow")
+            sys.exit(1)
 
     # Redirect to setup command with --uninstall flag
     ctx.invoke(setup, uninstall=True, force=force, backup=backup, dry_run=dry_run)

@@ -162,6 +162,23 @@ class InteractiveMenu:
         Returns:
             Selected option
         """
+        # Display ASCII branding
+        from src.cli.utils.branding import ASCIIBranding
+        branding = ASCIIBranding()
+        logo = branding.render()
+        self.console.print(logo)
+        self.console.print()  # Add space after logo
+
+        # Display system information panel
+        from src.logic.setup.models.system_info import SystemInfoPanel
+        info_panel = SystemInfoPanel()
+        info_panel.collect_async()
+
+        # Show system info table
+        info_table = info_panel.format_table()
+        self.console.print(info_table)
+        self.console.print()  # Add space after info
+
         choices = [
             NavigationChoice("initialize", "Initialize DocBro"),
             NavigationChoice("configuration", "Modify Configuration"),

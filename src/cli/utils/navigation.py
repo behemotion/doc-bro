@@ -38,16 +38,31 @@ class NavigationChoice:
     style: Optional[str] = None
 
 
+@dataclass
+class NavigationTheme:
+    """Consistent theme settings for all navigation interfaces.
+
+    Provides unified styling across all DocBro navigation menus.
+    """
+    highlight_style: str = "blue on white"  # Selected item style
+    arrow_indicator: str = "→"  # Selection indicator
+    box_style: str = "rounded"  # Box drawing style for panels
+    number_hints: bool = True  # Show number shortcuts
+    vim_mode: bool = True  # Enable j/k navigation
+
+
 class ArrowNavigator:
     """Universal arrow key navigation utility."""
 
-    def __init__(self, console: Optional[Console] = None):
+    def __init__(self, console: Optional[Console] = None, theme: Optional[NavigationTheme] = None):
         """Initialize the navigator.
 
         Args:
             console: Optional Rich console for output
+            theme: Optional NavigationTheme for consistent styling
         """
         self.console = console or Console()
+        self.theme = theme or NavigationTheme()
         self.use_keyboard_navigation = sys.stdin.isatty() and HAS_TERMIOS
 
     def get_char(self) -> str:
@@ -144,8 +159,8 @@ class ArrowNavigator:
         choices: List[NavigationChoice],
         current_index: int,
         title: Optional[str] = None,
-        show_numbers: bool = True,
-        highlight_style: str = "bold bright_white on blue"
+        show_numbers: bool = None,
+        highlight_style: Optional[str] = None
     ) -> None:
         """Display choices in a table format.
 
@@ -153,9 +168,13 @@ class ArrowNavigator:
             choices: List of navigation choices
             current_index: Currently selected index
             title: Optional title to display
-            show_numbers: Whether to show numbered options (AddressNavigator)
-            highlight_style: Rich style for highlighted option
+            show_numbers: Whether to show numbered options (uses theme default if None)
+            highlight_style: Rich style for highlighted option (uses theme default if None)
         """
+        if show_numbers is None:
+            show_numbers = self.theme.number_hints
+        if highlight_style is None:
+            highlight_style = self.theme.highlight_style
         if title:
             self.console.print(f"\n[cyan]{title}[/cyan]")
 
@@ -167,9 +186,9 @@ class ArrowNavigator:
         for i, choice in enumerate(choices):
             # Number display for AddressNavigator pattern
             if show_numbers:
-                key_display = f"→ {i+1}" if i == current_index else f"  {i+1}"
+                key_display = f"{self.theme.arrow_indicator} {i+1}" if i == current_index else f"  {i+1}"
             else:
-                key_display = "→" if i == current_index else " "
+                key_display = self.theme.arrow_indicator if i == current_index else " "
 
             # Build the option display with label and status
             if choice.status:
