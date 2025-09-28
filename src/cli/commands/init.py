@@ -55,7 +55,7 @@ def _get_sqlite_vec_install_guidance() -> str:
         return (
             "Install sqlite-vec using UV:\n"
             "  1. uv pip install --system sqlite-vec\n"
-            "  2. Or reinstall docbro: uvx install --force git+https://github.com/behemotion/doc-bro"
+            "  2. Or reinstall docbro: uv tool install --force git+https://github.com/behemotion/doc-bro"
         )
 
 

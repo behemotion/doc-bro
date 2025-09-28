@@ -130,7 +130,7 @@ class ConfigService:
         """Detect installation method based on install path."""
         path_str = str(install_path)
 
-        # Check for uvx installation (typically in ~/.local/bin and not pipx)
+        # Check for uv tool installation (typically in ~/.local/bin and not pipx)
         if ".local" in path_str and "pipx" not in path_str:
             return "uvx"
         # Check for development mode (current directory or contains src/)

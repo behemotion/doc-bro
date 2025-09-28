@@ -472,7 +472,7 @@ class UVCompatibilityService:
 
             return {
                 "method": "uvx",
-                "command": f"uvx install --force {install_source}",
+                "command": f"uv tool install --force {install_source}",
                 "output": stdout.decode(),
                 "success": True
             }

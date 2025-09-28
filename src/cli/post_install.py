@@ -1,7 +1,7 @@
 """UV tool post-install hook for DocBro.
 
 This module provides post-install functionality that is automatically triggered
-after UV tool installation (`uv tool install` or `uvx install`). It detects
+after UV tool installation (`uv tool install`). It detects
 first-time installations and launches the interactive installation wizard.
 
 UV Integration:

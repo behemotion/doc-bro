@@ -353,7 +353,7 @@ Qdrant is the vector database for storing document embeddings.
         install_path = shutil.which("docbro")
         if install_path:
             install_path = Path(install_path)
-            # Check if it's a uvx installation
+            # Check if it's a uv tool installation
             if ".local" in str(install_path) and "pipx" not in str(install_path):
                 install_method = "uvx"
             else:
