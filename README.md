@@ -131,7 +131,7 @@ docbro setup --reset --preserve-data   # Reset keeping projects
 docbro system-check                    # Validate all requirements
 docbro services list                   # Check service status
 docbro services setup                  # Configure external services
-docbro --health                        # Quick health check
+docbro health                          # Quick health check
 docbro --version                       # Version information
 ```
 
@@ -401,7 +401,7 @@ docbro system-check
 docbro services list
 
 # Health check
-docbro --health
+docbro health
 
 # Version info
 docbro --version

@@ -1,13 +1,10 @@
-"""Health check command for DocBro CLI."""
+"""Health check command for DocBro CLI - Unified Implementation."""
 
 import asyncio
-import json
+import sys
 
 import click
 from rich.console import Console
-from rich.table import Table
-
-from src.version import __version__
 
 # Optional uvloop for better performance
 try:
@@ -29,155 +26,135 @@ def run_async(coro):
 
 
 @click.command(name="health")
-@click.option("--json", "output_json", is_flag=True, help="Output in JSON format")
-@click.option("--verbose", is_flag=True, help="Show detailed health information")
+@click.option("--system", "-s", is_flag=True, help="Check only system requirements")
+@click.option("--services", "-e", is_flag=True, help="Check only external services")
+@click.option("--config", "-c", is_flag=True, help="Check only configuration validity")
+@click.option("--projects", "-p", is_flag=True, help="Check project-specific health")
+@click.option("--format", "-f", "format_type", default="table",
+              type=click.Choice(["table", "json", "yaml"], case_sensitive=False),
+              help="Output format")
+@click.option("--verbose", "-v", is_flag=True, help="Include detailed diagnostic information")
+@click.option("--quiet", "-q", is_flag=True, help="Suppress progress indicators, show only results")
+@click.option("--timeout", "-t", default=15, type=click.IntRange(1, 60),
+              help="Maximum execution timeout in seconds")
+@click.option("--parallel", "-P", default=4, type=click.IntRange(1, 8),
+              help="Maximum parallel health checks")
 @click.pass_context
-def health(ctx: click.Context, output_json: bool, verbose: bool):
-    """Check health status of all DocBro services.
+def health(ctx: click.Context, system: bool, services: bool, config: bool, projects: bool,
+           format_type: str, verbose: bool, quiet: bool, timeout: int, parallel: int):
+    """Check health status of DocBro components with comprehensive validation.
 
-    This command performs a comprehensive health check of:
-    - Required services (Python, UV, SQLite)
-    - Optional services (Docker, Qdrant, Ollama)
-    - System resources (memory, disk space)
+    This unified health command provides comprehensive validation of:
+    - System requirements (Python version, memory, disk space)
+    - External services (Docker, Qdrant, Ollama, Git)
+    - Configuration files (settings, projects, vector store)
+    - Project-specific health (when projects exist)
 
+    \b
+    Category Options:
+      --system      System requirements only
+      --services    External services only
+      --config      Configuration files only
+      --projects    Project health only
+      (default)     All categories except projects
+
+    \b
+    Output Formats:
+      table         Formatted table with status indicators (default)
+      json          Machine-readable JSON for automation
+      yaml          YAML format for configuration tools
+
+    \b
     Examples:
-      docbro health            # Basic health check
-      docbro health --json     # Output as JSON
-      docbro health --verbose  # Detailed diagnostics
+      docbro health                    # Complete health check
+      docbro health --system           # System requirements only
+      docbro health --format json     # JSON output for scripts
+      docbro health --timeout 30      # Extended timeout
     """
-    async def _health_check():
-        from src.services.detection import ServiceDetectionService
-
-        console = Console()
-        detection_service = ServiceDetectionService()
-
+    async def _unified_health_check():
         try:
-            # Check all services
-            statuses = await detection_service.check_all_services()
+            # Import health orchestration components
+            from src.logic.health.core.orchestrator import HealthOrchestrator
+            from src.logic.health.core.router import HealthCommandRouter
 
-            if output_json:
-                health_data = {
-                    "version": __version__,
-                    "services": {},
-                    "overall": "healthy"
-                }
-                for name, status in statuses.items():
-                    health_data["services"][name] = {
-                        "available": status.available,
-                        "version": status.version,
-                        "status": "healthy" if status.available else "unhealthy",
-                        "error": status.error_message if not status.available else None
-                    }
-                    if not status.available and name in ['python', 'uv', 'sqlite']:
-                        health_data["overall"] = "unhealthy"
+            # Initialize components
+            router = HealthCommandRouter()
 
-                print(json.dumps(health_data, indent=2))
-                return
+            # Parse and validate flags
+            try:
+                categories, options = router.parse_flags(
+                    system=system,
+                    services=services,
+                    config=config,
+                    projects=projects,
+                    format_type=format_type,
+                    verbose=verbose,
+                    quiet=quiet,
+                    timeout=timeout,
+                    parallel=parallel
+                )
+            except ValueError as e:
+                console = Console()
+                console.print(f"[red]Error: {e}[/red]")
+                console.print("Use [cyan]docbro health --help[/cyan] for usage information")
+                sys.exit(4)  # Invalid arguments exit code
 
-            console.print(f"📊 DocBro Health Check (v{__version__})\n")
+            # Initialize orchestrator with validated options
+            orchestrator = HealthOrchestrator(
+                timeout=options['timeout'],
+                max_parallel=options['parallel']
+            )
 
-            # Create health table
-            table = Table(title="Service Health Status", show_header=True, header_style="bold cyan")
-            table.add_column("Service", style="cyan", no_wrap=True, width=20)
-            table.add_column("Status", style="green", width=15)
-            table.add_column("Version", style="yellow", width=15)
-            if verbose:
-                table.add_column("Details", style="dim")
+            # Show progress if not in quiet mode
+            console = Console()
+            if not options['suppress_progress']:
+                category_names = [cat.display_name for cat in categories]
+                console.print(f"🔍 Running health checks for: {', '.join(category_names)}")
 
-            overall_healthy = True
-            required_healthy = True
-            optional_services = ['docker', 'qdrant', 'ollama']
+            # Execute health checks
+            try:
+                report = await orchestrator.run_comprehensive_health_check(categories)
+            except KeyboardInterrupt:
+                console.print("[yellow]Health check interrupted by user[/yellow]")
+                sys.exit(5)  # Interrupted exit code
 
-            for name, status in statuses.items():
-                # Determine status display
-                if status.available:
-                    status_text = "✅ Healthy"
-                    status_style = "green"
-                else:
-                    status_text = "❌ Unhealthy"
-                    status_style = "red"
-                    if name not in optional_services:
-                        required_healthy = False
-                    overall_healthy = False
+            # Generate output title
+            title = router.get_title_for_categories(categories)
 
-                # Format service name
-                service_name = name.title().replace('_', ' ')
-                if name in optional_services:
-                    service_name = f"{service_name} [dim](optional)[/dim]"
+            # Format and display results
+            output = orchestrator.health_reporter.format_output(
+                report=report,
+                format_type=options['format'].value,
+                detailed=options['show_detailed'],
+                title=title
+            )
 
-                version_text = status.version or "unknown"
+            # Print output
+            print(output.rstrip())  # Remove trailing newlines
 
-                if verbose:
-                    details = status.error_message if not status.available else "Running normally"
-                    if len(details) > 50:
-                        details = details[:47] + "..."
+            # Show resolution guidance if needed
+            if router.should_show_resolution_guidance(options, report.has_issues):
+                suggestions = orchestrator.health_reporter.get_resolution_suggestions(report)
+                if suggestions and not options['quiet']:
+                    console.print("\n[cyan]Resolution Guidance:[/cyan]")
+                    for suggestion in suggestions[:3]:  # Limit to top 3 suggestions
+                        console.print(f"  • {suggestion}")
 
-                    table.add_row(
-                        service_name,
-                        f"[{status_style}]{status_text}[/{status_style}]",
-                        version_text,
-                        details
-                    )
-                else:
-                    table.add_row(
-                        service_name,
-                        f"[{status_style}]{status_text}[/{status_style}]",
-                        version_text
-                    )
-
-            console.print(table)
-
-            # System resources check if verbose
-            if verbose:
-                console.print("\n[cyan]System Resources:[/cyan]")
-                try:
-                    import psutil
-
-                    # Memory
-                    mem = psutil.virtual_memory()
-                    mem_gb = mem.available / (1024**3)
-                    mem_status = "✅" if mem_gb >= 2 else "⚠️"
-                    console.print(f"  {mem_status} Memory: {mem_gb:.1f} GB available ({mem.percent:.1f}% used)")
-
-                    # Disk space
-                    disk = psutil.disk_usage('/')
-                    disk_gb = disk.free / (1024**3)
-                    disk_status = "✅" if disk_gb >= 1 else "⚠️"
-                    console.print(f"  {disk_status} Disk: {disk_gb:.1f} GB free ({disk.percent:.1f}% used)")
-
-                    # CPU
-                    cpu_count = psutil.cpu_count()
-                    console.print(f"  ℹ️ CPU: {cpu_count} cores available")
-                except ImportError:
-                    console.print("  [dim]Install psutil for system resource information[/dim]")
-
-            # Overall status
-            console.print("")
-            if required_healthy:
-                if overall_healthy:
-                    console.print("✅ [bold green]All services are healthy[/bold green]")
-                    console.print("[dim]DocBro is fully operational[/dim]")
-                else:
-                    console.print("✅ [bold green]Required services are healthy[/bold green]")
-                    console.print("⚠️  [yellow]Optional services unavailable (Qdrant/Ollama)[/yellow]")
-                    console.print("💡 Run [cyan]docbro services setup[/cyan] to enable optional features")
-            else:
-                console.print("❌ [bold red]Critical services are unhealthy[/bold red]")
-                console.print("💡 Run [cyan]docbro setup[/cyan] to fix installation issues")
-
-            # Show next steps
-            if not overall_healthy:
-                console.print("\n[cyan]Next steps:[/cyan]")
-                if 'docker' in statuses and not statuses['docker'].available:
-                    console.print("  1. Install Docker for Qdrant support")
-                if 'qdrant' in statuses and not statuses['qdrant'].available:
-                    console.print("  2. Run [cyan]docbro services setup qdrant[/cyan]")
-                if 'ollama' in statuses and not statuses['ollama'].available:
-                    console.print("  3. Run [cyan]docbro services setup ollama[/cyan]")
+            # Exit with appropriate code
+            sys.exit(report.exit_code)
 
         except Exception as e:
             console = Console()
-            console.print(f"❌ Health check failed: {e}")
-            raise click.ClickException(str(e))
+            if not quiet:
+                console.print(f"[red]Health check failed: {e}[/red]")
+                if verbose:
+                    import traceback
+                    console.print(f"[dim]{traceback.format_exc()}[/dim]")
 
-    run_async(_health_check())
+            # Check for import errors (likely missing dependencies)
+            if "No module named" in str(e):
+                console.print("[yellow]Tip: Try running 'docbro setup' to fix installation issues[/yellow]")
+
+            sys.exit(3)  # Unavailable exit code
+
+    run_async(_unified_health_check())
