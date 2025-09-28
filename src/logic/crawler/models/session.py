@@ -25,6 +25,7 @@ class CrawlSession(BaseModel):
 
     # Session configuration
     crawl_depth: int = Field(description="Maximum depth for this session")
+    current_depth: int = Field(default=0, ge=0, description="Current crawling depth")
     user_agent: str = Field(default="DocBro/1.0", description="User agent for requests")
     rate_limit: float = Field(default=1.0, ge=0.1, le=10.0, description="Requests per second")
     timeout: int = Field(default=30, ge=5, le=300, description="Request timeout in seconds")
@@ -41,6 +42,7 @@ class CrawlSession(BaseModel):
     pages_failed: int = Field(default=0, ge=0)
     pages_skipped: int = Field(default=0, ge=0)
     total_size_bytes: int = Field(default=0, ge=0)
+    queue_size: int = Field(default=0, ge=0, description="Current crawl queue size")
 
     # Error tracking
     error_message: Optional[str] = Field(default=None)
@@ -122,7 +124,9 @@ class CrawlSession(BaseModel):
         pages_crawled: Optional[int] = None,
         pages_failed: Optional[int] = None,
         pages_skipped: Optional[int] = None,
-        total_size_bytes: Optional[int] = None
+        total_size_bytes: Optional[int] = None,
+        current_depth: Optional[int] = None,
+        queue_size: Optional[int] = None
     ) -> None:
         """Update session progress."""
         if pages_discovered is not None:
@@ -135,6 +139,10 @@ class CrawlSession(BaseModel):
             self.pages_skipped = pages_skipped
         if total_size_bytes is not None:
             self.total_size_bytes = total_size_bytes
+        if current_depth is not None:
+            self.current_depth = current_depth
+        if queue_size is not None:
+            self.queue_size = queue_size
 
         self.updated_at = datetime.utcnow()
 
@@ -183,6 +191,7 @@ class CrawlSession(BaseModel):
             "project_id": self.project_id,
             "status": self.status.value,
             "crawl_depth": self.crawl_depth,
+            "current_depth": self.current_depth,
             "user_agent": self.user_agent,
             "rate_limit": self.rate_limit,
             "timeout": self.timeout,
@@ -195,6 +204,7 @@ class CrawlSession(BaseModel):
             "pages_failed": self.pages_failed,
             "pages_skipped": self.pages_skipped,
             "total_size_bytes": self.total_size_bytes,
+            "queue_size": self.queue_size,
             "error_message": self.error_message,
             "error_count": self.error_count,
             "max_errors": self.max_errors,

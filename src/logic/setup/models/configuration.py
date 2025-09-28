@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
 from pydantic import BaseModel, Field, field_validator, HttpUrl
-from src.models.settings import VectorStoreProvider
+from src.models.vector_store_types import VectorStoreProvider
 
 
 class SetupConfiguration(BaseModel):

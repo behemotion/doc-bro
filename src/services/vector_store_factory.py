@@ -6,7 +6,6 @@ from src.core.config import DocBroConfig
 from src.models.vector_store_types import VectorStoreProvider
 from src.services.sqlite_vec_service import SQLiteVecService, detect_sqlite_vec
 from src.services.vector_store import VectorStoreService, VectorStoreError
-from src.models.settings import GlobalSettings
 from src.services.settings_service import SettingsService
 
 logger = logging.getLogger(__name__)
@@ -22,8 +21,8 @@ class VectorStoreFactory:
         # If provider not specified, get from settings
         if provider is None:
             settings_service = SettingsService()
-            if settings_service.global_settings_path.exists():
-                settings = settings_service.get_global_settings()
+            if settings_service.settings_path.exists():
+                settings = settings_service.get_settings()
                 provider = settings.vector_store_provider
             else:
                 # Default to SQLite-vec if no settings
@@ -46,8 +45,8 @@ class VectorStoreFactory:
     def get_current_provider() -> VectorStoreProvider:
         """Get the currently configured vector store provider."""
         settings_service = SettingsService()
-        if settings_service.global_settings_path.exists():
-            settings = settings_service.get_global_settings()
+        if settings_service.settings_path.exists():
+            settings = settings_service.get_settings()
             return settings.vector_store_provider
         else:
             return VectorStoreProvider.SQLITE_VEC

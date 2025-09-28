@@ -1,15 +1,18 @@
-"""Configuration management for DocBro."""
+"""Unified configuration management for DocBro."""
 
 import os
 from enum import Enum
 from pathlib import Path
 from typing import Optional
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, field_validator
+from pydantic_settings import SettingsConfigDict
 try:
     from pydantic_settings import BaseSettings as PydanticBaseSettings
 except ImportError:
-    from pydantic import ConfigDict, BaseSettings as PydanticBaseSettings
+    from pydantic import BaseSettings as PydanticBaseSettings
+
+from src.models.vector_store_types import VectorStoreProvider
 
 
 class ServiceDeployment(str, Enum):
@@ -21,61 +24,67 @@ class ServiceDeployment(str, Enum):
 
 
 class DocBroConfig(PydanticBaseSettings):
-    """DocBro configuration with environment variable support."""
+    """DocBro unified configuration with environment variable support."""
 
     # Application settings
-    debug: bool = Field(default=False, env="DOCBRO_DEBUG")
+    debug: bool = Field(default=False)
     data_dir: Path = Field(default_factory=lambda: Path.home() / ".docbro")
 
     # Service deployment configuration
-    qdrant_deployment: ServiceDeployment = Field(default=ServiceDeployment.DOCKER, env="DOCBRO_QDRANT_DEPLOYMENT")
-    # Redis removed - no longer supported
-    ollama_deployment: ServiceDeployment = Field(default=ServiceDeployment.LOCAL, env="DOCBRO_OLLAMA_DEPLOYMENT")
+    qdrant_deployment: ServiceDeployment = Field(default=ServiceDeployment.DOCKER)
+    ollama_deployment: ServiceDeployment = Field(default=ServiceDeployment.LOCAL)
 
     # Vector store configuration
-    vector_store_provider: str = Field(default="qdrant", env="DOCBRO_VECTOR_STORE")  # "qdrant" or "sqlite_vec"
+    vector_store_provider: VectorStoreProvider = Field(
+        default=VectorStoreProvider.SQLITE_VEC
+    )
+    vector_storage: str = Field(
+        default="~/.local/share/docbro/vectors"
+    )
 
-    # Qdrant configuration
-    qdrant_url: str = Field(default="http://localhost:6333", env="DOCBRO_QDRANT_URL")
-    qdrant_api_key: Optional[str] = Field(default=None, env="DOCBRO_QDRANT_API_KEY")
-
-    # Redis removed - configuration no longer supported
-
-    # Ollama configuration
-    ollama_url: str = Field(default="http://localhost:11434", env="DOCBRO_OLLAMA_URL")
-    ollama_timeout: int = Field(default=300, env="DOCBRO_OLLAMA_TIMEOUT")
+    # Service URLs
+    qdrant_url: str = Field(default="http://localhost:6333")
+    qdrant_api_key: Optional[str] = Field(default=None)
+    ollama_url: str = Field(default="http://localhost:11434")
+    ollama_timeout: int = Field(default=300)
 
     # Crawling configuration
-    default_crawl_depth: int = Field(default=3, env="DOCBRO_DEFAULT_CRAWL_DEPTH")
-    default_rate_limit: float = Field(default=1.0, env="DOCBRO_DEFAULT_RATE_LIMIT")
-    max_page_size_mb: float = Field(default=10.0, env="DOCBRO_MAX_PAGE_SIZE_MB")
-    outdated_days: int = Field(default=60, env="DOCBRO_OUTDATED_DAYS")
+    crawl_depth: int = Field(default=2, ge=1, le=10)
+    rate_limit: float = Field(default=2.0, ge=0.1, le=10.0)
+    max_page_size_mb: float = Field(default=10.0)
+    outdated_days: int = Field(default=60)
+    max_retries: int = Field(default=3, ge=0, le=10)
+    timeout: int = Field(default=30, ge=5, le=300)
 
     # Embedding configuration
-    default_embedding_model: str = Field(default="mxbai-embed-large", env="DOCBRO_DEFAULT_EMBEDDING_MODEL")
-    embedding_model: str = Field(default="mxbai-embed-large", env="DOCBRO_EMBEDDING_MODEL")  # Alias for compatibility
-    chunk_size: int = Field(default=500, env="DOCBRO_CHUNK_SIZE")
-    chunk_overlap: int = Field(default=50, env="DOCBRO_CHUNK_OVERLAP")
+    embedding_model: str = Field(default="mxbai-embed-large")
+    chunk_size: int = Field(default=1000, ge=100, le=10000)  # Changed from 1500 to 1000
+    chunk_overlap: int = Field(default=100, ge=0, le=1000)
+
+    # RAG Configuration
+    rag_top_k: int = Field(default=5, ge=1, le=20)
+    rag_temperature: float = Field(default=0.7, ge=0.0, le=1.0)
 
     # MCP Server configuration
-    mcp_host: str = Field(default="localhost", env="DOCBRO_MCP_HOST")
-    mcp_port: int = Field(default=9382, env="DOCBRO_MCP_PORT")
-    mcp_auth_token: Optional[str] = Field(default=None, env="DOCBRO_MCP_AUTH_TOKEN")
+    mcp_host: str = Field(default="localhost")
+    mcp_port: int = Field(default=9382)
+    mcp_auth_token: Optional[str] = Field(default=None)
 
     # Database configuration
     database_url: str = Field(
-        default_factory=lambda: f"sqlite+aiosqlite:///{Path.home() / '.docbro' / 'docbro.db'}",
-        env="DOCBRO_DATABASE_URL"
+        default_factory=lambda: f"sqlite+aiosqlite:///{Path.home() / '.docbro' / 'docbro.db'}"
     )
 
     # Logging configuration
-    log_level: str = Field(default="WARNING", env="DOCBRO_LOG_LEVEL")
-    log_file: Optional[Path] = Field(default=None, env="DOCBRO_LOG_FILE")
+    log_level: str = Field(default="WARNING")
+    log_file: Optional[Path] = Field(default=None)
 
-    model_config = ConfigDict(
+    model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        case_sensitive=False
+        case_sensitive=False,
+        env_prefix="DOCBRO_",
+        validate_assignment=True
     )
 
     def __init__(self, **kwargs):
@@ -90,6 +99,27 @@ class DocBroConfig(PydanticBaseSettings):
         (self.data_dir / "logs").mkdir(exist_ok=True)
         (self.data_dir / "cache").mkdir(exist_ok=True)
         (self.data_dir / "exports").mkdir(exist_ok=True)
+
+    @field_validator("embedding_model")
+    @classmethod
+    def validate_embedding_model(cls, v: str) -> str:
+        """Validate embedding model name."""
+        allowed_models = {
+            "mxbai-embed-large",
+            "nomic-embed-text",
+            "all-minilm",
+            "bge-small-en"
+        }
+        if v not in allowed_models:
+            raise ValueError(f"Model must be one of: {allowed_models}")
+        return v
+
+    @field_validator("vector_storage")
+    @classmethod
+    def validate_storage_path(cls, v: str) -> str:
+        """Validate and expand storage path."""
+        path = Path(v).expanduser()
+        return str(path)
 
     @property
     def database_path(self) -> Path:
@@ -124,8 +154,6 @@ class DocBroConfig(PydanticBaseSettings):
         except Exception:
             availability["qdrant"] = False
 
-        # Redis removed - no longer checking for Redis availability
-
         # Check Ollama
         try:
             import httpx
@@ -153,13 +181,11 @@ class DocBroConfig(PydanticBaseSettings):
         ):
             return {
                 "qdrant": self.qdrant_deployment,
-                # Redis removed - no longer part of deployment strategy
                 "ollama": self.ollama_deployment,
             }
 
         # Auto-detection required
         availability = self.detect_service_availability()
-
         strategy = {}
 
         # Qdrant strategy
@@ -172,8 +198,6 @@ class DocBroConfig(PydanticBaseSettings):
                 strategy["qdrant"] = ServiceDeployment.DOCKER  # Default fallback
         else:
             strategy["qdrant"] = self.qdrant_deployment
-
-        # Redis removed - no longer part of deployment strategy
 
         # Ollama strategy (prefer local for better performance)
         if self.ollama_deployment == ServiceDeployment.AUTO:
@@ -188,7 +212,6 @@ class DocBroConfig(PydanticBaseSettings):
 
 
 # Global configuration instance
-# Initialize with defaults, will be updated from settings if available
 config = DocBroConfig()
 
 
@@ -200,44 +223,5 @@ def get_config() -> DocBroConfig:
 def reload_config() -> DocBroConfig:
     """Reload configuration from environment and files."""
     global config
-    try:
-        # Try to load from settings first
-        config = create_config_from_settings()
-    except Exception:
-        # Fallback to default if settings not available
-        config = DocBroConfig()
+    config = DocBroConfig()
     return config
-
-
-def create_config_from_settings() -> DocBroConfig:
-    """Create DocBroConfig with values from global settings."""
-    from src.services.settings_service import SettingsService
-
-    # Get global settings
-    settings_service = SettingsService()
-    global_settings = settings_service.get_global_settings()
-
-    # Create config with overrides from settings
-    config_dict = {}
-
-    # Map settings to config fields
-    if global_settings.chunk_size is not None:
-        config_dict['chunk_size'] = global_settings.chunk_size
-    if global_settings.chunk_overlap is not None:
-        config_dict['chunk_overlap'] = global_settings.chunk_overlap
-    if global_settings.embedding_model:
-        config_dict['embedding_model'] = global_settings.embedding_model
-        config_dict['default_embedding_model'] = global_settings.embedding_model
-    if global_settings.crawl_depth is not None:
-        config_dict['default_crawl_depth'] = global_settings.crawl_depth
-    if global_settings.rate_limit is not None:
-        config_dict['default_rate_limit'] = global_settings.rate_limit
-    if global_settings.qdrant_url:
-        config_dict['qdrant_url'] = global_settings.qdrant_url
-    if global_settings.ollama_url:
-        config_dict['ollama_url'] = global_settings.ollama_url
-    # Note: timeout and max_retries are in settings but not in DocBroConfig
-    # They could be added if needed, but for now we'll skip them
-
-    # Create config with settings values
-    return DocBroConfig(**config_dict)

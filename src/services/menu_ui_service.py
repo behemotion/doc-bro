@@ -12,7 +12,7 @@ from rich.layout import Layout
 from rich.live import Live
 
 from src.models.ui import SettingsMenuItem, MenuState, MenuConfig
-from src.models.settings import GlobalSettings
+from src.core.config import DocBroConfig
 
 
 class MenuUIService:
@@ -24,7 +24,7 @@ class MenuUIService:
         self.state = MenuState()
         self.config = MenuConfig(title="DocBro Settings")
 
-    def create_menu_items(self, settings: GlobalSettings) -> List[SettingsMenuItem]:
+    def create_menu_items(self, settings: DocBroConfig) -> List[SettingsMenuItem]:
         """Create menu items from settings."""
         items = []
 

@@ -102,6 +102,8 @@ class InteractiveMenu:
         elif key == "embedding_model":
             valid_models = ["mxbai-embed-large", "nomic-embed-text", "all-minilm"]
             return value in valid_models
+        elif key == "crawl_depth":
+            return isinstance(value, int) and 1 <= value <= 10
 
         return True
 
@@ -220,6 +222,7 @@ class InteractiveMenu:
         table.add_row("Vector Store", config.get("vector_store_provider", "Not set"))
         table.add_row("Ollama URL", config.get("ollama_url", "Not set"))
         table.add_row("Embedding Model", config.get("embedding_model", "Not set"))
+        table.add_row("Default Crawl Depth", str(config.get("crawl_depth", "3")))
 
         self.console.print(table)
 
@@ -227,6 +230,7 @@ class InteractiveMenu:
             NavigationChoice("vector_store", "Change Vector Store"),
             NavigationChoice("ollama_url", "Change Ollama URL"),
             NavigationChoice("embedding_model", "Change Embedding Model"),
+            NavigationChoice("crawl_depth", "Change Default Crawl Depth"),
             NavigationChoice("back", "Back to Main Menu")
         ]
 
@@ -239,7 +243,7 @@ class InteractiveMenu:
 
             if result == "back" or result is None:
                 return "back"
-            elif result in ["vector_store", "ollama_url", "embedding_model"]:
+            elif result in ["vector_store", "ollama_url", "embedding_model", "crawl_depth"]:
                 self._modify_config_value(result)
                 # Stay in menu after modification, reload config display
                 try:
@@ -253,6 +257,7 @@ class InteractiveMenu:
                     table.add_row("Vector Store", config.get("vector_store_provider", "Not set"))
                     table.add_row("Ollama URL", config.get("ollama_url", "Not set"))
                     table.add_row("Embedding Model", config.get("embedding_model", "Not set"))
+                    table.add_row("Default Crawl Depth", str(config.get("crawl_depth", "3")))
 
                     self.console.print(table)
                 except Exception:
@@ -290,6 +295,21 @@ class InteractiveMenu:
                 choices=["mxbai-embed-large", "nomic-embed-text", "all-minilm"],
                 default="mxbai-embed-large"
             )
+        elif key == "crawl_depth":
+            while True:
+                depth_str = Prompt.ask(
+                    "Enter default crawl depth (1-10)",
+                    default="2"
+                )
+                try:
+                    depth = int(depth_str)
+                    if 1 <= depth <= 10:
+                        new_value = depth
+                        break
+                    else:
+                        self.console.print("[red]Depth must be between 1 and 10[/red]")
+                except ValueError:
+                    self.console.print("[red]Please enter a valid number[/red]")
         else:
             return
 
