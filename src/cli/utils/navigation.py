@@ -48,7 +48,7 @@ class NavigationTheme:
     arrow_indicator: str = "→"  # Selection indicator
     box_style: str = "rounded"  # Box drawing style for panels
     number_hints: bool = True  # Show number shortcuts
-    vim_mode: bool = True  # Enable j/k navigation
+    vim_mode: bool = True  # Enable w/s navigation
 
 
 class ArrowNavigator:
@@ -106,9 +106,9 @@ class ArrowNavigator:
                 return 'help'
             elif ch.isdigit():
                 return ch
-            elif ch in 'jJ':  # Vim-style navigation
+            elif ch in 'sS':  # W/S navigation (down)
                 return 'down'
-            elif ch in 'kK':  # Vim-style navigation
+            elif ch in 'wW':  # W/S navigation (up)
                 return 'up'
             else:
                 return ch
@@ -136,9 +136,9 @@ class ArrowNavigator:
             - 'quit': quit navigation
             - 'help': show help
         """
-        if key in ['up', 'k', 'K']:
+        if key in ['up', 'w', 'W']:
             return (current_index - 1) % choices_count, None
-        elif key in ['down', 'j', 'J']:
+        elif key in ['down', 's', 'S']:
             return (current_index + 1) % choices_count, None
         elif key == 'enter':
             return current_index, 'select'
@@ -231,7 +231,7 @@ class ArrowNavigator:
         ]
 
         if vim_keys:
-            help_lines.insert(3, "• [cyan]j/k[/cyan] Vim keys - Navigate options")
+            help_lines.insert(3, "• [cyan]w/s[/cyan] W/S keys - Navigate options")
 
         help_lines.append("")
         help_lines.append("[dim]Press any key to continue...[/dim]")
@@ -303,7 +303,7 @@ class ArrowNavigator:
             if show_instructions:
                 instruction_parts = ["Use ↑/↓ arrows"]
                 if vim_keys:
-                    instruction_parts.append("or j/k")
+                    instruction_parts.append("or w/s")
                 instruction_parts.extend(["or numbers to navigate", "Enter to select", "? for help", "q to quit"])
                 instruction = ", ".join(instruction_parts)
                 self.console.print(f"\n[dim]{instruction}[/dim]")
@@ -411,7 +411,7 @@ class ArrowNavigator:
             if show_instructions:
                 instruction_parts = ["Use ↑/↓ arrows"]
                 if vim_keys:
-                    instruction_parts.append("or j/k")
+                    instruction_parts.append("or w/s")
                 instruction_parts.extend(["or numbers to navigate", "Enter to select", "? for help", "q to quit"])
                 instruction = ", ".join(instruction_parts)
                 self.console.print(f"\n[dim]{instruction}[/dim]")

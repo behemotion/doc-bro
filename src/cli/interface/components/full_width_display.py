@@ -86,6 +86,11 @@ class FullWidthProgressDisplay:
             project_name=project_name,
             processing_state=state
         )
+
+        # Update title to indicate embedding is running
+        if self.progress_box and state == ProcessingState.PROCESSING:
+            self.progress_box.title = f"Embedding is running - {project_name}"
+
         self._update_display()
 
     def show_embedding_error(self, error_message: str) -> None:

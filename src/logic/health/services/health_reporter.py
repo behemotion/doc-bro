@@ -208,3 +208,39 @@ class HealthReporter:
                 return True
 
         return False
+
+    def display_command_guide(self) -> str:
+        """Display quick start guide with common DocBro commands.
+
+        Returns:
+            Formatted table string with command guide
+        """
+        from rich.table import Table
+        from rich.console import Console
+
+        console = Console(file=None, force_terminal=False)
+
+        table = Table(title="[bold cyan]Quick Start Guide[/bold cyan]", show_header=True, header_style="bold magenta")
+        table.add_column("Command", style="yellow", width=35)
+        table.add_column("Description", style="green", width=45)
+        table.add_column("Example", style="dim", width=25)
+
+        # Core commands
+        table.add_row("docbro create <name> --url <url>", "Create a new documentation project", "docbro create myapi --url https://api.docs")
+        table.add_row("docbro crawl <name>", "Crawl and index documentation", "docbro crawl myapi")
+        table.add_row("docbro list", "List all projects", "docbro list --status ready")
+        table.add_row("docbro serve", "Start MCP server", "docbro serve --port 9382")
+
+        # Setup commands
+        table.add_row("docbro setup --init", "Initialize DocBro", "docbro setup --init --auto")
+        table.add_row("docbro setup --reset", "Reset installation", "docbro setup --reset")
+        table.add_row("docbro health", "Check system health", "docbro health")
+
+        # Advanced usage
+        table.add_row("docbro remove <name>", "Remove a project", "docbro remove myapi")
+        table.add_row("docbro crawl <name> --update", "Update existing project", "docbro crawl myapi --update")
+
+        with console.capture() as capture:
+            console.print(table)
+
+        return capture.get()

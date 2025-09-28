@@ -33,6 +33,37 @@ def confirm_action(
         return False
 
 
+def confirm_dangerous_action(
+    first_prompt: str,
+    second_prompt: str,
+    default: bool = False,
+    console: Optional[Console] = None
+) -> bool:
+    """Get double confirmation for dangerous actions with red text warning.
+
+    Args:
+        first_prompt: First confirmation prompt
+        second_prompt: Second confirmation prompt (shown in red)
+        default: Default value if user presses Enter
+        console: Optional Rich console
+
+    Returns:
+        True if both confirmations are accepted
+    """
+    console = console or Console()
+
+    try:
+        # First confirmation
+        if not Confirm.ask(first_prompt, default=default, console=console):
+            return False
+
+        # Second confirmation with red text
+        console.print(f"\n[bold red]{second_prompt}[/bold red]")
+        return Confirm.ask("[bold red]Are you absolutely sure?[/bold red]", default=False, console=console)
+    except (KeyboardInterrupt, EOFError):
+        return False
+
+
 def prompt_choice(
     prompt: str,
     choices: List[Tuple[str, str]],

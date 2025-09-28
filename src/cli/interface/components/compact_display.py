@@ -79,7 +79,12 @@ class CompactProgressDisplay:
             processing_state=state
         )
 
-        self.console.print()
+        # Update title to indicate embedding is running
+        if state == ProcessingState.PROCESSING:
+            self.current_title = f"Embedding is running - {project_name}"
+            self.console.print()
+            self.console.print(self.current_title)
+
         status_text = self.embedding_status.get_status_text()
         self.console.print(f"Embedding with: {model_name} {status_text}")
         self.console.print(f"Project: {project_name}")
