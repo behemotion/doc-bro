@@ -34,7 +34,7 @@ def initialize_services():
     from src.services.project_manager import ProjectManager
     from src.services.rag import RAGSearchService
     from src.services.vector_store_factory import VectorStoreFactory
-    from src.services.embedding import EmbeddingService
+    from src.services.embeddings import EmbeddingService
     from src.core.config import get_config
 
     # Get configuration
