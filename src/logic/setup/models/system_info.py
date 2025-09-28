@@ -107,8 +107,8 @@ class SystemInfoPanel:
                 "Embedding Model": getattr(settings, 'embedding_model', 'mxbai-embed-large'),
                 "Chunk Size": getattr(settings, 'chunk_size', 500),
                 "Chunk Overlap": getattr(settings, 'chunk_overlap', 50),
-                "Default Crawl Depth": getattr(settings, 'default_crawl_depth', 3),
-                "Default Rate Limit": getattr(settings, 'default_rate_limit', 1.0),
+                "Default Crawl Depth": getattr(settings, 'crawl_depth', 2),
+                "Default Rate Limit": getattr(settings, 'rate_limit', 2.0),
             }
 
             # Collect project count
