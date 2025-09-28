@@ -644,7 +644,7 @@ class DatabaseManager:
         # Check all project databases
         for project_name, project_conn in self._project_connections.items():
             cursor = await project_conn.execute("""
-                SELECT id, project_id, status, crawl_depth, current_depth, user_agent, rate_limit,
+                SELECT id, project_id, status, crawl_depth, current_depth, current_url, user_agent, rate_limit,
                        timeout, created_at, started_at, completed_at, updated_at,
                        pages_discovered, pages_crawled, pages_failed, pages_skipped,
                        total_size_bytes, queue_size, error_message, error_count, max_errors,
@@ -663,7 +663,7 @@ class DatabaseManager:
         for project_id, project_name in projects:
             project_conn = await self._get_project_connection(project_name)
             cursor = await project_conn.execute("""
-                SELECT id, project_id, status, crawl_depth, current_depth, user_agent, rate_limit,
+                SELECT id, project_id, status, crawl_depth, current_depth, current_url, user_agent, rate_limit,
                        timeout, created_at, started_at, completed_at, updated_at,
                        pages_discovered, pages_crawled, pages_failed, pages_skipped,
                        total_size_bytes, queue_size, error_message, error_count, max_errors,
@@ -786,7 +786,7 @@ class DatabaseManager:
         project_conn = await self._get_project_connection(project.name)
 
         sql = """
-            SELECT id, project_id, status, crawl_depth, current_depth, user_agent, rate_limit,
+            SELECT id, project_id, status, crawl_depth, current_depth, current_url, user_agent, rate_limit,
                    timeout, created_at, started_at, completed_at, updated_at,
                    pages_discovered, pages_crawled, pages_failed, pages_skipped,
                    total_size_bytes, queue_size, error_message, error_count, max_errors,
