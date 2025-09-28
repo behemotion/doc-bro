@@ -16,7 +16,7 @@ import uvicorn
 from src.core.config import DocBroConfig
 from src.core.lib_logger import get_component_logger
 from src.services.database import DatabaseManager
-from src.services.vector_store import VectorStoreService
+from src.services.vector_store_factory import VectorStoreFactory
 from src.services.embeddings import EmbeddingService
 from src.services.rag import RAGSearchService
 from src.models import Project, ProjectStatus
@@ -40,7 +40,7 @@ class MCPServer:
 
         # Services
         self.db_manager: Optional[DatabaseManager] = None
-        self.vector_store: Optional[VectorStoreService] = None
+        self.vector_store = None  # Will be created by factory
         self.embedding_service: Optional[EmbeddingService] = None
         self.rag_service: Optional[RAGSearchService] = None
         self.installation_service = InstallationStartService()
@@ -59,7 +59,8 @@ class MCPServer:
             self.db_manager = DatabaseManager(self.config)
             await self.db_manager.initialize()
 
-            self.vector_store = VectorStoreService(self.config)
+            # Use factory to create appropriate vector store based on settings
+            self.vector_store = VectorStoreFactory.create_vector_store(self.config)
             await self.vector_store.initialize()
 
             self.embedding_service = EmbeddingService(self.config)
