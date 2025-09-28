@@ -20,7 +20,7 @@ A next-generation CLI tool that transforms any documentation site into a searcha
 ### One-Command Installation:
 ```bash
 # Install globally with UV (< 30 seconds)
-uvx install git+https://github.com/behemotion/doc-bro
+uv tool install git+https://github.com/behemotion/doc-bro
 
 # Run interactive setup with universal arrow navigation
 docbro setup
@@ -31,7 +31,7 @@ docbro setup
 ## ✨ Key Features
 
 ### 🎯 Core Capabilities
-- **30-Second Setup**: Single `uvx install` command with automatic configuration
+- **30-Second Setup**: Single `uv tool install` command with automatic configuration
 - **Dual Vector Storage**: Choose between SQLite-vec (local, zero deps) or Qdrant (scalable)
 - **Universal Navigation**: Consistent arrow keys, vim keys (j/k), and number selection across all interfaces
 - **Smart Crawling**: Intelligent rate limiting, robots.txt compliance, asset filtering, depth control
@@ -65,8 +65,8 @@ docbro setup
 ### Production Installation (Recommended)
 
 ```bash
-# Single command installation with UVX
-uvx install git+https://github.com/behemotion/doc-bro
+# Single command installation with UV
+uv tool install git+https://github.com/behemotion/doc-bro
 
 # Interactive setup with arrow navigation
 docbro setup

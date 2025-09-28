@@ -106,10 +106,12 @@ These services are optional but recommended for full functionality:
 ### UV (Recommended)
 ```bash
 # Global installation
-uvx --from git+https://github.com/behemotion/doc-bro docbro --help
+uv tool install git+https://github.com/behemotion/doc-bro
+docbro --help
 
-# With specific Python version
-uvx --python 3.13.6 --from git+https://github.com/behemotion/doc-bro docbro init
+# With specific Python version (install then run)
+uv tool install --python 3.13 git+https://github.com/behemotion/doc-bro
+docbro init
 ```
 
 ### Development Setup
