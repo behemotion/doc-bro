@@ -35,10 +35,10 @@ def get_app():
 @click.command(name="create")
 @click.argument("name", required=False)
 @click.option("--url", "-u", help="Source URL to crawl (quote URLs with special characters)")
-@click.option("--depth", "-d", default=2, type=int, help="Maximum crawl depth")
+@click.option("--depth", "-d", type=int, help="Maximum crawl depth (uses system default if not specified)")
 @click.option("--model", "-m", default="mxbai-embed-large", help="Embedding model")
 @click.pass_context
-def create(ctx: click.Context, name: Optional[str], url: Optional[str], depth: int, model: str):
+def create(ctx: click.Context, name: Optional[str], url: Optional[str], depth: Optional[int], model: str):
     """Create a new documentation project.
 
     Note: URLs with special characters (?, &, etc.) must be quoted:
@@ -55,6 +55,20 @@ def create(ctx: click.Context, name: Optional[str], url: Optional[str], depth: i
     async def _create():
         app = get_app()
 
+        # Load system default crawl depth if not specified
+        if depth is None:
+            # Try to load from settings file first
+            from src.logic.setup.services.configurator import SetupConfigurator
+            configurator = SetupConfigurator()
+            try:
+                config = configurator.load_config()
+                system_depth = config.get("crawl_depth", app.config.default_crawl_depth)
+            except:
+                # Fall back to config default
+                system_depth = app.config.default_crawl_depth
+        else:
+            system_depth = depth
+
         # If no name provided, launch interactive wizard
         if not name:
             from src.services.wizard_manager import WizardManager
@@ -69,7 +83,7 @@ def create(ctx: click.Context, name: Optional[str], url: Optional[str], depth: i
             # Use wizard results
             name_to_use = project_config["name"]
             url_to_use = project_config["url"]
-            depth_to_use = project_config.get("depth", depth)
+            depth_to_use = project_config.get("depth", system_depth)
             model_to_use = project_config.get("model", model)
         else:
             # Support lazy creation - URL is optional when name is provided
@@ -84,7 +98,7 @@ def create(ctx: click.Context, name: Optional[str], url: Optional[str], depth: i
                 url_to_use = url
 
             name_to_use = name
-            depth_to_use = depth
+            depth_to_use = system_depth
             model_to_use = model
 
         await app.initialize()
