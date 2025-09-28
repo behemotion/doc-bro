@@ -7,17 +7,10 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.prompt import Prompt, Confirm
 from src.logic.setup.models.menu_state import MenuState
+from src.cli.utils.navigation import ArrowNavigator, NavigationChoice
 from src.core.lib_logger import get_logger
 
 logger = get_logger(__name__)
-
-# Platform-specific imports
-try:
-    import termios
-    import tty
-    HAS_TERMIOS = True
-except ImportError:
-    HAS_TERMIOS = False
 
 
 class InteractiveMenu:
@@ -31,9 +24,7 @@ class InteractiveMenu:
         """
         self.console = console or Console()
         self.state = MenuState()
-        self.options: List[str] = []
-        self.current_index = 0
-        self._use_keyboard_navigation = sys.stdin.isatty() and HAS_TERMIOS
+        self.navigator = ArrowNavigator(console=self.console)
 
     def run(self) -> Optional[str]:
         """Run the interactive menu.
@@ -42,195 +33,14 @@ class InteractiveMenu:
             Selected operation or None if cancelled
         """
         try:
-            while True:
-                self.clear_screen()
-                selection = self._show_current_menu()
-
-                if selection == "exit":
-                    return None
-                elif selection == "back":
-                    if self.state.is_at_root():
-                        return None
-                    self.state.go_back()
-                elif selection in ["initialize", "uninstall", "reset"]:
-                    return selection
-                elif selection == "configuration":
-                    self._handle_configuration()
-                else:
-                    # Navigate to submenu
-                    self.state.push_menu(selection)
-
+            selection = self._show_main_menu()
+            return selection
         except KeyboardInterrupt:
             return None
         except Exception as e:
             logger.error(f"Menu error: {e}")
             return None
 
-    def display_main_menu(self) -> None:
-        """Display the main menu."""
-        self.console.print("\n[bold cyan]DocBro Setup Menu[/bold cyan]\n")
-
-        options = [
-            ("1", "Initialize DocBro", "initialize"),
-            ("2", "Modify Configuration", "configuration"),
-            ("3", "Uninstall DocBro", "uninstall"),
-            ("4", "Reset Installation", "reset"),
-            ("5", "Exit", "exit")
-        ]
-
-        table = Table(show_header=False, show_edge=False)
-        table.add_column("Key", style="yellow")
-        table.add_column("Option")
-
-        for i, (key, label, _) in enumerate(options):
-            if self.current_index == i:
-                table.add_row(f"→ {key}", f"[bold bright_white on blue] {label} [/bold bright_white on blue]")
-            else:
-                table.add_row(f"  {key}", label)
-
-        self.console.print(table)
-
-    def display_configuration_menu(self) -> None:
-        """Display configuration modification menu."""
-        self.console.print("\n[bold cyan]Configuration Settings[/bold cyan]\n")
-
-        # Load current configuration
-        from src.logic.setup.services.configurator import SetupConfigurator
-        configurator = SetupConfigurator()
-
-        try:
-            config = configurator.load_config()
-        except FileNotFoundError:
-            self.console.print("[red]No configuration found. Please initialize first.[/red]")
-            self.console.print("\nPress Enter to go back...")
-            input()
-            self.state.go_back()
-            return
-
-        # Display current settings
-        table = Table(show_header=True)
-        table.add_column("Setting", style="cyan")
-        table.add_column("Current Value", style="green")
-
-        table.add_row("Vector Store", config.get("vector_store_provider", "Not set"))
-        table.add_row("Ollama URL", config.get("ollama_url", "Not set"))
-        table.add_row("Embedding Model", config.get("embedding_model", "Not set"))
-
-        self.console.print(table)
-
-        options = [
-            ("1", "Change Vector Store", "vector_store"),
-            ("2", "Change Ollama URL", "ollama_url"),
-            ("3", "Change Embedding Model", "embedding_model"),
-            ("4", "Back to Main Menu", "back")
-        ]
-
-        self.console.print("\n[yellow]Select an option:[/yellow]")
-        options_table = Table(show_header=False, show_edge=False)
-        options_table.add_column("Key", style="yellow")
-        options_table.add_column("Option")
-
-        for i, (key, label, _) in enumerate(options):
-            if self.current_index == i:
-                options_table.add_row(f"→ {key}", f"[bold bright_white on blue] {label} [/bold bright_white on blue]")
-            else:
-                options_table.add_row(f"  {key}", label)
-
-        self.console.print(options_table)
-
-    def _get_char(self) -> str:
-        """Get a single character from stdin without Enter.
-
-        Returns:
-            Character pressed or special key name
-        """
-        if not self._use_keyboard_navigation or not HAS_TERMIOS:
-            # Fallback for non-TTY environments or platforms without termios
-            return input().strip()
-
-        fd = sys.stdin.fileno()
-        old_settings = termios.tcgetattr(fd)
-
-        try:
-            tty.setraw(sys.stdin.fileno())
-            ch = sys.stdin.read(1)
-
-            # Handle escape sequences (arrow keys)
-            if ch == '\x1b':  # ESC
-                ch2 = sys.stdin.read(1)
-                if ch2 == '[':
-                    ch3 = sys.stdin.read(1)
-                    if ch3 == 'A':
-                        return 'up'
-                    elif ch3 == 'B':
-                        return 'down'
-                    elif ch3 == 'C':
-                        return 'right'
-                    elif ch3 == 'D':
-                        return 'left'
-                return 'escape'
-            elif ch == '\r' or ch == '\n':
-                return 'enter'
-            elif ch == '\x03':  # Ctrl+C
-                raise KeyboardInterrupt
-            elif ch == 'q':
-                return 'quit'
-            elif ch == '?':
-                return 'help'
-            elif ch.isdigit():
-                return ch
-            else:
-                return ch
-
-        finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-
-    def handle_key(self, key: str) -> Optional[str]:
-        """Handle keyboard input.
-
-        Args:
-            key: Key pressed
-
-        Returns:
-            Selected option or None
-        """
-        if key == "down":
-            self.current_index = (self.current_index + 1) % len(self.options)
-        elif key == "up":
-            self.current_index = (self.current_index - 1) % len(self.options)
-        elif key == "enter":
-            if self.options:
-                return self.options[self.current_index]
-        elif key == "escape" or key == "quit":
-            return "back" if not self.state.is_at_root() else "exit"
-        elif key == "?":
-            self.display_help()
-        elif key.isdigit():
-            # Allow direct number selection as fallback
-            idx = int(key) - 1
-            if 0 <= idx < len(self.options):
-                return self.options[idx]
-
-        return None
-
-    def display_help(self) -> None:
-        """Display help information."""
-        help_text = """
-[bold yellow]Navigation Help[/bold yellow]
-
-• [cyan]↑/↓[/cyan] Arrow keys - Navigate menu options
-• [cyan]1-5[/cyan] Numbers - Direct option selection
-• [cyan]Enter[/cyan] - Select highlighted option
-• [cyan]Escape[/cyan] or [cyan]q[/cyan] - Go back/quit
-• [cyan]?[/cyan] - Show this help
-
-[dim]Press any key to continue...[/dim]
-"""
-        self.console.print(Panel(help_text, title="Help", border_style="cyan"))
-        if self._use_keyboard_navigation:
-            self._get_char()
-        else:
-            input()
 
     def render(self) -> None:
         """Render the current menu state."""
@@ -352,36 +162,19 @@ class InteractiveMenu:
         Returns:
             Selected option
         """
-        # Setup menu options
-        self.options = ["initialize", "configuration", "uninstall", "reset", "exit"]
-        self.current_index = 0
+        choices = [
+            NavigationChoice("initialize", "Initialize DocBro"),
+            NavigationChoice("configuration", "Modify Configuration"),
+            NavigationChoice("uninstall", "Uninstall DocBro"),
+            NavigationChoice("reset", "Reset Installation"),
+            NavigationChoice("exit", "Exit")
+        ]
 
-        while True:
-            self.clear_screen()
-            self.display_main_menu()
-
-            if self._use_keyboard_navigation:
-                self.console.print("\n[dim]Use ↑/↓ arrows or numbers to navigate, Enter to select, ? for help, q to quit[/dim]")
-                key = self._get_char()
-            else:
-                # Fallback to numbered input for non-TTY environments
-                choice = Prompt.ask(
-                    "\n[yellow]Select an option[/yellow]",
-                    choices=["1", "2", "3", "4", "5"],
-                    default="5"
-                )
-                option_map = {
-                    "1": "initialize",
-                    "2": "configuration",
-                    "3": "uninstall",
-                    "4": "reset",
-                    "5": "exit"
-                }
-                return option_map.get(choice)
-
-            result = self.handle_key(key)
-            if result:
-                return result
+        return self.navigator.navigate_menu(
+            title="DocBro Setup Menu",
+            menu_items=choices,
+            default_index=0
+        )
 
     def _show_configuration_menu(self) -> Optional[str]:
         """Show configuration menu and get selection.
@@ -389,43 +182,64 @@ class InteractiveMenu:
         Returns:
             Selected option
         """
-        # Setup menu options
-        self.options = ["vector_store", "ollama_url", "embedding_model", "back"]
-        self.current_index = 0
+        # Load current configuration for display
+        from src.logic.setup.services.configurator import SetupConfigurator
+        configurator = SetupConfigurator()
+
+        try:
+            config = configurator.load_config()
+        except FileNotFoundError:
+            self.console.print("[red]No configuration found. Please initialize first.[/red]")
+            self.console.print("\nPress Enter to go back...")
+            input()
+            return "back"
+
+        # Display current settings
+        self.console.print("\n[bold cyan]Configuration Settings[/bold cyan]\n")
+        table = Table(show_header=True)
+        table.add_column("Setting", style="cyan")
+        table.add_column("Current Value", style="green")
+
+        table.add_row("Vector Store", config.get("vector_store_provider", "Not set"))
+        table.add_row("Ollama URL", config.get("ollama_url", "Not set"))
+        table.add_row("Embedding Model", config.get("embedding_model", "Not set"))
+
+        self.console.print(table)
+
+        choices = [
+            NavigationChoice("vector_store", "Change Vector Store"),
+            NavigationChoice("ollama_url", "Change Ollama URL"),
+            NavigationChoice("embedding_model", "Change Embedding Model"),
+            NavigationChoice("back", "Back to Main Menu")
+        ]
 
         while True:
-            self.clear_screen()
-            self.display_configuration_menu()
+            result = self.navigator.navigate_choices(
+                prompt="Select an option:",
+                choices=choices,
+                default="back"
+            )
 
-            if self._use_keyboard_navigation:
-                self.console.print("\n[dim]Use ↑/↓ arrows or numbers to navigate, Enter to select, ? for help, q to quit[/dim]")
-                key = self._get_char()
-            else:
-                # Fallback to numbered input for non-TTY environments
-                choice = Prompt.ask(
-                    "\n[yellow]Select an option[/yellow]",
-                    choices=["1", "2", "3", "4"],
-                    default="4"
-                )
-                if choice == "4":
-                    return "back"
-
-                option_map = {
-                    "1": "vector_store",
-                    "2": "ollama_url",
-                    "3": "embedding_model"
-                }
-                config_key = option_map.get(choice)
-                if config_key:
-                    self._modify_config_value(config_key)
-                continue
-
-            result = self.handle_key(key)
-            if result == "back":
+            if result == "back" or result is None:
                 return "back"
             elif result in ["vector_store", "ollama_url", "embedding_model"]:
                 self._modify_config_value(result)
-                # Stay in menu after modification
+                # Stay in menu after modification, reload config display
+                try:
+                    config = configurator.load_config()
+                    self.console.clear()
+                    self.console.print("\n[bold cyan]Configuration Settings[/bold cyan]\n")
+                    table = Table(show_header=True)
+                    table.add_column("Setting", style="cyan")
+                    table.add_column("Current Value", style="green")
+
+                    table.add_row("Vector Store", config.get("vector_store_provider", "Not set"))
+                    table.add_row("Ollama URL", config.get("ollama_url", "Not set"))
+                    table.add_row("Embedding Model", config.get("embedding_model", "Not set"))
+
+                    self.console.print(table)
+                except Exception:
+                    pass  # Continue even if config reload fails
                 continue
 
     def _handle_configuration(self) -> None:
