@@ -1145,7 +1145,7 @@ class DatabaseManager:
 
         try:
             # First get project info to get the project name
-            project = await self.get_project_by_id(project_id)
+            project = await self.get_project(project_id)
             if not project:
                 return {"success": False, "error": "Project not found"}
 
