@@ -142,36 +142,55 @@ def crawl(ctx: click.Context, name: Optional[str], url: Optional[str], max_pages
                 original_depth = project.crawl_depth
                 project.crawl_depth = depth
 
-            # Use simple progress display
-            from src.logic.crawler.utils.progress import CrawlProgressDisplay
+            # Use standardized progress display
+            from src.cli.interface.factories.progress_factory import ProgressFactory
+            from src.cli.interface.models.enums import ProcessingState, CompletionStatus
             from src.logic.crawler.analytics.reporter import ErrorReporter
 
             error_reporter = ErrorReporter(project_name=name)
 
             if not debug and not ctx.obj.get("no_progress"):
-                # Use the new crawl progress display
-                progress_display = CrawlProgressDisplay(
-                    project_name=name,
-                    max_depth=project.crawl_depth,
-                    max_pages=max_pages
-                )
+                # Create standardized progress display
+                progress_coordinator = ProgressFactory.get_default_coordinator()
 
-                with progress_display:
+                # Start operation display
+                progress_coordinator.start_operation(f"Crawling {name}", name)
+
+                try:
                     # Start crawl
                     session = await app.crawler.start_crawl(
                         project_id=project.id,
                         rate_limit=rate_limit,
                         max_pages=max_pages,
-                        progress_display=progress_display,
+                        progress_display=None,  # We'll handle progress through coordinator
                         error_reporter=error_reporter
                     )
 
-                    # Wait for completion
+                    # Progress monitoring loop
                     while True:
                         await asyncio.sleep(1.0)
                         session = await app.db_manager.get_crawl_session(session.id)
-                        if not session or session.is_completed():
+                        if not session:
                             break
+
+                        # Update progress metrics
+                        progress_coordinator.update_metrics({
+                            "depth": f"{session.current_depth}/{project.crawl_depth}",
+                            "pages_crawled": session.pages_crawled,
+                            "errors": session.error_count,
+                            "queue": session.queue_size or 0
+                        })
+
+                        # Update current operation if we have current page info
+                        if hasattr(session, 'current_url') and session.current_url:
+                            progress_coordinator.set_current_operation(f"Processing {session.current_url}")
+
+                        if session.is_completed():
+                            break
+                except Exception as e:
+                    # Show error in progress display before propagating
+                    progress_coordinator.show_embedding_error(f"Crawl failed: {str(e)}")
+                    raise
             else:
                 # Debug mode or no progress - simple output
                 session = await app.crawler.start_crawl(
@@ -232,10 +251,12 @@ def crawl(ctx: click.Context, name: Optional[str], url: Optional[str], max_pages
                 except Exception as e:
                     app.console.print(f"[yellow]⚠ Warning: Failed to update project statistics: {e}[/yellow]")
 
-                # Index crawled pages for search
+                # Index crawled pages for search using standardized progress display
                 indexed_chunks_count = 0
-                if session.pages_crawled > 0:
-                    app.console.print("\n[cyan]Indexing pages for search...[/cyan]")
+                if session.pages_crawled > 0 and not debug and not ctx.obj.get("no_progress"):
+                    # Show embedding status in progress display
+                    embedding_model = getattr(app.rag_service, 'embedding_model', 'mxbai-embed-large')
+                    progress_coordinator.show_embedding_status(embedding_model, name, ProcessingState.PROCESSING)
 
                     # Get crawled pages
                     pages = await app.db_manager.get_project_pages(project.id)
@@ -256,54 +277,38 @@ def crawl(ctx: click.Context, name: Optional[str], url: Optional[str], max_pages
                     if documents:
                         collection_name = f"project_{project.id}"
 
-                        # Progress tracking variables
-                        embedding_task = None
-                        progress = None
-
                         def progress_callback(event_type: str, data: dict):
-                            nonlocal embedding_task, progress, indexed_chunks_count
+                            nonlocal indexed_chunks_count
 
                             if event_type == "indexing_started":
-                                app.console.print(f"[cyan]Processing {data['total_documents']} documents into ~{data['estimated_chunks']} chunks[/cyan]")
-                                progress = Progress(
-                                    SpinnerColumn(),
-                                    TextColumn("[progress.description]{task.description}"),
-                                    BarColumn(),
-                                    TaskProgressColumn(),
-                                    TimeElapsedColumn(),
-                                    console=app.console
-                                )
-                                progress.start()
-                                embedding_task = progress.add_task(
-                                    "Creating embeddings...",
-                                    total=data['estimated_chunks']
+                                progress_coordinator.show_embedding_status(
+                                    embedding_model, name, ProcessingState.PROCESSING
                                 )
 
                             elif event_type == "embedding_progress":
-                                if progress and embedding_task is not None:
-                                    progress.update(
-                                        embedding_task,
-                                        completed=data['current_chunk'],
-                                        description=f"Embedding '{data['document_title'][:30]}...' ({data['current_document']}/{data['total_documents']})"
-                                    )
+                                # Update current operation to show embedding progress
+                                doc_title = data.get('document_title', 'document')[:30]
+                                current_doc = data.get('current_document', 0)
+                                total_docs = data.get('total_documents', 0)
+                                progress_coordinator.set_current_operation(
+                                    f"Embedding '{doc_title}...' ({current_doc}/{total_docs})"
+                                )
 
                             elif event_type == "storing_embeddings":
-                                if progress and embedding_task is not None:
-                                    progress.update(
-                                        embedding_task,
-                                        description=f"Storing {data['total_embeddings']} embeddings to vector database..."
-                                    )
+                                total_embeddings = data.get('total_embeddings', 0)
+                                progress_coordinator.set_current_operation(
+                                    f"Storing {total_embeddings} embeddings to vector database..."
+                                )
 
                             elif event_type == "indexing_completed":
-                                if progress:
-                                    progress.stop()
                                 indexed_chunks_count = data['chunks_indexed']
-                                app.console.print(f"[green]✓[/green] Successfully indexed {data['chunks_indexed']} chunks from {data['original_documents']} documents")
+                                progress_coordinator.show_embedding_status(
+                                    embedding_model, name, ProcessingState.COMPLETE
+                                )
 
                             elif event_type == "indexing_failed":
-                                if progress:
-                                    progress.stop()
-                                app.console.print(f"[red]✗[/red] Indexing failed: {data['error']}")
+                                error_msg = data.get('error', 'Unknown error')
+                                progress_coordinator.show_embedding_error(f"Indexing failed: {error_msg}")
 
                         try:
                             indexed = await app.rag_service.index_documents(
@@ -311,18 +316,80 @@ def crawl(ctx: click.Context, name: Optional[str], url: Optional[str], max_pages
                             )
 
                         except Exception as e:
-                            if progress:
-                                progress.stop()
+                            progress_coordinator.show_embedding_error(f"Indexing failed: {e}")
+                            raise
+                elif session.pages_crawled > 0:
+                    # Handle indexing in debug mode or no progress mode
+                    app.console.print("\n[cyan]Indexing pages for search...[/cyan]")
+                    pages = await app.db_manager.get_project_pages(project.id)
+                    documents = [
+                        {
+                            "id": page.id,
+                            "title": page.title or "Untitled",
+                            "content": page.content_text or "",
+                            "url": page.url,
+                            "project": project.name,
+                            "project_id": project.id
+                        }
+                        for page in pages
+                        if page.content_text
+                    ]
+                    if documents:
+                        collection_name = f"project_{project.id}"
+                        try:
+                            indexed = await app.rag_service.index_documents(collection_name, documents)
+                            indexed_chunks_count = getattr(indexed, 'chunks_indexed', len(documents))
+                            app.console.print(f"[green]✓[/green] Successfully indexed {indexed_chunks_count} chunks")
+                        except Exception as e:
                             app.console.print(f"[red]✗[/red] Indexing failed: {e}")
                             raise
 
-            # Final completion summary
-            app.console.print("\n" + "="*60)
-            app.console.print("[bold green]🎉 CRAWL AND INDEXING COMPLETED SUCCESSFULLY 🎉[/bold green]")
-            app.console.print("="*60)
-
-            if session:
+            # Use standardized completion summary
+            if session and not debug and not ctx.obj.get("no_progress"):
                 # Calculate final statistics
+                total_time = session.get_duration()
+
+                # Get final document count
+                final_pages = await app.db_manager.get_project_pages(project.id) if session.pages_crawled > 0 else []
+                documents_with_content = [p for p in final_pages if p.content_text]
+
+                # Prepare success metrics
+                success_metrics = {
+                    "pages_crawled": session.pages_crawled,
+                    "pages_failed": session.pages_failed,
+                    "documents_indexed": len(documents_with_content),
+                    "chunks_created": indexed_chunks_count,
+                    "url": project.source_url
+                }
+
+                # Determine completion status
+                if session.pages_failed == 0:
+                    completion_status = CompletionStatus.SUCCESS
+                elif session.pages_crawled > session.pages_failed:
+                    completion_status = CompletionStatus.PARTIAL_SUCCESS
+                else:
+                    completion_status = CompletionStatus.FAILURE
+
+                # Show standardized completion summary
+                progress_coordinator.complete_operation(
+                    project_name=name,
+                    operation_type="crawl",
+                    duration=total_time,
+                    success_metrics=success_metrics,
+                    status=completion_status
+                )
+
+                # Add next steps hint
+                app.console.print("\n[cyan]Next steps:[/cyan]")
+                app.console.print("  1. Start MCP server: [cyan]docbro serve[/cyan]")
+                app.console.print("  2. Search documentation: Use Claude or other MCP clients")
+
+            elif session:
+                # Fallback for debug mode - show simplified completion
+                app.console.print("\n" + "="*60)
+                app.console.print("[bold green]🎉 CRAWL AND INDEXING COMPLETED SUCCESSFULLY 🎉[/bold green]")
+                app.console.print("="*60)
+
                 total_time = session.get_duration()
                 success_rate = ((session.pages_crawled - session.pages_failed) / session.pages_crawled * 100) if session.pages_crawled > 0 else 0
 
@@ -334,21 +401,14 @@ def crawl(ctx: click.Context, name: Optional[str], url: Optional[str], max_pages
                 app.console.print(f"[bold]Success Rate:[/bold] {success_rate:.1f}%")
 
                 if session.pages_crawled > 0:
-                    # Get final document count
                     final_pages = await app.db_manager.get_project_pages(project.id)
                     documents_with_content = [p for p in final_pages if p.content_text]
-
                     app.console.print(f"[bold]Documents Indexed:[/bold] {len(documents_with_content)}")
                     if indexed_chunks_count > 0:
                         app.console.print(f"[bold]Chunks Created:[/bold] {indexed_chunks_count}")
 
                 app.console.print(f"[bold]Status:[/bold] [green]Ready for search[/green]")
-
-            app.console.print("="*60)
-            app.console.print(f"[dim]Project '{name}' is now ready for use[/dim]")
-            app.console.print("\n[cyan]Next steps:[/cyan]")
-            app.console.print("  1. Start MCP server: [cyan]docbro serve[/cyan]")
-            app.console.print("  2. Search documentation: Use Claude or other MCP clients")
+                app.console.print("="*60)
 
         except Exception as e:
             app.console.print(f"[red]✗ Failed during crawl: {e}[/red]")

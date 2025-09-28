@@ -342,6 +342,15 @@ from src.cli.commands.health import health
 from src.cli.commands.setup import setup
 # Legacy commands removed - functionality moved to unified health command
 
+# Initialize CLI interface components (for standardized progress displays)
+try:
+    from src.cli.interface.factories.progress_factory import ProgressFactory
+    # Pre-warm the progress factory for better performance
+    ProgressFactory()
+except ImportError:
+    # Interface components not available - CLI will still work without standardized progress
+    pass
+
 # Add commands to main group
 main.add_command(create)
 main.add_command(list_command, name="list")
