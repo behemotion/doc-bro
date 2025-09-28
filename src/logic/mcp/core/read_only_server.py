@@ -7,7 +7,7 @@ from typing import Dict, Any, Optional, List
 
 from src.logic.mcp.models.response import McpResponse
 from src.logic.mcp.services.read_only import ReadOnlyMcpService
-from src.services.project_manager import ProjectManager
+from src.logic.projects.core.project_manager import ProjectManager
 from src.services.rag import RAGSearchService
 
 logger = logging.getLogger(__name__)
@@ -26,12 +26,12 @@ search_service = None   # Will be injected
 read_only_service = None  # Will be injected
 
 
-def initialize_services():
+async def initialize_services():
     """Initialize services for the read-only server."""
     global project_service, search_service, read_only_service
 
     # Initialize services with proper dependencies
-    from src.services.project_manager import ProjectManager
+    from src.logic.projects.core.project_manager import ProjectManager
     from src.services.rag import RAGSearchService
     from src.services.vector_store_factory import VectorStoreFactory
     from src.services.embeddings import EmbeddingService
@@ -46,6 +46,16 @@ def initialize_services():
 
     # Initialize main services
     project_service = ProjectManager()
+    logger.info(f"ProjectManager initialized with data directory: {project_service.data_directory}")
+    logger.info(f"ProjectManager registry path: {project_service.registry_path}")
+    await project_service._ensure_db_initialized()
+
+    # Test project listing for debugging
+    projects = await project_service.list_projects()
+    logger.info(f"Projects found: {len(projects)}")
+    for project in projects:
+        logger.info(f"  - {project.name} ({project.type})")
+
     search_service = RAGSearchService(vector_store, embedding_service, config)
     read_only_service = ReadOnlyMcpService(project_service, search_service)
 
@@ -53,7 +63,7 @@ def initialize_services():
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup."""
-    initialize_services()
+    await initialize_services()
     logger.info("Read-only MCP server started")
 
 
