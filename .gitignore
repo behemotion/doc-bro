@@ -1,4 +1,4 @@
-# Python
+# Python build and runtime
 __pycache__/
 *.py[cod]
 *$py.class
@@ -10,80 +10,110 @@ dist/
 downloads/
 eggs/
 .eggs/
-/lib/
+lib/
 lib64/
 parts/
 sdist/
 var/
 wheels/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+.env
+
+# Testing artifacts (keep tests/ directory but ignore artifacts)
 .pytest_cache/
 .coverage
 htmlcov/
 .tox/
 .nox/
-.coverage.*
-.cache
-nosetests.xml
 coverage.xml
 *.cover
+*.py,cover
 .hypothesis/
+nosetests.xml
+test_results.log
+*.log
 
-# Virtual Environment
-venv/
-ENV/
-env/
-.venv
-
-# IDE
+# IDE and editor files
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 .DS_Store
+Thumbs.db
 
-# Project specific
-data/
-*.db
-*.sqlite
-*.sqlite3
-logs/
-*.log
+# Cache directories
+.cache/
+.ruff_cache/
+.mypy_cache/
+*cache*/
 
-# Documentation
+# Development and tooling artifacts
+.benchmarks/
+.verify-package.sh
+crawl_output.log
+mcp_server.log
+
+# Personal development directories (not needed for public)
+.claude/
+.specify/
+specs/
+deploy/
+
+# Environment and config files with secrets
+.env.local
+.env.*.local
+*.key
+*.pem
+credentials.*
+secrets.*
+
+# Docker overrides (keep base docker files)
+docker-compose.override.yml
+.dockerignore
+
+# Documentation builds (keep source docs)
 docs/_build/
 site/
 
-# Environment files
-.env
-.env.local
-.env.*.local
-
-# Claude and Specify directories
-specs/
-.specify/
-.claude/
-CLAUDE.md
-
-# Temporary files
+# Temporary and backup files
 tmp/
 temp/
 *.tmp
 *.bak
+*.orig
 
-# Docker
-docker-compose.override.yml
+# Database files (runtime data, not source)
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
 
-# Test files
-test*.py
+# Platform specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
-# GitHub workflows and actions
-.github/
+# UV/pip artifacts
+pip-log.txt
+pip-delete-this-directory.txt
+.pip-cache/
 
-# Test and validation directories
-tests/
-validation/
+# Project data (runtime, not source)
+data/
+logs/
