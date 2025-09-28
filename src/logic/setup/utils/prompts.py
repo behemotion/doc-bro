@@ -4,6 +4,7 @@ from typing import Optional, List, Tuple, Any
 from rich.console import Console
 from rich.prompt import Prompt, Confirm, IntPrompt
 from rich.table import Table
+from src.cli.utils.navigation import ArrowNavigator, prompt_with_arrows
 from src.core.lib_logger import get_logger
 
 logger = get_logger(__name__)
@@ -38,7 +39,7 @@ def prompt_choice(
     default: Optional[str] = None,
     console: Optional[Console] = None
 ) -> str:
-    """Prompt user to select from choices.
+    """Prompt user to select from choices with arrow key navigation.
 
     Args:
         prompt: Prompt message
@@ -49,33 +50,8 @@ def prompt_choice(
     Returns:
         Selected choice value
     """
-    console = console or Console()
-
-    # Display choices in a table
-    table = Table(show_header=False, show_edge=False)
-    table.add_column("Option", style="yellow")
-    table.add_column("Description")
-
-    choice_values = []
-    for i, (value, description) in enumerate(choices, 1):
-        table.add_row(f"{i}", description)
-        choice_values.append(value)
-
-    console.print(f"\n[cyan]{prompt}[/cyan]")
-    console.print(table)
-
-    # Get numeric choice
-    try:
-        choice_num = IntPrompt.ask(
-            "Select option",
-            choices=[str(i) for i in range(1, len(choices) + 1)],
-            default=str(choice_values.index(default) + 1) if default in choice_values else "1",
-            console=console
-        )
-        return choice_values[choice_num - 1]
-    except (KeyboardInterrupt, EOFError):
-        # Return default or first choice
-        return default or choice_values[0] if choice_values else ""
+    result = prompt_with_arrows(prompt, choices, default, console)
+    return result or (default or choices[0][0] if choices else "")
 
 
 def prompt_text(
