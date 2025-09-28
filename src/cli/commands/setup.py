@@ -114,7 +114,17 @@ def setup(
         # Execute the operation
         if operation.type == "init":
             console.print("[cyan]Initializing DocBro...[/cyan]")
-            result = orchestrator.initialize(**operation.options)
+            try:
+                result = orchestrator.initialize(**operation.options)
+            except RuntimeError as e:
+                # Check if it's the "already initialized" error
+                if "already initialized" in str(e).lower():
+                    console.print("[yellow]ℹ DocBro is already initialized.[/yellow]")
+                    console.print("[dim]Use 'docbro setup --init --force' to reinitialize.[/dim]")
+                    ctx.exit(0)  # Exit gracefully
+                else:
+                    # Re-raise other runtime errors
+                    raise
 
         elif operation.type == "uninstall":
             console.print("[yellow]Preparing to uninstall DocBro...[/yellow]")
