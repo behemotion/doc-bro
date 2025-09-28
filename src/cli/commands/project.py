@@ -92,6 +92,12 @@ def project(ctx: click.Context, create: bool, list: bool, remove: bool, show: bo
     """Manage documentation projects.
 
     \b
+    USAGE:
+      docbro project                    # Interactive menu
+      docbro project <name>             # Show project details (same as --show)
+      docbro project <flags> [options]  # Execute specific action
+
+    \b
     FLAGS (mutually exclusive):
       --create, -c      Create a new project
       --list, -l, -ls   List projects
@@ -102,10 +108,11 @@ def project(ctx: click.Context, create: bool, list: bool, remove: bool, show: bo
     \b
     EXAMPLES:
       docbro project                                    # Interactive menu
+      docbro project myproject                          # Show project details (implicit)
       docbro project --create myproject --type data    # Create project
       docbro project --list --status active            # List active projects
       docbro project --remove myproject --confirm      # Remove project
-      docbro project --show myproject --detailed       # Show project details
+      docbro project --show myproject --detailed       # Show project details (explicit)
       docbro project --update myproject --settings '{...}'  # Update settings
 
     \b
@@ -118,8 +125,12 @@ def project(ctx: click.Context, create: bool, list: bool, remove: bool, show: bo
     active_flags = sum([create, list, remove, show, update])
 
     if active_flags == 0:
-        # No flags specified - launch interactive menu
-        run_async(interactive_project_menu())
+        if name:
+            # Name provided without flags - default to show
+            run_async(_show_project_impl(name, detailed))
+        else:
+            # No flags and no name - launch interactive menu
+            run_async(interactive_project_menu())
         return
     elif active_flags > 1:
         click.echo("Error: Only one action flag can be specified at a time.", err=True)
