@@ -23,7 +23,7 @@ uv tool install git+https://github.com/behemotion/doc-bro
 docbro setup
 ```
 
-## What DocBro Can Do
+## What is DocBro?
 
 DocBro transforms any documentation website into a searchable knowledge base with AI-powered semantic search. It crawls documentation sites, processes content into vector embeddings, and provides an MCP server for AI assistants like Claude Code to search and retrieve relevant information instantly.
 
