@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch, AsyncMock
 from datetime import datetime
 
-from src.services.error_handler import (
+from src.cli.utils.error_handler import (
     ErrorHandlerService,
     ErrorCategory,
     ErrorSeverity,
@@ -551,7 +551,7 @@ class TestCustomExceptions:
 
     def test_custom_exception_inheritance(self):
         """Test that custom exceptions inherit from ErrorHandlingError."""
-        from src.services.error_handler import (
+        from src.cli.utils.error_handler import (
             SystemRequirementsError, NetworkConnectivityError,
             PermissionDeniedError, ServiceUnavailableError,
             ConfigurationError, DiskSpaceError
