@@ -100,12 +100,23 @@ class SetupOrchestrator:
             # Configure vector store
             if vector_store:
                 operation.add_selection("vector_store", vector_store)
-            elif not auto and not non_interactive:
+            elif not non_interactive:
+                # Always prompt for vector store selection, even in auto mode
+                # This is a critical choice that should not be defaulted
                 vector_store = self._prompt_vector_store()
                 operation.add_selection("vector_store", vector_store)
             else:
-                vector_store = "sqlite_vec"  # Default
-                operation.add_selection("vector_store", vector_store)
+                # Only in non-interactive mode, check env var or fail
+                import os
+                env_vector_store = os.environ.get("DOCBRO_VECTOR_STORE")
+                if env_vector_store and env_vector_store in ["sqlite_vec", "qdrant"]:
+                    vector_store = env_vector_store
+                    operation.add_selection("vector_store", vector_store)
+                else:
+                    raise ValueError(
+                        "Vector store must be specified. Use --vector-store option or "
+                        "set DOCBRO_VECTOR_STORE environment variable to 'sqlite_vec' or 'qdrant'"
+                    )
 
             # Initialize vector store
             logger.info(f"Initializing {vector_store}...")

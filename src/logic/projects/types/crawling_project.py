@@ -3,7 +3,7 @@
 import logging
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, List
 
 from ...contracts.service_interfaces import CrawlingProjectContract
 from ..models.config import ProjectConfig

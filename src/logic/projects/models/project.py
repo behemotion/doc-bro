@@ -65,10 +65,18 @@ class Project(BaseModel):
     @classmethod
     def validate_settings(cls, v, info):
         """Validate settings are appropriate for project type."""
-        if 'type' not in info.data:
+        # Handle both Pydantic ValidationInfo and plain dict
+        if hasattr(info, 'data'):
+            data = info.data
+        elif isinstance(info, dict):
+            data = info
+        else:
             return v
 
-        project_type = info.data['type']
+        if 'type' not in data:
+            return v
+
+        project_type = data['type']
 
         # Type-specific validation
         if project_type == ProjectType.CRAWLING:
