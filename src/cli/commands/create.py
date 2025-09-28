@@ -62,10 +62,10 @@ def create(ctx: click.Context, name: Optional[str], url: Optional[str], depth: O
             configurator = SetupConfigurator()
             try:
                 config = configurator.load_config()
-                system_depth = config.get("crawl_depth", app.config.default_crawl_depth)
+                system_depth = config.get("crawl_depth", app.config.crawl_depth)
             except:
                 # Fall back to config default
-                system_depth = app.config.default_crawl_depth
+                system_depth = app.config.crawl_depth
         else:
             system_depth = depth
 
