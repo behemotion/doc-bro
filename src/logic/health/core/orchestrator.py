@@ -7,6 +7,7 @@ from typing import List, Optional, Set
 from ..models.health_check import HealthCheck
 from ..models.health_report import HealthReport
 from ..models.category import HealthCategory
+from ..models.status import HealthStatus
 from ..services.system_validator import SystemValidator
 from ..services.config_validator import ConfigurationValidator
 from ..services.health_reporter import HealthReporter
@@ -127,7 +128,6 @@ class HealthOrchestrator:
                     all_checks.append(result)
                 elif isinstance(result, Exception):
                     # Create error health check for failed tasks
-                    from ..models.status import HealthStatus
                     error_check = HealthCheck(
                         id="orchestrator.execution_error",
                         category=HealthCategory.SYSTEM,
@@ -192,16 +192,15 @@ class HealthOrchestrator:
 
             docker_info = await detector.check_docker()
 
-            from ..models.status import HealthStatus
-            if docker_info.available:
+            if docker_info.get("status") == "available":
                 status = HealthStatus.HEALTHY
-                message = f"Docker {docker_info.version} running"
-                details = f"Docker service available at {docker_info.url or 'default socket'}"
+                message = f"Docker {docker_info.get('version', 'unknown')} running"
+                details = f"Docker service available"
                 resolution = None
             else:
                 status = HealthStatus.WARNING  # Docker is optional
                 message = "Docker not available"
-                details = docker_info.error_message or "Docker service not running"
+                details = docker_info.get("error", "Docker service not running")
                 resolution = "Install Docker for Qdrant support: https://docs.docker.com/get-docker/"
 
             execution_time = time.time() - execution_start
@@ -240,15 +239,15 @@ class HealthOrchestrator:
 
             qdrant_info = await detector.check_qdrant()
 
-            if qdrant_info.available:
+            if qdrant_info.get("status") == "available":
                 status = HealthStatus.HEALTHY
-                message = f"Qdrant {qdrant_info.version} running"
-                details = f"Qdrant available at {qdrant_info.url}"
+                message = f"Qdrant {qdrant_info.get('version', 'unknown')} running"
+                details = f"Qdrant available at {qdrant_info.get('url', 'http://localhost:6333')}"
                 resolution = None
             else:
                 status = HealthStatus.WARNING  # Qdrant is optional
                 message = "Qdrant not available"
-                details = qdrant_info.error_message or "Qdrant service not running"
+                details = qdrant_info.get("error", "Qdrant service not running")
                 resolution = "Start Qdrant: docker run -d -p 6333:6333 qdrant/qdrant"
 
             execution_time = time.time() - execution_start
@@ -287,15 +286,15 @@ class HealthOrchestrator:
 
             ollama_info = await detector.check_ollama()
 
-            if ollama_info.available:
+            if ollama_info.get("status") == "available":
                 status = HealthStatus.HEALTHY
-                message = f"Ollama {ollama_info.version} running"
-                details = f"Ollama available at {ollama_info.url}"
+                message = f"Ollama {ollama_info.get('version', 'unknown')} running"
+                details = f"Ollama available at {ollama_info.get('url', 'http://localhost:11434')}"
                 resolution = None
             else:
                 status = HealthStatus.WARNING  # Ollama is optional
                 message = "Ollama not available"
-                details = ollama_info.error_message or "Ollama service not running"
+                details = ollama_info.get("error", "Ollama service not running")
                 resolution = "Install Ollama: https://ollama.ai/download"
 
             execution_time = time.time() - execution_start
@@ -334,15 +333,15 @@ class HealthOrchestrator:
 
             git_info = await detector.check_git()
 
-            if git_info.available:
+            if git_info.get("status") == "available":
                 status = HealthStatus.HEALTHY
-                message = f"Git {git_info.version} available"
-                details = f"Git version: {git_info.version}"
+                message = f"Git {git_info.get('version', 'unknown')} available"
+                details = f"Git version: {git_info.get('version', 'unknown')}"
                 resolution = None
             else:
                 status = HealthStatus.ERROR  # Git is required
                 message = "Git not available"
-                details = git_info.error_message or "Git not found in PATH"
+                details = git_info.get("error", "Git not found in PATH")
                 resolution = "Install Git: https://git-scm.com/downloads"
 
             execution_time = time.time() - execution_start
