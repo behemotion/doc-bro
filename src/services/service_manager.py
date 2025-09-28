@@ -6,19 +6,17 @@ and setup capabilities for Docker, Qdrant, and Ollama services.
 
 import asyncio
 import json
-import subprocess
-import socket
-from datetime import datetime
-from typing import Dict, List, Optional, Set, Tuple, Any
-from pathlib import Path
 import logging
-import httpx
+import socket
 from contextlib import asynccontextmanager
+from datetime import datetime
+from pathlib import Path
+from typing import Any
 
 from src.models.service_config import (
     ServiceConfiguration,
     ServiceName,
-    ServiceStatusType
+    ServiceStatusType,
 )
 from src.services.detection import ServiceDetectionService
 
@@ -51,7 +49,7 @@ class ServiceConfigurationService:
         self,
         timeout: int = 10,
         max_retries: int = 3,
-        detection_service: Optional[ServiceDetectionService] = None
+        detection_service: ServiceDetectionService | None = None
     ):
         """Initialize service configuration manager.
 
@@ -63,16 +61,16 @@ class ServiceConfigurationService:
         self.timeout = timeout
         self.max_retries = max_retries
         self.detection_service = detection_service or ServiceDetectionService(timeout)
-        self._service_configs: Dict[str, ServiceConfiguration] = {}
-        self._port_registry: Dict[int, str] = {}  # Track port assignments
+        self._service_configs: dict[str, ServiceConfiguration] = {}
+        self._port_registry: dict[int, str] = {}  # Track port assignments
 
     async def setup_service(
         self,
         service_name: ServiceName,
-        custom_port: Optional[int] = None,
-        custom_endpoint: Optional[str] = None,
+        custom_port: int | None = None,
+        custom_endpoint: str | None = None,
         auto_start: bool = False,
-        config_overrides: Optional[Dict[str, Any]] = None
+        config_overrides: dict[str, Any] | None = None
     ) -> ServiceConfiguration:
         """Setup and configure a service with comprehensive validation.
 
@@ -132,8 +130,8 @@ class ServiceConfigurationService:
 
     async def setup_multiple_services(
         self,
-        service_requests: List[Dict[str, Any]]
-    ) -> Dict[str, ServiceConfiguration]:
+        service_requests: list[dict[str, Any]]
+    ) -> dict[str, ServiceConfiguration]:
         """Setup multiple services concurrently with dependency management.
 
         Args:
@@ -188,7 +186,7 @@ class ServiceConfigurationService:
 
         return results
 
-    async def get_service_configuration(self, service_name: ServiceName) -> Optional[ServiceConfiguration]:
+    async def get_service_configuration(self, service_name: ServiceName) -> ServiceConfiguration | None:
         """Get current configuration for a service.
 
         Args:
@@ -199,7 +197,7 @@ class ServiceConfigurationService:
         """
         return self._service_configs.get(service_name)
 
-    async def get_all_configurations(self) -> Dict[str, ServiceConfiguration]:
+    async def get_all_configurations(self) -> dict[str, ServiceConfiguration]:
         """Get all service configurations.
 
         Returns:
@@ -246,7 +244,7 @@ class ServiceConfigurationService:
 
         return config.is_healthy()
 
-    async def resolve_port_conflicts(self) -> List[Dict[str, Any]]:
+    async def resolve_port_conflicts(self) -> list[dict[str, Any]]:
         """Detect and resolve port conflicts between services.
 
         Returns:
@@ -365,7 +363,7 @@ class ServiceConfigurationService:
         logger.info(f"Auto-start disabled for {service_name}")
         return True
 
-    async def get_service_summary(self) -> Dict[str, Any]:
+    async def get_service_summary(self) -> dict[str, Any]:
         """Get a summary of all service configurations.
 
         Returns:
@@ -514,7 +512,7 @@ class ServiceConfigurationService:
                 config.status = ServiceStatusType.FAILED
                 config.error_message = f"Failed to start Qdrant container: {stderr.decode().strip()}"
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             config.status = ServiceStatusType.FAILED
             config.error_message = "Timeout starting Qdrant container"
         except Exception as e:
@@ -585,7 +583,7 @@ class ServiceConfigurationService:
         service_name: ServiceName,
         start_port: int = 8000,
         max_attempts: int = 100
-    ) -> Optional[int]:
+    ) -> int | None:
         """Find an available port for a service.
 
         Args:
@@ -658,7 +656,7 @@ class ServiceConfigurationService:
         Args:
             file_path: Path to import configurations from
         """
-        with open(file_path, 'r') as f:
+        with open(file_path) as f:
             import_data = json.load(f)
 
         configurations = import_data.get('configurations', {})
@@ -687,7 +685,7 @@ class ServiceConfigurationService:
 def create_service_configuration_service(
     timeout: int = 10,
     max_retries: int = 3,
-    detection_service: Optional[ServiceDetectionService] = None
+    detection_service: ServiceDetectionService | None = None
 ) -> ServiceConfigurationService:
     """Factory function for creating ServiceConfigurationService with dependency injection.
 

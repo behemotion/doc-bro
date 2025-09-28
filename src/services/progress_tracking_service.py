@@ -1,15 +1,16 @@
 """ProgressTrackingService with Rich Live display integration."""
-import asyncio
+from collections.abc import Awaitable, Callable
 from datetime import datetime
-from typing import Dict, List, Any, Optional, Callable, Awaitable
+from typing import Any
+
 from rich.console import Console
 from rich.live import Live
-from rich.table import Table
-from rich.progress import Progress, TaskID, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
 from rich.panel import Panel
+from rich.table import Table
 from rich.text import Text
-from src.models.progress_tracker import ProgressStep, StepStatus
+
 from src.core.lib_logger import get_logger
+from src.models.progress_tracker import ProgressStep, StepStatus
 
 logger = get_logger(__name__)
 
@@ -20,12 +21,12 @@ class ProgressTrackingService:
     def __init__(self):
         """Initialize progress tracking service."""
         self.console = Console()
-        self.steps: List[ProgressStep] = []
-        self.live_display: Optional[Live] = None
-        self.current_step_id: Optional[str] = None
-        self.callbacks: Dict[str, Callable[[ProgressStep], Awaitable[None]]] = {}
+        self.steps: list[ProgressStep] = []
+        self.live_display: Live | None = None
+        self.current_step_id: str | None = None
+        self.callbacks: dict[str, Callable[[ProgressStep], Awaitable[None]]] = {}
 
-    def initialize_steps(self, step_definitions: List[Dict[str, Any]]) -> None:
+    def initialize_steps(self, step_definitions: list[dict[str, Any]]) -> None:
         """Initialize progress steps."""
         self.steps = []
         for step_def in step_definitions:
@@ -85,7 +86,7 @@ class ProgressTrackingService:
             logger.error(f"Failed to complete step {step_id}: {e}")
             return False
 
-    def fail_step(self, step_id: str, error_message: Optional[str] = None) -> bool:
+    def fail_step(self, step_id: str, error_message: str | None = None) -> bool:
         """Mark a step as failed."""
         try:
             step = self._get_step_by_id(step_id)
@@ -110,11 +111,11 @@ class ProgressTrackingService:
             logger.error(f"Failed to fail step {step_id}: {e}")
             return False
 
-    def _get_step_by_id(self, step_id: str) -> Optional[ProgressStep]:
+    def _get_step_by_id(self, step_id: str) -> ProgressStep | None:
         """Get step by ID."""
         return next((step for step in self.steps if step.id == step_id), None)
 
-    def get_progress_summary(self) -> Dict[str, Any]:
+    def get_progress_summary(self) -> dict[str, Any]:
         """Get progress summary."""
         total_steps = len(self.steps)
         completed_steps = len([s for s in self.steps if s.status == StepStatus.COMPLETED])
@@ -283,9 +284,9 @@ class ProgressTrackingService:
 
     async def run_installation_sequence(
         self,
-        step_functions: Dict[str, Callable[[], Awaitable[bool]]],
+        step_functions: dict[str, Callable[[], Awaitable[bool]]],
         stop_on_failure: bool = True
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Run complete installation sequence with progress tracking."""
         try:
             await self.start_live_display()

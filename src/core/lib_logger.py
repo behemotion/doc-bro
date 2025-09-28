@@ -5,8 +5,7 @@ import logging
 import logging.config
 import sys
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from rich.console import Console
 from rich.logging import RichHandler
@@ -17,7 +16,7 @@ from .config import DocBroConfig
 class StructuredFormatter(logging.Formatter):
     """Custom formatter that outputs structured JSON logs."""
 
-    def __init__(self, include_fields: Optional[list] = None):
+    def __init__(self, include_fields: list | None = None):
         """Initialize with optional field filtering."""
         super().__init__()
         self.include_fields = include_fields or [
@@ -61,11 +60,11 @@ class StructuredFormatter(logging.Formatter):
 class DocBroLoggerAdapter(logging.LoggerAdapter):
     """Logger adapter that adds DocBro-specific context."""
 
-    def __init__(self, logger: logging.Logger, extra: Dict[str, Any]):
+    def __init__(self, logger: logging.Logger, extra: dict[str, Any]):
         """Initialize with logger and extra context."""
         super().__init__(logger, extra)
 
-    def process(self, msg: str, kwargs: Dict[str, Any]) -> tuple:
+    def process(self, msg: str, kwargs: dict[str, Any]) -> tuple:
         """Process log message and add extra context."""
         extra = kwargs.get("extra", {})
         extra.update(self.extra)
@@ -183,7 +182,6 @@ class LoggingManager:
     def log_system_info(self) -> None:
         """Log system information at startup."""
         import platform
-        import sys
 
         logger = self.get_logger("docbro.system")
 
@@ -202,7 +200,7 @@ class LoggingManager:
 
         logger.info("DocBro starting up", extra={"system_info": system_info})
 
-    def log_service_status(self, service_status: Dict[str, bool]) -> None:
+    def log_service_status(self, service_status: dict[str, bool]) -> None:
         """Log service connectivity status."""
         logger = self.get_logger("docbro.services")
 
@@ -252,7 +250,7 @@ class LoggingManager:
 
 
 # Global logging manager instance
-_logging_manager: Optional[LoggingManager] = None
+_logging_manager: LoggingManager | None = None
 
 
 def setup_logging(config: DocBroConfig) -> LoggingManager:

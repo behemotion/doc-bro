@@ -2,11 +2,10 @@
 
 import uuid
 from datetime import datetime
-from typing import Dict, Any, Optional, List
 from enum import Enum
-from pathlib import Path
+from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from .installation_wizard import InstallationWizardService
 
@@ -28,11 +27,11 @@ class InstallationStatusResponse(BaseModel):
     id: str = Field(..., description="Installation UUID")
     state: InstallationStateEnum = Field(..., description="Current installation state")
     progress: int = Field(ge=0, le=100, description="Installation progress percentage")
-    message: Optional[str] = Field(None, description="Status message")
-    error: Optional[str] = Field(None, description="Error message if failed")
+    message: str | None = Field(None, description="Status message")
+    error: str | None = Field(None, description="Error message if failed")
     started_at: datetime = Field(..., description="Installation start time")
-    completed_at: Optional[datetime] = Field(None, description="Installation completion time")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    completed_at: datetime | None = Field(None, description="Installation completion time")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
 
 class InstallationStatusService:
@@ -63,7 +62,7 @@ class InstallationStatusService:
 
         return phase_mapping.get(wizard_phase, InstallationStateEnum.PENDING)
 
-    async def get_installation_status(self, installation_id: str) -> Optional[InstallationStatusResponse]:
+    async def get_installation_status(self, installation_id: str) -> InstallationStatusResponse | None:
         """Get installation status by ID.
 
         Args:

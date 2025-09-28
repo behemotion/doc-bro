@@ -3,11 +3,10 @@ ASCII Branding Module for DocBro
 Provides ASCII art logo generation with 256-color gradient support
 """
 
-import sys
 import os
-from typing import List, Optional
+import sys
+
 from rich.console import Console
-from rich.text import Text
 
 
 class ASCIIBranding:
@@ -87,7 +86,7 @@ class ASCIIBranding:
             # Default to 80 if can't detect
             return 80
 
-    def generate_gradient(self, start_color: int, end_color: int, steps: int) -> List[int]:
+    def generate_gradient(self, start_color: int, end_color: int, steps: int) -> list[int]:
         """
         Create color gradient for 256-color terminals.
 
@@ -111,7 +110,7 @@ class ASCIIBranding:
 
         return gradient
 
-    def _generate_default_gradient(self) -> List[int]:
+    def _generate_default_gradient(self) -> list[int]:
         """Generate default green gradient colors."""
         # Green gradient from bright to dark (256-color codes)
         # 46 = bright green, 22 = darker green

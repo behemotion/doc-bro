@@ -1,8 +1,10 @@
 """Setup configuration service."""
 
-import yaml
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any
+
+import yaml
+
 from src.core.lib_logger import get_logger
 
 logger = get_logger(__name__)
@@ -11,7 +13,7 @@ logger = get_logger(__name__)
 class SetupConfigurator:
     """Service for managing setup configuration."""
 
-    def __init__(self, home_dir: Optional[Path] = None):
+    def __init__(self, home_dir: Path | None = None):
         """Initialize the configurator.
 
         Args:
@@ -21,7 +23,7 @@ class SetupConfigurator:
         self.config_dir = self.home_dir / ".config" / "docbro"
         self.config_file = self.config_dir / "settings.yaml"
 
-    def load_config(self) -> Dict[str, Any]:
+    def load_config(self) -> dict[str, Any]:
         """Load configuration from file.
 
         Returns:
@@ -33,13 +35,13 @@ class SetupConfigurator:
         if not self.config_file.exists():
             raise FileNotFoundError(f"Configuration file not found: {self.config_file}")
 
-        with open(self.config_file, "r") as f:
+        with open(self.config_file) as f:
             config = yaml.safe_load(f) or {}
 
         logger.debug(f"Loaded configuration from {self.config_file}")
         return config
 
-    def save_config(self, config: Dict[str, Any]) -> None:
+    def save_config(self, config: dict[str, Any]) -> None:
         """Save configuration to file.
 
         Args:
@@ -61,7 +63,7 @@ class SetupConfigurator:
 
         logger.info(f"Saved configuration to {self.config_file}")
 
-    def update_config(self, updates: Dict[str, Any]) -> Dict[str, Any]:
+    def update_config(self, updates: dict[str, Any]) -> dict[str, Any]:
         """Update existing configuration with new values.
 
         Args:
@@ -110,7 +112,7 @@ class SetupConfigurator:
         config[key] = value
         self.save_config(config)
 
-    def validate_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_config(self, config: dict[str, Any]) -> dict[str, Any]:
         """Validate configuration values.
 
         Args:
@@ -158,7 +160,7 @@ class SetupConfigurator:
             "warnings": warnings
         }
 
-    def reset_to_defaults(self) -> Dict[str, Any]:
+    def reset_to_defaults(self) -> dict[str, Any]:
         """Reset configuration to defaults.
 
         Returns:

@@ -1,11 +1,11 @@
 """Data models for UV/UVX installation feature."""
 
+import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Literal, Union
-import re
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class InstallationContext(BaseModel):
@@ -24,7 +24,7 @@ class InstallationContext(BaseModel):
     install_date: datetime = Field(..., description="When DocBro was installed")
     version: str = Field(..., description="DocBro version")
     python_version: str = Field(..., description="Python version used")
-    uv_version: Optional[str] = Field(None, description="UV version if available")
+    uv_version: str | None = Field(None, description="UV version if available")
     install_path: Path = Field(..., description="Path to docbro executable")
     is_global: bool = Field(..., description="True for global, False for project-local")
     user_data_dir: Path = Field(..., description="User data directory")
@@ -76,10 +76,10 @@ class ServiceStatus(BaseModel):
 
     name: str = Field(..., description="Service name")
     available: bool = Field(..., description="Whether service is available")
-    version: Optional[str] = Field(None, description="Service version if available")
-    endpoint: Optional[str] = Field(None, description="Service endpoint")
+    version: str | None = Field(None, description="Service version if available")
+    endpoint: str | None = Field(None, description="Service endpoint")
     last_checked: datetime = Field(..., description="When service was last checked")
-    error_message: Optional[str] = Field(None, description="Error message if unavailable")
+    error_message: str | None = Field(None, description="Error message if unavailable")
     setup_completed: bool = Field(..., description="Whether setup was completed")
 
     @field_validator('name')
@@ -101,10 +101,10 @@ class SetupWizardState(BaseModel):
     )
 
     current_step: str = Field(..., description="Current setup step")
-    completed_steps: List[str] = Field(default_factory=list, description="Completed steps")
-    services_to_install: List[str] = Field(default_factory=list, description="Services to install")
-    user_preferences: Dict[str, Any] = Field(default_factory=dict, description="User preferences")
-    skip_services: List[str] = Field(default_factory=list, description="Services to skip")
+    completed_steps: list[str] = Field(default_factory=list, description="Completed steps")
+    services_to_install: list[str] = Field(default_factory=list, description="Services to install")
+    user_preferences: dict[str, Any] = Field(default_factory=dict, description="User preferences")
+    skip_services: list[str] = Field(default_factory=list, description="Services to skip")
     setup_start_time: datetime = Field(..., description="When setup started")
 
     @field_validator('current_step')
@@ -121,7 +121,7 @@ class SetupWizardState(BaseModel):
 
     @field_validator('services_to_install', 'skip_services')
     @classmethod
-    def validate_service_lists(cls, v: List[str]) -> List[str]:
+    def validate_service_lists(cls, v: list[str]) -> list[str]:
         """Validate service names in lists."""
         valid_services = {"docker", "ollama", "qdrant"}  # Redis removed
         for service in v:
@@ -131,7 +131,7 @@ class SetupWizardState(BaseModel):
 
     @field_validator('completed_steps')
     @classmethod
-    def validate_completed_steps(cls, v: List[str]) -> List[str]:
+    def validate_completed_steps(cls, v: list[str]) -> list[str]:
         """Validate completed steps order."""
         valid_steps = [
             "welcome", "python_check", "service_check", "service_install",
@@ -157,7 +157,7 @@ class SetupWizardState(BaseModel):
 
     @field_validator('skip_services')
     @classmethod
-    def validate_no_overlap_with_install(cls, v: List[str], info) -> List[str]:
+    def validate_no_overlap_with_install(cls, v: list[str], info) -> list[str]:
         """Validate services aren't in both install and skip lists."""
         if hasattr(info, 'data') and 'services_to_install' in info.data:
             install_services = set(info.data['services_to_install'])
@@ -181,8 +181,8 @@ class PackageMetadata(BaseModel):
     description: str = Field(..., description="Package description")
     homepage: str = Field(..., description="Homepage URL")
     repository_url: str = Field(..., description="Repository URL")
-    entry_points: Dict[str, str] = Field(default_factory=dict, description="Entry points")
-    dependencies: List[str] = Field(default_factory=list, description="Package dependencies")
+    entry_points: dict[str, str] = Field(default_factory=dict, description="Entry points")
+    dependencies: list[str] = Field(default_factory=list, description="Package dependencies")
     python_requires: str = Field(default=">=3.13", description="Python version requirement")
     install_source: str = Field(..., description="Installation source")
 
@@ -224,7 +224,7 @@ class InstallationRequest(BaseModel):
         ..., description="Installation method to use"
     )
     version: str = Field(..., description="Version to install")
-    user_preferences: Optional[Dict[str, Any]] = Field(
+    user_preferences: dict[str, Any] | None = Field(
         default=None, description="User preferences for installation"
     )
     force_reinstall: bool = Field(
@@ -254,7 +254,7 @@ class InstallationResponse(BaseModel):
         ..., description="Current installation status"
     )
     message: str = Field(..., description="Status message")
-    next_steps: Optional[List[str]] = Field(
+    next_steps: list[str] | None = Field(
         default=None, description="Next steps for the user"
     )
 
@@ -321,13 +321,13 @@ class CriticalDecisionPoint(BaseModel):
     )
     title: str = Field(..., description="Human-readable decision title")
     description: str = Field(..., description="Detailed description of the decision")
-    options: List[Dict[str, Any]] = Field(
+    options: list[dict[str, Any]] = Field(
         ..., description="Available options for this decision"
     )
-    default_option: Optional[str] = Field(
+    default_option: str | None = Field(
         None, description="Default option identifier"
     )
-    user_choice: Optional[Union[str, Dict[str, Any]]] = Field(
+    user_choice: str | dict[str, Any] | None = Field(
         None, description="User's selected choice"
     )
     timestamp: datetime = Field(
@@ -337,7 +337,7 @@ class CriticalDecisionPoint(BaseModel):
     resolved: bool = Field(
         default=False, description="Whether this decision has been resolved"
     )
-    validation_pattern: Optional[str] = Field(
+    validation_pattern: str | None = Field(
         None, description="Regex pattern for validating custom input"
     )
 
@@ -353,7 +353,7 @@ class CriticalDecisionPoint(BaseModel):
 
     @field_validator('validation_pattern')
     @classmethod
-    def validate_regex_pattern(cls, v: Optional[str]) -> Optional[str]:
+    def validate_regex_pattern(cls, v: str | None) -> str | None:
         """Validate that the validation pattern is a valid regex."""
         if v is not None:
             try:
@@ -364,7 +364,7 @@ class CriticalDecisionPoint(BaseModel):
 
     @field_validator('options')
     @classmethod
-    def validate_options_format(cls, v: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def validate_options_format(cls, v: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Validate options have required fields."""
         if not v:
             raise ValueError("At least one option must be provided")

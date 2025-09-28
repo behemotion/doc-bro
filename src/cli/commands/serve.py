@@ -1,12 +1,8 @@
 """Serve command for DocBro CLI."""
 
 import os
-import signal
-import subprocess
-from typing import Optional
 
 import click
-from rich.console import Console
 
 # Optional uvloop for better performance
 try:
@@ -40,11 +36,9 @@ def serve(ctx: click.Context, host: str, port: int, foreground: bool, status: bo
       docbro serve --port 8080       # Use custom port
       docbro serve --status          # Check if server is running
     """
-    from src.services.mcp_server import run_mcp_server
-    import subprocess
-    import os
-    import signal
     import socket
+
+    from src.services.mcp_server import run_mcp_server
 
     app = get_app()
 
@@ -127,8 +121,8 @@ def serve(ctx: click.Context, host: str, port: int, foreground: bool, status: bo
             app.console.print("")
             app.console.print("[cyan]Server management:[/cyan]")
             app.console.print(f"  Stop server:   kill {pid}")
-            app.console.print(f"  Check status:  docbro serve --status")
-            app.console.print(f"  View logs:     tail -f ~/.local/share/docbro/mcp_server.log")
+            app.console.print("  Check status:  docbro serve --status")
+            app.console.print("  View logs:     tail -f ~/.local/share/docbro/mcp_server.log")
             app.console.print("")
             app.console.print("[cyan]Connect from Claude:[/cyan]")
             app.console.print(f"  Server URL: http://{host}:{port}")

@@ -1,11 +1,10 @@
 """Service configuration models for DocBro."""
 
+import re
 from datetime import datetime
 from enum import Enum
-from typing import Optional
-import re
 
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ServiceName(str, Enum):
@@ -63,12 +62,12 @@ class ServiceConfiguration(BaseModel):
     )
 
     # Service status and detection
-    detected_version: Optional[str] = Field(
+    detected_version: str | None = Field(
         None,
         description="Detected version of the service"
     )
 
-    version: Optional[str] = Field(
+    version: str | None = Field(
         None,
         description="Service version (alias for detected_version for API compatibility)"
     )
@@ -78,7 +77,7 @@ class ServiceConfiguration(BaseModel):
         description="Current status of the service"
     )
 
-    error_message: Optional[str] = Field(
+    error_message: str | None = Field(
         None,
         description="Error message if service is in failed state"
     )
@@ -117,7 +116,7 @@ class ServiceConfiguration(BaseModel):
 
     @field_validator('detected_version')
     @classmethod
-    def validate_version_format(cls, v: Optional[str]) -> Optional[str]:
+    def validate_version_format(cls, v: str | None) -> str | None:
         """Validate version follows semantic versioning or common patterns."""
         if v is None:
             return v
@@ -138,7 +137,7 @@ class ServiceConfiguration(BaseModel):
 
     @field_validator('version')
     @classmethod
-    def validate_api_version_format(cls, v: Optional[str]) -> Optional[str]:
+    def validate_api_version_format(cls, v: str | None) -> str | None:
         """Validate API version field follows same patterns as detected_version."""
         if v is None:
             return v
@@ -177,7 +176,7 @@ class ServiceConfiguration(BaseModel):
 
     @field_validator('error_message')
     @classmethod
-    def validate_error_message_consistency(cls, v: Optional[str], info) -> Optional[str]:
+    def validate_error_message_consistency(cls, v: str | None, info) -> str | None:
         """Validate error message is consistent with status."""
         if hasattr(info, 'data') and 'status' in info.data:
             status = info.data['status']
@@ -250,8 +249,8 @@ class ServiceConfiguration(BaseModel):
     def create_default_config(
         cls,
         service_name: ServiceName,
-        custom_port: Optional[int] = None,
-        custom_endpoint: Optional[str] = None
+        custom_port: int | None = None,
+        custom_endpoint: str | None = None
     ) -> "ServiceConfiguration":
         """Create a default configuration for a service."""
         # Create temporary instance to get defaults

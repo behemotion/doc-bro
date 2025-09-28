@@ -1,7 +1,6 @@
 """SQLite-vec configuration model."""
 
 from pathlib import Path
-from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -39,7 +38,7 @@ class SQLiteVecConfiguration(BaseModel):
         ge=100,
         le=30000,
     )
-    data_directory: Optional[Path] = Field(
+    data_directory: Path | None = Field(
         default=None,
         description="Base data directory for validation"
     )

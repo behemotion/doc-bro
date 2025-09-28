@@ -1,7 +1,7 @@
 """UninstallInventory model for component cleanup."""
-from typing import List
 from enum import Enum
-from pydantic import BaseModel, Field, ConfigDict
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ComponentType(Enum):
@@ -27,10 +27,10 @@ class UninstallInventory(BaseModel):
     """Complete inventory of components for clean removal"""
     model_config = ConfigDict(str_strip_whitespace=True)
 
-    components: List[UninstallComponent] = Field(default_factory=list)
+    components: list[UninstallComponent] = Field(default_factory=list)
     estimated_data_size: str = Field(..., description="Total estimated data loss")
     confirmation_required: bool = Field(default=True, description="Requires user confirmation")
 
-    def scan_installed_components(self) -> List[UninstallComponent]:
+    def scan_installed_components(self) -> list[UninstallComponent]:
         """Scan and return all components"""
         return self.components

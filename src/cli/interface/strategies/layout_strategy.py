@@ -3,9 +3,9 @@ Layout strategy base class and implementations
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
+from typing import Any
 
-from ..models.enums import LayoutMode, ProcessingState, CompletionStatus
+from ..models.enums import CompletionStatus, LayoutMode, ProcessingState
 
 
 class LayoutStrategy(ABC):
@@ -17,7 +17,7 @@ class LayoutStrategy(ABC):
         pass
 
     @abstractmethod
-    def update_metrics(self, metrics: Dict[str, Any]) -> None:
+    def update_metrics(self, metrics: dict[str, Any]) -> None:
         """Update progress metrics display"""
         pass
 
@@ -39,7 +39,7 @@ class LayoutStrategy(ABC):
 
     @abstractmethod
     def complete_operation(self, project_name: str, operation_type: str,
-                          duration: float, success_metrics: Dict[str, Any],
+                          duration: float, success_metrics: dict[str, Any],
                           status: CompletionStatus) -> None:
         """Show final results and hide progress display"""
         pass
@@ -62,7 +62,7 @@ class FullWidthStrategy(LayoutStrategy):
         """Initialize progress display for an operation"""
         self.display.start_operation(title, project_name)
 
-    def update_metrics(self, metrics: Dict[str, Any]) -> None:
+    def update_metrics(self, metrics: dict[str, Any]) -> None:
         """Update progress metrics display"""
         self.display.update_metrics(metrics)
 
@@ -80,7 +80,7 @@ class FullWidthStrategy(LayoutStrategy):
         self.display.show_embedding_error(error_message)
 
     def complete_operation(self, project_name: str, operation_type: str,
-                          duration: float, success_metrics: Dict[str, Any],
+                          duration: float, success_metrics: dict[str, Any],
                           status: CompletionStatus) -> None:
         """Show final results and hide progress display"""
         self.display.complete_operation(project_name, operation_type, duration, success_metrics, status)
@@ -102,7 +102,7 @@ class CompactStrategy(LayoutStrategy):
         """Initialize progress display for an operation"""
         self.display.start_operation(title, project_name)
 
-    def update_metrics(self, metrics: Dict[str, Any]) -> None:
+    def update_metrics(self, metrics: dict[str, Any]) -> None:
         """Update progress metrics display"""
         self.display.update_metrics(metrics)
 
@@ -120,7 +120,7 @@ class CompactStrategy(LayoutStrategy):
         self.display.show_embedding_error(error_message)
 
     def complete_operation(self, project_name: str, operation_type: str,
-                          duration: float, success_metrics: Dict[str, Any],
+                          duration: float, success_metrics: dict[str, Any],
                           status: CompletionStatus) -> None:
         """Show final results and hide progress display"""
         self.display.complete_operation(project_name, operation_type, duration, success_metrics, status)

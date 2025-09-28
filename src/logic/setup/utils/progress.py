@@ -1,18 +1,21 @@
 """Progress reporting utilities."""
 
 import time
-from typing import Optional, Any, Iterator
+from collections.abc import Iterator
 from contextlib import contextmanager
+from typing import Any
+
+from rich.console import Console
 from rich.progress import (
+    BarColumn,
     Progress,
     SpinnerColumn,
-    TextColumn,
-    BarColumn,
     TaskProgressColumn,
+    TextColumn,
+    TimeElapsedColumn,
     TimeRemainingColumn,
-    TimeElapsedColumn
 )
-from rich.console import Console
+
 from src.core.lib_logger import get_logger
 
 logger = get_logger(__name__)
@@ -21,7 +24,7 @@ logger = get_logger(__name__)
 class ProgressReporter:
     """Advanced progress reporting with Rich."""
 
-    def __init__(self, console: Optional[Console] = None):
+    def __init__(self, console: Console | None = None):
         """Initialize progress reporter.
 
         Args:
@@ -35,7 +38,7 @@ class ProgressReporter:
     def progress_bar(
         self,
         description: str,
-        total: Optional[int] = None,
+        total: int | None = None,
         auto_refresh: bool = True
     ) -> Iterator[Any]:
         """Create a progress bar context.
@@ -88,7 +91,7 @@ class ProgressReporter:
     def add_task(
         self,
         description: str,
-        total: Optional[int] = None,
+        total: int | None = None,
         start: bool = True
     ) -> int:
         """Add a task to the progress display.
@@ -116,7 +119,7 @@ class ProgressReporter:
         self,
         task_id: int,
         advance: int = 1,
-        description: Optional[str] = None,
+        description: str | None = None,
         **kwargs
     ) -> None:
         """Update a task's progress.
@@ -200,8 +203,8 @@ class ProgressReporter:
 
 def create_progress_bar(
     description: str,
-    total: Optional[int] = None,
-    console: Optional[Console] = None
+    total: int | None = None,
+    console: Console | None = None
 ) -> Progress:
     """Create a simple progress bar.
 
@@ -229,7 +232,7 @@ def create_progress_bar(
 class StepTracker:
     """Track progress through a series of steps."""
 
-    def __init__(self, steps: list, console: Optional[Console] = None):
+    def __init__(self, steps: list, console: Console | None = None):
         """Initialize step tracker.
 
         Args:

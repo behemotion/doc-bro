@@ -1,8 +1,9 @@
 """Query result data model."""
 
 from datetime import datetime
-from typing import Optional, Dict, Any, List
-from pydantic import ConfigDict, BaseModel, Field, field_validator
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class QueryResult(BaseModel):
@@ -15,15 +16,15 @@ class QueryResult(BaseModel):
 
     # Content
     content: str = Field(description="Relevant content snippet")
-    full_content: Optional[str] = Field(default=None, description="Full document content")
+    full_content: str | None = Field(default=None, description="Full document content")
 
     # Relevance scoring
     score: float = Field(ge=0.0, le=1.0, description="Relevance score (0-1)")
-    rerank_score: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Reranking score")
+    rerank_score: float | None = Field(default=None, ge=0.0, le=1.0, description="Reranking score")
 
     # Context
-    context_before: Optional[str] = Field(default=None, description="Content before the match")
-    context_after: Optional[str] = Field(default=None, description="Content after the match")
+    context_before: str | None = Field(default=None, description="Content before the match")
+    context_after: str | None = Field(default=None, description="Content after the match")
 
     # Source metadata
     project: str = Field(description="Source project name")
@@ -31,21 +32,21 @@ class QueryResult(BaseModel):
     page_id: str = Field(description="Source page ID")
 
     # Document metadata
-    language: Optional[str] = Field(default=None, description="Document language")
+    language: str | None = Field(default=None, description="Document language")
     mime_type: str = Field(default="text/html", description="Document MIME type")
     size_bytes: int = Field(default=0, ge=0, description="Document size in bytes")
 
     # Timing
-    indexed_at: Optional[datetime] = Field(default=None, description="When document was indexed")
-    last_updated: Optional[datetime] = Field(default=None, description="When document was last updated")
+    indexed_at: datetime | None = Field(default=None, description="When document was indexed")
+    last_updated: datetime | None = Field(default=None, description="When document was last updated")
 
     # Search metadata
-    query_terms: List[str] = Field(default_factory=list, description="Matched query terms")
+    query_terms: list[str] = Field(default_factory=list, description="Matched query terms")
     match_type: str = Field(default="semantic", description="Type of match (semantic, keyword, hybrid)")
-    chunk_id: Optional[str] = Field(default=None, description="Specific chunk ID if applicable")
+    chunk_id: str | None = Field(default=None, description="Specific chunk ID if applicable")
 
     # Additional metadata
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
     model_config = ConfigDict(
         json_encoders={
@@ -93,7 +94,7 @@ class QueryResult(BaseModel):
 
     def get_highlighted_snippet(
         self,
-        query_terms: Optional[List[str]] = None,
+        query_terms: list[str] | None = None,
         highlight_start: str = "<mark>",
         highlight_end: str = "</mark>",
         max_length: int = 300
@@ -151,7 +152,7 @@ class QueryResult(BaseModel):
         """Add metadata to the result."""
         self.metadata[key] = value
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""
         return {
             "id": self.id,
@@ -181,7 +182,7 @@ class QueryResult(BaseModel):
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'QueryResult':
+    def from_dict(cls, data: dict[str, Any]) -> 'QueryResult':
         """Create QueryResult from dictionary."""
         # Handle datetime fields
         for field in ['indexed_at', 'last_updated']:
@@ -200,19 +201,19 @@ class QueryResponse(BaseModel):
     """Response model for search queries."""
 
     query: str = Field(description="Original search query")
-    results: List[QueryResult] = Field(description="Search results")
+    results: list[QueryResult] = Field(description="Search results")
     total: int = Field(description="Total number of results found")
     limit: int = Field(description="Maximum results returned")
     offset: int = Field(default=0, description="Result offset")
 
     # Query metadata
-    took_ms: Optional[int] = Field(default=None, description="Query execution time in milliseconds")
+    took_ms: int | None = Field(default=None, description="Query execution time in milliseconds")
     strategy: str = Field(default="semantic", description="Search strategy used")
-    filters: Dict[str, Any] = Field(default_factory=dict, description="Applied filters")
+    filters: dict[str, Any] = Field(default_factory=dict, description="Applied filters")
 
     # Query processing
-    processed_query: Optional[str] = Field(default=None, description="Processed/cleaned query")
-    decomposed_queries: List[str] = Field(default_factory=list, description="Decomposed sub-queries")
+    processed_query: str | None = Field(default=None, description="Processed/cleaned query")
+    decomposed_queries: list[str] = Field(default_factory=list, description="Decomposed sub-queries")
 
     # Response metadata
     timestamp: datetime = Field(default_factory=datetime.utcnow)
@@ -224,11 +225,11 @@ class QueryResponse(BaseModel):
         }
     )
 
-    def get_high_quality_results(self, min_score: float = 0.7) -> List[QueryResult]:
+    def get_high_quality_results(self, min_score: float = 0.7) -> list[QueryResult]:
         """Get only high quality results."""
         return [r for r in self.results if r.is_high_quality(min_score=min_score)]
 
-    def get_results_by_project(self) -> Dict[str, List[QueryResult]]:
+    def get_results_by_project(self) -> dict[str, list[QueryResult]]:
         """Group results by project."""
         projects = {}
         for result in self.results:
@@ -237,11 +238,11 @@ class QueryResponse(BaseModel):
             projects[result.project].append(result)
         return projects
 
-    def get_top_results(self, count: int = 5) -> List[QueryResult]:
+    def get_top_results(self, count: int = 5) -> list[QueryResult]:
         """Get top N results by final score."""
         return sorted(self.results, key=lambda r: r.get_final_score(), reverse=True)[:count]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""
         return {
             "query": self.query,

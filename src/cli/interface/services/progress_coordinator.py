@@ -2,21 +2,25 @@
 ProgressDisplayCoordinator with layout switching
 """
 
-from typing import Dict, Any, Optional
+from typing import Any
 
-from ..models.enums import LayoutMode, ProcessingState, CompletionStatus
+from ..models.enums import CompletionStatus, LayoutMode, ProcessingState
 from ..services.terminal_adapter import TerminalAdapter
-from ..strategies.layout_strategy import LayoutStrategy, FullWidthStrategy, CompactStrategy
+from ..strategies.layout_strategy import (
+    CompactStrategy,
+    FullWidthStrategy,
+    LayoutStrategy,
+)
 
 
 class ProgressDisplayCoordinator:
     """Coordinator for progress visualization with responsive layout switching"""
 
-    def __init__(self, terminal_adapter: Optional[TerminalAdapter] = None):
+    def __init__(self, terminal_adapter: TerminalAdapter | None = None):
         """Initialize progress display coordinator"""
         self.terminal_adapter = terminal_adapter or TerminalAdapter()
-        self.current_strategy: Optional[LayoutStrategy] = None
-        self.current_mode: Optional[LayoutMode] = None
+        self.current_strategy: LayoutStrategy | None = None
+        self.current_mode: LayoutMode | None = None
         self._initialize_strategy()
 
     def start_operation(self, title: str, project_name: str) -> None:
@@ -31,7 +35,7 @@ class ProgressDisplayCoordinator:
         if self.current_strategy:
             self.current_strategy.start_operation(title, project_name)
 
-    def update_metrics(self, metrics: Dict[str, Any]) -> None:
+    def update_metrics(self, metrics: dict[str, Any]) -> None:
         """
         Update progress metrics display
 
@@ -75,7 +79,7 @@ class ProgressDisplayCoordinator:
             self.current_strategy.show_embedding_error(error_message)
 
     def complete_operation(self, project_name: str, operation_type: str,
-                          duration: float, success_metrics: Dict[str, Any],
+                          duration: float, success_metrics: dict[str, Any],
                           status: CompletionStatus) -> None:
         """
         Show final results and hide progress display

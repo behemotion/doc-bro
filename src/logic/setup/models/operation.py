@@ -2,7 +2,8 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Dict, Any, Set
+from typing import Any
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -32,7 +33,7 @@ class SetupOperation(BaseModel):
     operation_type: OperationType = Field(
         description="Type of operation being performed"
     )
-    flags: Set[str] = Field(
+    flags: set[str] = Field(
         default_factory=set,
         description="Command line flags provided"
     )
@@ -44,11 +45,11 @@ class SetupOperation(BaseModel):
         default=OperationStatus.PENDING,
         description="Current status of the operation"
     )
-    error_message: Optional[str] = Field(
+    error_message: str | None = Field(
         default=None,
         description="Error details if operation failed"
     )
-    user_selections: Dict[str, Any] = Field(
+    user_selections: dict[str, Any] = Field(
         default_factory=dict,
         description="Choices made during operation"
     )
@@ -64,7 +65,7 @@ class SetupOperation(BaseModel):
 
     @field_validator("flags")
     @classmethod
-    def validate_flag_conflicts(cls, v: Set[str], info) -> Set[str]:
+    def validate_flag_conflicts(cls, v: set[str], info) -> set[str]:
         """Validate that conflicting flags are not present."""
         operation_flags = {"init", "uninstall", "reset"}
         present_ops = v & operation_flags
@@ -87,7 +88,7 @@ class SetupOperation(BaseModel):
 
         return v
 
-    def transition_to(self, new_status: OperationStatus, error: Optional[str] = None) -> None:
+    def transition_to(self, new_status: OperationStatus, error: str | None = None) -> None:
         """Transition to a new status with validation."""
         # Define valid transitions
         valid_transitions = {

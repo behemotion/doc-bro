@@ -1,12 +1,12 @@
 """Reset handler service."""
 
-from pathlib import Path
-from typing import Optional, Dict, Any
 from dataclasses import dataclass
+from pathlib import Path
+
+from src.core.lib_logger import get_logger
+from src.logic.setup.services.configurator import SetupConfigurator
 from src.logic.setup.services.initializer import SetupInitializer
 from src.logic.setup.services.uninstaller import SetupUninstaller
-from src.logic.setup.services.configurator import SetupConfigurator
-from src.core.lib_logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -17,7 +17,7 @@ class ResetResult:
 
     status: str
     backup_created: bool = False
-    backup_path: Optional[Path] = None
+    backup_path: Path | None = None
     warnings: list = None
     errors: list = None
 
@@ -32,7 +32,7 @@ class ResetResult:
 class ResetHandler:
     """Handler for reset operations."""
 
-    def __init__(self, home_dir: Optional[Path] = None):
+    def __init__(self, home_dir: Path | None = None):
         """Initialize the reset handler.
 
         Args:
@@ -49,7 +49,7 @@ class ResetHandler:
     def execute(
         self,
         preserve_data: bool = False,
-        vector_store: Optional[str] = None,
+        vector_store: str | None = None,
         force: bool = False
     ) -> ResetResult:
         """Execute reset operation.

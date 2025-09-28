@@ -3,18 +3,18 @@
 This model stores user configuration choices and preferences for the DocBro setup process.
 """
 
-from datetime import datetime, timezone
-from typing import List, Optional
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
-from pydantic import ConfigDict, BaseModel, Field, field_validator, model_validator
+
 from packaging import version
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .setup_types import (
+    EmbeddingModelConfig,
+    MCPClientConfig,
     SetupMode,
     SetupStatus,
     VectorStorageConfig,
-    EmbeddingModelConfig,
-    MCPClientConfig
 )
 
 
@@ -31,25 +31,25 @@ class SetupConfiguration(BaseModel):
         description="Unique identifier for this setup configuration"
     )
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         description="When the configuration was created"
     )
     updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         description="Last modification timestamp"
     )
     setup_mode: SetupMode = Field(
         description="Interactive or auto setup mode used"
     )
-    vector_storage: Optional[VectorStorageConfig] = Field(
+    vector_storage: VectorStorageConfig | None = Field(
         default=None,
         description="Vector database configuration"
     )
-    embedding_model: Optional[EmbeddingModelConfig] = Field(
+    embedding_model: EmbeddingModelConfig | None = Field(
         default=None,
         description="Embedding model configuration"
     )
-    mcp_clients: List[MCPClientConfig] = Field(
+    mcp_clients: list[MCPClientConfig] = Field(
         default_factory=list,
         description="MCP client integration configurations"
     )
@@ -113,7 +113,7 @@ class SetupConfiguration(BaseModel):
 
     def update_timestamp(self) -> None:
         """Update the updated_at timestamp to current time."""
-        self.updated_at = datetime.now(timezone.utc)
+        self.updated_at = datetime.now(UTC)
 
     def is_completed(self) -> bool:
         """Check if setup is completed successfully."""
@@ -131,7 +131,7 @@ class SetupConfiguration(BaseModel):
         """Check if setup can be retried (failed or cancelled)."""
         return self.setup_status in {SetupStatus.FAILED, SetupStatus.CANCELLED}
 
-    def get_configured_components(self) -> List[str]:
+    def get_configured_components(self) -> list[str]:
         """Get list of configured component names."""
         components = []
         if self.vector_storage:

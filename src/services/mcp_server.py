@@ -1,30 +1,38 @@
 """MCP (Model Context Protocol) server for DocBro."""
 
-import asyncio
 import json
-from datetime import datetime
-from typing import Dict, List, Optional, Any
 import uuid
-import logging
+from datetime import datetime
+from typing import Any
 
-from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
+from fastapi import (
+    Depends,
+    FastAPI,
+    HTTPException,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from src.core.config import DocBroConfig
 from src.core.lib_logger import get_component_logger
+from src.models import ProjectStatus
 from src.services.database import DatabaseManager
-from src.services.vector_store_factory import VectorStoreFactory
+from src.services.decision_handler import (
+    DecisionHandler,
+    DecisionHandlerError,
+    DecisionNotFoundError,
+    InvalidDecisionError,
+)
 from src.services.embeddings import EmbeddingService
-from src.services.rag import RAGSearchService
-from src.models import Project, ProjectStatus
 from src.services.installation_start import InstallationStartService
 from src.services.installation_status import InstallationStatusService
-from src.services.decision_handler import DecisionHandler, DecisionHandlerError, DecisionNotFoundError, InvalidDecisionError
+from src.services.rag import RAGSearchService
 from src.services.service_endpoints import create_service_endpoints_router
-
+from src.services.vector_store_factory import VectorStoreFactory
 
 # Security
 security = HTTPBearer()
@@ -33,22 +41,22 @@ security = HTTPBearer()
 class MCPServer:
     """MCP server for DocBro integration with coding agents."""
 
-    def __init__(self, config: Optional[DocBroConfig] = None):
+    def __init__(self, config: DocBroConfig | None = None):
         """Initialize MCP server."""
         self.config = config or DocBroConfig()
         self.logger = get_component_logger("mcp_server")
 
         # Services
-        self.db_manager: Optional[DatabaseManager] = None
+        self.db_manager: DatabaseManager | None = None
         self.vector_store = None  # Will be created by factory
-        self.embedding_service: Optional[EmbeddingService] = None
-        self.rag_service: Optional[RAGSearchService] = None
+        self.embedding_service: EmbeddingService | None = None
+        self.rag_service: RAGSearchService | None = None
         self.installation_service = InstallationStartService()
         self.installation_status_service = InstallationStatusService()
 
         # Session management
-        self.sessions: Dict[str, Dict[str, Any]] = {}
-        self.websocket_connections: Dict[str, WebSocket] = {}
+        self.sessions: dict[str, dict[str, Any]] = {}
+        self.websocket_connections: dict[str, WebSocket] = {}
 
         # Create FastAPI app
         self.app = self._create_app()
@@ -156,7 +164,7 @@ class MCPServer:
 
         # MCP Connect endpoint
         @app.post("/mcp/connect", dependencies=[Depends(verify_token)])
-        async def mcp_connect(session_data: Dict[str, Any]):
+        async def mcp_connect(session_data: dict[str, Any]):
             """Establish MCP connection."""
             session_id = str(uuid.uuid4())
             self.sessions[session_id] = {
@@ -179,7 +187,7 @@ class MCPServer:
         # MCP Projects endpoint
         @app.get("/mcp/projects", dependencies=[Depends(verify_token)])
         async def mcp_projects(
-            status: Optional[str] = None,
+            status: str | None = None,
             limit: int = 100
         ):
             """List available projects."""
@@ -229,7 +237,7 @@ class MCPServer:
 
         # MCP Search endpoint
         @app.post("/mcp/search", dependencies=[Depends(verify_token)])
-        async def mcp_search(search_request: Dict[str, Any]):
+        async def mcp_search(search_request: dict[str, Any]):
             """Search documentation."""
             try:
                 # Extract parameters
@@ -295,7 +303,7 @@ class MCPServer:
 
         # MCP Project refresh endpoint
         @app.post("/mcp/projects/refresh", dependencies=[Depends(verify_token)])
-        async def mcp_project_refresh(refresh_request: Dict[str, Any]):
+        async def mcp_project_refresh(refresh_request: dict[str, Any]):
             """Refresh a project."""
             project_name = refresh_request.get("project_name")
             if not project_name:
@@ -321,7 +329,7 @@ class MCPServer:
 
         # Installation start endpoint
         @app.post("/installation/start")
-        async def installation_start(request_data: Dict[str, Any]):
+        async def installation_start(request_data: dict[str, Any]):
             """Start DocBro installation process."""
             try:
                 response = await self.installation_service.start_installation(request_data)
@@ -430,7 +438,7 @@ class MCPServer:
                 )
 
         @app.put("/installation/{installation_id}/decisions")
-        async def put_installation_decisions(installation_id: str, decision_data: Dict[str, Any]):
+        async def put_installation_decisions(installation_id: str, decision_data: dict[str, Any]):
             """Submit user choice for a critical decision.
 
             Args:
@@ -551,7 +559,7 @@ class MCPServer:
         """Get FastAPI application instance."""
         return self.app
 
-    async def send_update(self, session_id: str, message: Dict[str, Any]) -> None:
+    async def send_update(self, session_id: str, message: dict[str, Any]) -> None:
         """Send update to a connected WebSocket client."""
         if session_id in self.websocket_connections:
             ws = self.websocket_connections[session_id]
@@ -564,7 +572,7 @@ class MCPServer:
                 })
 
 
-def create_app(config: Optional[DocBroConfig] = None) -> FastAPI:
+def create_app(config: DocBroConfig | None = None) -> FastAPI:
     """Create MCP server FastAPI application."""
     server = MCPServer(config)
     return server.get_app()
@@ -573,7 +581,7 @@ def create_app(config: Optional[DocBroConfig] = None) -> FastAPI:
 def run_mcp_server(
     host: str = "0.0.0.0",
     port: int = 9382,
-    config: Optional[DocBroConfig] = None
+    config: DocBroConfig | None = None
 ) -> None:
     """Run MCP server."""
     app = create_app(config)

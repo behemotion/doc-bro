@@ -2,17 +2,16 @@
 FullWidthProgressDisplay component for rich colored boxes
 """
 
-from typing import Dict, Any, Optional
-from rich.console import Console
+from typing import Any
+
+from rich.live import Live
 from rich.panel import Panel
 from rich.table import Table
-from rich.live import Live
-from rich.text import Text
 
-from ..models.enums import LayoutMode, ProcessingState, CompletionStatus
-from ..models.progress_box import ProgressBox
-from ..models.embedding_status import EmbeddingStatus
 from ..models.completion_summary import CompletionSummary
+from ..models.embedding_status import EmbeddingStatus
+from ..models.enums import CompletionStatus, LayoutMode, ProcessingState
+from ..models.progress_box import ProgressBox
 from ..services.terminal_adapter import TerminalAdapter
 from ..services.text_truncator import TextTruncator
 
@@ -20,16 +19,16 @@ from ..services.text_truncator import TextTruncator
 class FullWidthProgressDisplay:
     """Component for full-width Rich colored box progress display"""
 
-    def __init__(self, terminal_adapter: Optional[TerminalAdapter] = None,
-                 text_truncator: Optional[TextTruncator] = None):
+    def __init__(self, terminal_adapter: TerminalAdapter | None = None,
+                 text_truncator: TextTruncator | None = None):
         """Initialize full-width progress display"""
         self.terminal_adapter = terminal_adapter or TerminalAdapter()
         self.text_truncator = text_truncator or TextTruncator()
         self.console = self.terminal_adapter.get_console()
         self.layout_mode = LayoutMode.FULL_WIDTH
-        self.current_live: Optional[Live] = None
-        self.progress_box: Optional[ProgressBox] = None
-        self.embedding_status: Optional[EmbeddingStatus] = None
+        self.current_live: Live | None = None
+        self.progress_box: ProgressBox | None = None
+        self.embedding_status: EmbeddingStatus | None = None
 
     def start_operation(self, title: str, project_name: str) -> None:
         """
@@ -46,7 +45,7 @@ class FullWidthProgressDisplay:
         )
         self._update_display()
 
-    def update_metrics(self, metrics: Dict[str, Any]) -> None:
+    def update_metrics(self, metrics: dict[str, Any]) -> None:
         """
         Update progress metrics display
 
@@ -114,7 +113,7 @@ class FullWidthProgressDisplay:
         self._update_display()
 
     def complete_operation(self, project_name: str, operation_type: str,
-                          duration: float, success_metrics: Dict[str, Any],
+                          duration: float, success_metrics: dict[str, Any],
                           status: CompletionStatus) -> None:
         """
         Show final results and hide progress display

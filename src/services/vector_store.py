@@ -1,14 +1,10 @@
 """Vector store service using Qdrant for embeddings."""
 
 import asyncio
-import uuid
-from datetime import datetime
-from typing import Dict, List, Optional, Any, Tuple
-import logging
+from typing import Any
 
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
-from qdrant_client.http.exceptions import ResponseHandlingException
 
 from src.core.config import DocBroConfig
 from src.core.lib_logger import get_component_logger
@@ -22,13 +18,13 @@ class VectorStoreError(Exception):
 class VectorStoreService:
     """Manages vector storage operations using Qdrant."""
 
-    def __init__(self, config: Optional[DocBroConfig] = None):
+    def __init__(self, config: DocBroConfig | None = None):
         """Initialize vector store service."""
         self.config = config or DocBroConfig()
         self.logger = get_component_logger("vector_store")
 
         # Qdrant client
-        self._client: Optional[QdrantClient] = None
+        self._client: QdrantClient | None = None
         self._initialized = False
 
         # Default collection settings
@@ -97,8 +93,8 @@ class VectorStoreService:
     async def create_collection(
         self,
         collection_name: str,
-        vector_size: Optional[int] = None,
-        distance: Optional[qdrant_models.Distance] = None,
+        vector_size: int | None = None,
+        distance: qdrant_models.Distance | None = None,
         overwrite: bool = False
     ) -> bool:
         """Create a new collection."""
@@ -185,7 +181,7 @@ class VectorStoreService:
             })
             return False
 
-    async def list_collections(self) -> List[str]:
+    async def list_collections(self) -> list[str]:
         """List all collections."""
         self._ensure_initialized()
 
@@ -214,8 +210,8 @@ class VectorStoreService:
         self,
         collection_name: str,
         document_id: str,
-        embedding: List[float],
-        metadata: Dict[str, Any]
+        embedding: list[float],
+        metadata: dict[str, Any]
     ) -> bool:
         """Upsert a document with its embedding."""
         self._ensure_initialized()
@@ -255,7 +251,7 @@ class VectorStoreService:
     async def upsert_documents(
         self,
         collection_name: str,
-        documents: List[Dict[str, Any]],
+        documents: list[dict[str, Any]],
         batch_size: int = 100
     ) -> int:
         """Upsert multiple documents with batching to avoid timeouts."""
@@ -296,7 +292,7 @@ class VectorStoreService:
                     if total_documents > 500 and (i + batch_size) % 500 == 0:
                         self.logger.info(f"Upserted {upserted_count}/{total_documents} documents to {collection_name}")
 
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     self.logger.error(f"Timeout while upserting batch {i//batch_size + 1}, retrying with smaller batch")
                     # Retry with smaller batch
                     if batch_size > 20:
@@ -343,11 +339,11 @@ class VectorStoreService:
     async def search(
         self,
         collection_name: str,
-        query_embedding: List[float],
+        query_embedding: list[float],
         limit: int = 10,
-        score_threshold: Optional[float] = None,
-        filter_conditions: Optional[Dict[str, Any]] = None
-    ) -> List[Dict[str, Any]]:
+        score_threshold: float | None = None,
+        filter_conditions: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
         """Search for similar documents."""
         self._ensure_initialized()
 
@@ -412,7 +408,7 @@ class VectorStoreService:
         self,
         collection_name: str,
         document_id: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Get a specific document by ID."""
         self._ensure_initialized()
 
@@ -479,7 +475,7 @@ class VectorStoreService:
     async def delete_documents(
         self,
         collection_name: str,
-        document_ids: List[str]
+        document_ids: list[str]
     ) -> int:
         """Delete multiple documents from the collection."""
         self._ensure_initialized()
@@ -511,7 +507,7 @@ class VectorStoreService:
 
     # Collection statistics and information
 
-    async def get_collection_info(self, collection_name: str) -> Dict[str, Any]:
+    async def get_collection_info(self, collection_name: str) -> dict[str, Any]:
         """Get collection information and statistics."""
         self._ensure_initialized()
 
@@ -559,7 +555,7 @@ class VectorStoreService:
 
     # Utility methods
 
-    async def health_check(self) -> Tuple[bool, str]:
+    async def health_check(self) -> tuple[bool, str]:
         """Check vector store health."""
         if not self._initialized:
             return False, "Vector store not initialized"
@@ -618,9 +614,9 @@ class VectorStoreService:
     async def add_embeddings(
         self,
         collection_name: str,
-        embeddings: List[List[float]],
-        ids: List[str],
-        metadatas: Optional[List[Dict[str, Any]]] = None
+        embeddings: list[list[float]],
+        ids: list[str],
+        metadatas: list[dict[str, Any]] | None = None
     ) -> int:
         """Add embeddings to collection (compatibility method).
 
@@ -628,7 +624,7 @@ class VectorStoreService:
         It internally uses upsert_documents for the actual implementation.
         """
         documents = []
-        for i, (embedding, doc_id) in enumerate(zip(embeddings, ids)):
+        for i, (embedding, doc_id) in enumerate(zip(embeddings, ids, strict=False)):
             metadata = metadatas[i] if metadatas and i < len(metadatas) else {}
             documents.append({
                 "id": doc_id,

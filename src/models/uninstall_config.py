@@ -1,7 +1,7 @@
 """UninstallConfig model for uninstall operation configuration."""
 
 from pathlib import Path
-from typing import Optional
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -16,7 +16,7 @@ class UninstallConfig(BaseModel):
         default=False,
         description="Create backup before removal"
     )
-    backup_path: Optional[Path] = Field(
+    backup_path: Path | None = Field(
         default=None,
         description="Path where backup will be created"
     )
@@ -30,7 +30,7 @@ class UninstallConfig(BaseModel):
     )
 
     @field_validator('backup_path')
-    def validate_backup_path(cls, v: Optional[Path], values) -> Optional[Path]:
+    def validate_backup_path(cls, v: Path | None, values) -> Path | None:
         """Validate backup path if backup is enabled."""
         # Note: In Pydantic v2, we get values as a dict-like object
         if v is not None:

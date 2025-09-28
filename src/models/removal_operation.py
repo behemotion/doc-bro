@@ -1,9 +1,9 @@
 """RemovalOperation model for queuing removal operations."""
 
-from enum import Enum
-from typing import List, Optional
-from pydantic import BaseModel, Field
 import uuid
+from enum import Enum
+
+from pydantic import BaseModel, Field
 
 
 class OperationType(str, Enum):
@@ -32,7 +32,7 @@ class RemovalOperation(BaseModel):
     priority: int = Field(
         description="Execution order (lower = higher priority)"
     )
-    dependencies: List[str] = Field(
+    dependencies: list[str] = Field(
         default_factory=list,
         description="Other operation IDs that must complete first"
     )
@@ -44,7 +44,7 @@ class RemovalOperation(BaseModel):
         default=3,
         description="Maximum retries allowed"
     )
-    error_message: Optional[str] = Field(
+    error_message: str | None = Field(
         default=None,
         description="Last error message if failed"
     )
@@ -59,7 +59,7 @@ class RemovalOperation(BaseModel):
         )
 
     @classmethod
-    def create_remove_container(cls, container_id: str, depends_on: Optional[str] = None) -> "RemovalOperation":
+    def create_remove_container(cls, container_id: str, depends_on: str | None = None) -> "RemovalOperation":
         """Create operation to remove a container."""
         dependencies = [depends_on] if depends_on else []
         return cls(

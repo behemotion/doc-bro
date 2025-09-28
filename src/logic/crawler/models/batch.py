@@ -1,22 +1,23 @@
 """BatchOperation model for batch crawl tracking."""
 
 from datetime import datetime, timedelta
-from typing import List, Tuple, Optional, Dict, Any
-from pydantic import ConfigDict, BaseModel, Field, field_validator
+from typing import Any
 from uuid import uuid4
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class BatchOperation(BaseModel):
     """Batch crawl operation tracking."""
 
     operation_id: str = Field(default_factory=lambda: str(uuid4()))
-    projects: List[str] = Field(default_factory=list)
+    projects: list[str] = Field(default_factory=list)
     current_index: int = Field(default=0, ge=0)
-    completed: List[str] = Field(default_factory=list)
-    failed: List[Tuple[str, str]] = Field(default_factory=list)  # (project, error)
+    completed: list[str] = Field(default_factory=list)
+    failed: list[tuple[str, str]] = Field(default_factory=list)  # (project, error)
     start_time: datetime = Field(default_factory=datetime.utcnow)
-    end_time: Optional[datetime] = None
-    estimated_completion: Optional[datetime] = None
+    end_time: datetime | None = None
+    estimated_completion: datetime | None = None
     continue_on_error: bool = Field(default=True)
     total_pages_crawled: int = Field(default=0, ge=0)
     total_embeddings_created: int = Field(default=0, ge=0)
@@ -31,13 +32,13 @@ class BatchOperation(BaseModel):
 
     @field_validator('projects')
     @classmethod
-    def validate_unique_projects(cls, v: List[str]) -> List[str]:
+    def validate_unique_projects(cls, v: list[str]) -> list[str]:
         """Validate that projects list has no duplicates."""
         if len(v) != len(set(v)):
             raise ValueError("Project list contains duplicates")
         return v
 
-    def get_current_project(self) -> Optional[str]:
+    def get_current_project(self) -> str | None:
         """Get the current project being processed.
 
         Returns:
@@ -156,7 +157,7 @@ class BatchOperation(BaseModel):
         self.end_time = datetime.utcnow()
         self.estimated_completion = None
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Get operation summary.
 
         Returns:
@@ -186,7 +187,7 @@ class BatchOperation(BaseModel):
             return 0.0
         return (len(self.completed) / total_processed) * 100
 
-    def get_failed_projects(self) -> List[Dict[str, str]]:
+    def get_failed_projects(self) -> list[dict[str, str]]:
         """Get list of failed projects with errors.
 
         Returns:
@@ -197,7 +198,7 @@ class BatchOperation(BaseModel):
             for project, error in self.failed
         ]
 
-    def get_remaining_projects(self) -> List[str]:
+    def get_remaining_projects(self) -> list[str]:
         """Get list of remaining projects.
 
         Returns:

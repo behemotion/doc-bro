@@ -1,15 +1,16 @@
 """SystemRequirementsService for dependency validation (Python 3.13+, memory, disk)."""
-import sys
-import shutil
 import platform
-import psutil
-import subprocess
+import shutil
 import sqlite3
+import subprocess
+import sys
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Tuple
-from src.models.installation_profile import SystemInfo
-from src.models.system_requirements import SystemRequirements
+from typing import Any
+
+import psutil
+
 from src.core.lib_logger import get_logger
+from src.models.installation_profile import SystemInfo
 
 logger = get_logger(__name__)
 
@@ -31,7 +32,7 @@ class SystemRequirementsService:
         self.min_memory_gb = 4.0
         self.min_disk_gb = 2.0
 
-    async def validate_all_requirements(self) -> Dict[str, bool]:
+    async def validate_all_requirements(self) -> dict[str, bool]:
         """Validate all system requirements."""
         results = {}
 
@@ -98,7 +99,7 @@ class SystemRequirementsService:
             logger.error(f"Memory validation failed: {e}")
             return False
 
-    def _validate_disk_space(self, path: Optional[Path] = None) -> bool:
+    def _validate_disk_space(self, path: Path | None = None) -> bool:
         """Validate available disk space is >= 2GB."""
         try:
             # Use current directory or specified path
@@ -200,7 +201,7 @@ class SystemRequirementsService:
                 logger.warning(f"SQLite-vec validation failed: {e}")
             return False
 
-    def detect_sqlite_vec(self) -> Tuple[bool, str]:
+    def detect_sqlite_vec(self) -> tuple[bool, str]:
         """Detect SQLite-vec extension availability with detailed message."""
         if not SQLITE_VEC_AVAILABLE:
             return False, "sqlite-vec not installed. Run: uv pip install --system sqlite-vec"
@@ -220,7 +221,7 @@ class SystemRequirementsService:
         except Exception as e:
             return False, f"Failed to load sqlite-vec: {e}"
 
-    def check_sqlite_version(self) -> Tuple[bool, str]:
+    def check_sqlite_version(self) -> tuple[bool, str]:
         """Check SQLite version compatibility for sqlite-vec."""
         try:
             version = sqlite3.sqlite_version_info
@@ -273,7 +274,7 @@ class SystemRequirementsService:
                 docker_available=False
             )
 
-    def generate_requirements_report(self, validation_results: Dict[str, bool]) -> Dict[str, Any]:
+    def generate_requirements_report(self, validation_results: dict[str, bool]) -> dict[str, Any]:
         """Generate detailed requirements validation report."""
         try:
             system_info = self.get_system_info()
@@ -328,7 +329,7 @@ class SystemRequirementsService:
             logger.error(f"Failed to generate requirements report: {e}")
             return {"error": f"Report generation failed: {e}"}
 
-    def get_installation_recommendations(self, validation_results: Dict[str, bool]) -> List[str]:
+    def get_installation_recommendations(self, validation_results: dict[str, bool]) -> list[str]:
         """Get recommendations for failed requirements."""
         recommendations = []
 

@@ -1,11 +1,11 @@
 """Service detection functions for external dependencies."""
 
 import asyncio
+import logging
 import subprocess
 from datetime import datetime
-from typing import Dict, List, Optional
+
 import httpx
-import logging
 
 from src.models.installation import ServiceStatus
 
@@ -221,8 +221,8 @@ class ServiceDetectionService:
 
     async def check_all_services(
         self,
-        endpoints: Optional[Dict[str, str]] = None
-    ) -> Dict[str, ServiceStatus]:
+        endpoints: dict[str, str] | None = None
+    ) -> dict[str, ServiceStatus]:
         """Check all services and return their status."""
         if endpoints is None:
             endpoints = {
@@ -272,7 +272,7 @@ class ServiceDetectionService:
 
         return results
 
-    def get_service_summary(self, statuses: Dict[str, ServiceStatus]) -> Dict[str, any]:
+    def get_service_summary(self, statuses: dict[str, ServiceStatus]) -> dict[str, any]:
         """Get a summary of service statuses for display."""
         summary = {
             "total_services": len(statuses),

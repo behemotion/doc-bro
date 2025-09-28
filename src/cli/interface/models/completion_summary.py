@@ -2,8 +2,10 @@
 CompletionSummary model for final results display
 """
 
-from typing import Dict, Any
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
 from .enums import CompletionStatus
 
 
@@ -13,7 +15,7 @@ class CompletionSummary(BaseModel):
     project_name: str = Field(..., min_length=1, description="Completed project identifier")
     operation_type: str = Field(..., min_length=1, description="Type of completed operation")
     duration: float = Field(..., ge=0.0, description="Total operation time in seconds")
-    success_metrics: Dict[str, Any] = Field(..., description="Final counts and statistics")
+    success_metrics: dict[str, Any] = Field(..., description="Final counts and statistics")
     status: CompletionStatus = Field(..., description="Final operation status")
 
     @field_validator('project_name')

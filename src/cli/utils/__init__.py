@@ -3,9 +3,9 @@
 from .navigation import (
     ArrowNavigator,
     NavigationChoice,
+    confirm_action,
     create_navigation_choice,
     prompt_with_arrows,
-    confirm_action
 )
 
 __all__ = [

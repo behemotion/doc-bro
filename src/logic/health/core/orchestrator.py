@@ -2,15 +2,14 @@
 
 import asyncio
 import time
-from typing import List, Optional, Set
 
+from ..models.category import HealthCategory
 from ..models.health_check import HealthCheck
 from ..models.health_report import HealthReport
-from ..models.category import HealthCategory
 from ..models.status import HealthStatus
-from ..services.system_validator import SystemValidator
 from ..services.config_validator import ConfigurationValidator
 from ..services.health_reporter import HealthReporter
+from ..services.system_validator import SystemValidator
 
 
 class HealthOrchestrator:
@@ -33,7 +32,7 @@ class HealthOrchestrator:
         self.health_reporter = HealthReporter()
 
     async def run_comprehensive_health_check(self,
-                                           categories: Optional[Set[HealthCategory]] = None) -> HealthReport:
+                                           categories: set[HealthCategory] | None = None) -> HealthReport:
         """Run comprehensive health check across all or specified categories.
 
         Args:
@@ -61,7 +60,7 @@ class HealthOrchestrator:
 
             execution_time = time.time() - start_time
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             execution_time = self.timeout
             timeout_occurred = True
 
@@ -99,7 +98,7 @@ class HealthOrchestrator:
             categories={HealthCategory.PROJECTS}
         )
 
-    async def _execute_health_checks(self, categories: Set[HealthCategory]) -> List[HealthCheck]:
+    async def _execute_health_checks(self, categories: set[HealthCategory]) -> list[HealthCheck]:
         """Execute health checks for specified categories."""
         all_checks = []
 
@@ -142,7 +141,7 @@ class HealthOrchestrator:
 
         return all_checks
 
-    async def _get_system_check_tasks(self) -> List[asyncio.Task]:
+    async def _get_system_check_tasks(self) -> list[asyncio.Task]:
         """Get system validation tasks."""
         return [
             asyncio.create_task(self._run_with_semaphore(self.system_validator.validate_python_version())),
@@ -151,7 +150,7 @@ class HealthOrchestrator:
             asyncio.create_task(self._run_with_semaphore(self.system_validator.validate_uv_installation())),
         ]
 
-    async def _get_services_check_tasks(self) -> List[asyncio.Task]:
+    async def _get_services_check_tasks(self) -> list[asyncio.Task]:
         """Get service validation tasks using existing ServiceDetector."""
         return [
             asyncio.create_task(self._run_with_semaphore(self._check_service_docker())),
@@ -160,7 +159,7 @@ class HealthOrchestrator:
             asyncio.create_task(self._run_with_semaphore(self._check_service_git())),
         ]
 
-    async def _get_configuration_check_tasks(self) -> List[asyncio.Task]:
+    async def _get_configuration_check_tasks(self) -> list[asyncio.Task]:
         """Get configuration validation tasks."""
         return [
             asyncio.create_task(self._run_with_semaphore(self.config_validator.validate_global_settings())),
@@ -168,7 +167,7 @@ class HealthOrchestrator:
             asyncio.create_task(self._run_with_semaphore(self.config_validator.validate_vector_store_config())),
         ]
 
-    async def _get_projects_check_tasks(self) -> List[asyncio.Task]:
+    async def _get_projects_check_tasks(self) -> list[asyncio.Task]:
         """Get project-specific validation tasks."""
         # Projects health checks would be implemented based on actual project structure
         # For now, return a placeholder check
@@ -195,7 +194,7 @@ class HealthOrchestrator:
             if docker_info.get("status") == "available":
                 status = HealthStatus.HEALTHY
                 message = f"Docker {docker_info.get('version', 'unknown')} running"
-                details = f"Docker service available"
+                details = "Docker service available"
                 resolution = None
             else:
                 status = HealthStatus.WARNING  # Docker is optional
@@ -376,8 +375,8 @@ class HealthOrchestrator:
 
         try:
             # Check if projects directory exists and count projects
-            from pathlib import Path
             import os
+            from pathlib import Path
 
             data_dir = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local' / 'share')) / 'docbro'
             projects_dir = data_dir / 'projects'
@@ -420,7 +419,7 @@ class HealthOrchestrator:
                 execution_time=execution_time
             )
 
-    async def _get_partial_results(self, categories: Set[HealthCategory]) -> List[HealthCheck]:
+    async def _get_partial_results(self, categories: set[HealthCategory]) -> list[HealthCheck]:
         """Get partial results when timeout occurs."""
         # In case of timeout, return minimal health checks indicating timeout
         timeout_checks = []
@@ -433,7 +432,7 @@ class HealthOrchestrator:
                 status=HealthStatus.UNAVAILABLE,
                 message=f"{category.display_name} checks timed out",
                 details=f"Health checks for {category.display_name} exceeded {self.timeout}s timeout",
-                resolution=f"Try running with longer timeout: --timeout 30",
+                resolution="Try running with longer timeout: --timeout 30",
                 execution_time=self.timeout
             ))
 

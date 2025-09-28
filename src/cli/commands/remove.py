@@ -1,10 +1,8 @@
 """Remove command for DocBro CLI."""
 
 import asyncio
-from typing import Optional
 
 import click
-from rich.console import Console
 from rich.prompt import Confirm
 
 # Optional uvloop for better performance
@@ -37,7 +35,7 @@ def get_app():
 @click.option("--confirm", is_flag=True, help="Skip confirmation prompt")
 @click.option("--all", is_flag=True, help="Remove all projects")
 @click.pass_context
-def remove(ctx: click.Context, name: Optional[str], confirm: bool, all: bool):
+def remove(ctx: click.Context, name: str | None, confirm: bool, all: bool):
     """Remove a documentation project and all its data.
     
     Aliases: delete, erase
@@ -111,11 +109,11 @@ def remove(ctx: click.Context, name: Optional[str], confirm: bool, all: bool):
                     if not projects:
                         app.console.print("[yellow]No projects found.[/yellow]")
                         return
-                    
+
                     app.console.print("\n[cyan]Select a project to remove:[/cyan]")
                     for i, project in enumerate(projects, 1):
                         app.console.print(f"  {i}. {project.name}")
-                    
+
                     app.console.print("\nEnter project number (or 0 to cancel): ", end="")
                     try:
                         choice = int(input())

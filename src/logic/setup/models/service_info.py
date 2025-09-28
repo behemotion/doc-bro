@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Dict
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -20,7 +20,7 @@ class ServiceInfo(BaseModel):
     name: str = Field(
         description="Service identifier (e.g., 'docker', 'qdrant', 'ollama')"
     )
-    version: Optional[str] = Field(
+    version: str | None = Field(
         default=None,
         description="Detected version of the service"
     )
@@ -28,7 +28,7 @@ class ServiceInfo(BaseModel):
         default=ServiceStatus.UNKNOWN,
         description="Current status of the service"
     )
-    url: Optional[str] = Field(
+    url: str | None = Field(
         default=None,
         description="Service endpoint URL if applicable"
     )
@@ -36,7 +36,7 @@ class ServiceInfo(BaseModel):
         default_factory=datetime.utcnow,
         description="When service was last validated (UTC)"
     )
-    error: Optional[str] = Field(
+    error: str | None = Field(
         default=None,
         description="Detection error details if any"
     )
@@ -64,7 +64,7 @@ class ServiceInfo(BaseModel):
 
     @field_validator("url")
     @classmethod
-    def validate_url_format(cls, v: Optional[str]) -> Optional[str]:
+    def validate_url_format(cls, v: str | None) -> str | None:
         """Validate URL format if provided."""
         if v is None:
             return v
@@ -84,7 +84,7 @@ class ServiceInfo(BaseModel):
         required = ["python", "uv", "sqlite_vec"]
         return self.name in required
 
-    def mark_available(self, version: Optional[str] = None) -> None:
+    def mark_available(self, version: str | None = None) -> None:
         """Mark service as available."""
         self.status = ServiceStatus.AVAILABLE
         self.error = None
@@ -92,7 +92,7 @@ class ServiceInfo(BaseModel):
         if version:
             self.version = version
 
-    def mark_unavailable(self, error: Optional[str] = None) -> None:
+    def mark_unavailable(self, error: str | None = None) -> None:
         """Mark service as unavailable."""
         self.status = ServiceStatus.UNAVAILABLE
         self.last_check = datetime.utcnow()
@@ -104,7 +104,7 @@ class ServiceInfo(BaseModel):
         age = (datetime.utcnow() - self.last_check).total_seconds()
         return age > max_age_seconds
 
-    def to_display_dict(self) -> Dict[str, str]:
+    def to_display_dict(self) -> dict[str, str]:
         """Convert to user-friendly display format."""
         status_emoji = {
             ServiceStatus.AVAILABLE: "✅",
@@ -128,7 +128,7 @@ class ServiceInfo(BaseModel):
 
         return display
 
-    def get_setup_instructions(self) -> Optional[str]:
+    def get_setup_instructions(self) -> str | None:
         """Get setup instructions for unavailable service."""
         if self.status != ServiceStatus.UNAVAILABLE:
             return None

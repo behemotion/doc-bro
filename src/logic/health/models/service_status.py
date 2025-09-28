@@ -1,7 +1,6 @@
 """Service status entity model."""
 
-from typing import Optional
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, model_validator
 
 from .service_type import ServiceType
 
@@ -11,34 +10,23 @@ class ServiceStatus(BaseModel):
 
     service: ServiceType = Field(..., description="Type of external service")
     available: bool = Field(..., description="Whether the service is accessible")
-    version: Optional[str] = Field(None, description="Detected version if available")
-    url: Optional[str] = Field(None, description="Service URL if applicable")
+    version: str | None = Field(None, description="Detected version if available")
+    url: str | None = Field(None, description="Service URL if applicable")
     config_valid: bool = Field(..., description="Whether service configuration is valid")
-    error_message: Optional[str] = Field(None, description="Error details if unavailable")
+    error_message: str | None = Field(None, description="Error details if unavailable")
 
-    @validator('error_message')
-    def validate_error_message_when_unavailable(cls, v, values):
-        """Validate error message is provided when service is unavailable."""
-        available = values.get('available')
-        if available is False and not v:
+    @model_validator(mode='after')
+    def validate_service_consistency(self) -> 'ServiceStatus':
+        """Validate service status consistency."""
+        # Validate error message is provided when service is unavailable
+        if self.available is False and not self.error_message:
             raise ValueError("Error message required when service is unavailable")
-        return v
 
-    @validator('version')
-    def validate_version_format(cls, v, values):
-        """Validate version format based on service type."""
-        if not v:
-            return v
-
-        service = values.get('service')
-        if not service:
-            return v
-
-        # Basic version validation - should contain numbers
-        if not any(char.isdigit() for char in v):
+        # Validate version format if provided
+        if self.version and not any(char.isdigit() for char in self.version):
             raise ValueError("Version should contain numeric components")
 
-        return v
+        return self
 
     @property
     def is_healthy(self) -> bool:
@@ -66,6 +54,4 @@ class ServiceStatus(BaseModel):
             "error_message": self.error_message
         }
 
-    class Config:
-        """Pydantic configuration."""
-        pass
+    model_config = {}

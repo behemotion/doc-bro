@@ -4,7 +4,7 @@ XDG-compliant directory utilities for DocBro settings.
 
 import os
 from pathlib import Path
-from typing import Optional
+
 
 def get_xdg_config_home() -> Path:
     """Get XDG config home directory."""
@@ -59,7 +59,7 @@ def get_global_settings_path() -> Path:
     """Get path to global settings file."""
     return get_docbro_config_dir() / 'settings.yaml'
 
-def get_project_settings_path(project_dir: Optional[Path] = None) -> Path:
+def get_project_settings_path(project_dir: Path | None = None) -> Path:
     """Get path to project settings file."""
     if project_dir is None:
         project_dir = Path.cwd()

@@ -10,17 +10,21 @@ return/accept proper model arrays, handle HTTP status codes (200, 400, 404),
 and integrate with SystemRequirementsService and ServiceConfigurationService.
 """
 
-import uuid
 import logging
+import uuid
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+
 from fastapi import APIRouter, HTTPException, Path, status
 from pydantic import ValidationError
 
 from src.models.installation import SystemRequirements
-from src.models.service_config import ServiceConfiguration, ServiceName, ServiceStatusType
-from src.services.system_validator import SystemRequirementsService
+from src.models.service_config import (
+    ServiceConfiguration,
+    ServiceName,
+    ServiceStatusType,
+)
 from src.services.service_manager import ServiceConfigurationService
+from src.services.system_validator import SystemRequirementsService
 
 logger = logging.getLogger(__name__)
 
@@ -98,10 +102,10 @@ def create_service_endpoints_router() -> APIRouter:
                 detail="Failed to retrieve system requirements"
             )
 
-    @router.get("/installation/{installation_id}/services", response_model=List[ServiceConfiguration])
+    @router.get("/installation/{installation_id}/services", response_model=list[ServiceConfiguration])
     async def get_installation_services(
         installation_id: str = Path(..., description="Installation ID (UUID format)")
-    ) -> List[ServiceConfiguration]:
+    ) -> list[ServiceConfiguration]:
         """Get service configurations for an installation.
 
         Args:
@@ -169,11 +173,11 @@ def create_service_endpoints_router() -> APIRouter:
                 detail="Failed to retrieve service configurations"
             )
 
-    @router.put("/installation/{installation_id}/services", response_model=List[ServiceConfiguration])
+    @router.put("/installation/{installation_id}/services", response_model=list[ServiceConfiguration])
     async def update_installation_services(
         installation_id: str,
-        services: List[ServiceConfiguration]
-    ) -> List[ServiceConfiguration]:
+        services: list[ServiceConfiguration]
+    ) -> list[ServiceConfiguration]:
         """Update service configurations for an installation.
 
         Args:

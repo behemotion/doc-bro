@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "docbro"
-version = "0.2.7"
+version = "0.3.1"
 description = "Documentation crawler and search tool with RAG capabilities and MCP server integration"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -41,6 +41,9 @@ dependencies = [
     "psutil>=5.9.0",
     "pyyaml>=6.0.0",
     "sqlite-vec>=0.1.6",
+    "paramiko>=3.0.0",
+    "smbprotocol>=1.10.0",
+    "python-magic>=0.4.0",
 ]
 
 [project.optional-dependencies]

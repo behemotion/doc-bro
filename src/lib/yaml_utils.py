@@ -2,26 +2,27 @@
 YAML serialization/deserialization utilities.
 """
 
-import yaml
-from typing import Any, Dict, Optional
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+import yaml
 
 
-def load_yaml_file(file_path: Path) -> Optional[Dict[str, Any]]:
+def load_yaml_file(file_path: Path) -> dict[str, Any] | None:
     """Load YAML file safely."""
     if not file_path.exists():
         return None
 
     try:
-        with open(file_path, 'r') as f:
+        with open(file_path) as f:
             return yaml.safe_load(f) or {}
     except Exception as e:
         print(f"Error loading YAML from {file_path}: {e}")
         return None
 
 
-def save_yaml_file(file_path: Path, data: Dict[str, Any]) -> bool:
+def save_yaml_file(file_path: Path, data: dict[str, Any]) -> bool:
     """Save data to YAML file."""
     try:
         # Ensure directory exists
@@ -41,7 +42,7 @@ def save_yaml_file(file_path: Path, data: Dict[str, Any]) -> bool:
         return False
 
 
-def merge_yaml_configs(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+def merge_yaml_configs(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     """Merge two YAML configurations, with override taking precedence."""
     result = base.copy()
 
@@ -72,7 +73,7 @@ yaml.add_representer(datetime, datetime_representer)
 yaml.add_constructor('tag:yaml.org,2002:str', datetime_constructor)
 
 
-def validate_yaml_structure(data: Dict[str, Any], required_keys: list) -> tuple[bool, list[str]]:
+def validate_yaml_structure(data: dict[str, Any], required_keys: list) -> tuple[bool, list[str]]:
     """Validate YAML structure has required keys."""
     errors = []
 
@@ -83,7 +84,7 @@ def validate_yaml_structure(data: Dict[str, Any], required_keys: list) -> tuple[
     return len(errors) == 0, errors
 
 
-def create_backup(file_path: Path, suffix: Optional[str] = None) -> Optional[Path]:
+def create_backup(file_path: Path, suffix: str | None = None) -> Path | None:
     """Create a backup of a YAML file."""
     if not file_path.exists():
         return None

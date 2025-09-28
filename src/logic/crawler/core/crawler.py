@@ -2,24 +2,22 @@
 
 import asyncio
 import hashlib
-import re
 import time
-from datetime import datetime
-from typing import Dict, List, Optional, Set, Tuple, Any
+from typing import Any
 from urllib.parse import urljoin, urlparse, urlunparse
 from urllib.robotparser import RobotFileParser
-import logging
 
 import httpx
 from bs4 import BeautifulSoup
 from bs4.element import Comment
 
-from src.models import Project, CrawlStatus, PageStatus
-from ..models.session import CrawlSession
-from ..models.page import Page
-from src.services.database import DatabaseManager
 from src.core.config import DocBroConfig
 from src.core.lib_logger import get_component_logger
+from src.models import CrawlStatus, PageStatus, Project
+from src.services.database import DatabaseManager
+
+from ..models.page import Page
+from ..models.session import CrawlSession
 
 
 class CrawlerError(Exception):
@@ -33,7 +31,7 @@ class DocumentationCrawler:
     def __init__(
         self,
         db_manager: DatabaseManager,
-        config: Optional[DocBroConfig] = None
+        config: DocBroConfig | None = None
     ):
         """Initialize documentation crawler."""
         self.db_manager = db_manager
@@ -41,22 +39,22 @@ class DocumentationCrawler:
         self.logger = get_component_logger("crawler")
 
         # HTTP client
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: httpx.AsyncClient | None = None
 
         # Crawl state
         self._crawl_queue: asyncio.Queue = asyncio.Queue()
-        self._visited_urls: Set[str] = set()
-        self._content_hashes: Set[str] = set()
-        self._domain_last_access: Dict[str, float] = {}
+        self._visited_urls: set[str] = set()
+        self._content_hashes: set[str] = set()
+        self._domain_last_access: dict[str, float] = {}
 
         # Robots.txt cache
-        self._robots_cache: Dict[str, RobotFileParser] = {}
+        self._robots_cache: dict[str, RobotFileParser] = {}
 
         # Session state
-        self._current_session: Optional[CrawlSession] = None
+        self._current_session: CrawlSession | None = None
         self._is_running = False
         self._stop_requested = False
-        self._crawl_task: Optional[asyncio.Task] = None
+        self._crawl_task: asyncio.Task | None = None
 
     async def initialize(self) -> None:
         """Initialize crawler."""
@@ -140,11 +138,11 @@ class DocumentationCrawler:
     async def start_crawl(
         self,
         project_id: str,
-        user_agent: Optional[str] = None,
+        user_agent: str | None = None,
         rate_limit: float = 1.0,
-        max_pages: Optional[int] = None,
-        progress_display: Optional[Any] = None,
-        error_reporter: Optional[Any] = None
+        max_pages: int | None = None,
+        progress_display: Any | None = None,
+        error_reporter: Any | None = None
     ) -> CrawlSession:
         """Start a new crawl session for a project."""
         if self._is_running:
@@ -206,9 +204,9 @@ class DocumentationCrawler:
         self,
         project: Project,
         session: CrawlSession,
-        max_pages: Optional[int] = None,
-        progress_display: Optional[Any] = None,
-        error_reporter: Optional[Any] = None
+        max_pages: int | None = None,
+        progress_display: Any | None = None,
+        error_reporter: Any | None = None
     ) -> None:
         """Main crawl worker loop."""
         try:
@@ -255,7 +253,7 @@ class DocumentationCrawler:
                             queue=self._crawl_queue.qsize(),
                             url=url
                         )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     # Check if we should really stop
                     # If we haven't exceeded max depth and we have crawled pages, we might still be processing
                     if current_depth < project.crawl_depth and pages_crawled > 0:
@@ -438,7 +436,7 @@ class DocumentationCrawler:
             self._is_running = False
             self._current_session = None
 
-    async def crawl_page(self, url: str) -> Dict[str, Any]:
+    async def crawl_page(self, url: str) -> dict[str, Any]:
         """Crawl a single page and extract content."""
         try:
             start_time = time.time()
@@ -516,7 +514,7 @@ class DocumentationCrawler:
 
         return text
 
-    def extract_links(self, html_content: str, base_url: str) -> List[str]:
+    def extract_links(self, html_content: str, base_url: str) -> list[str]:
         """Extract all links from HTML content."""
         try:
             soup = BeautifulSoup(html_content, "html.parser")
@@ -667,13 +665,13 @@ class DocumentationCrawler:
 
         return session
 
-    async def get_crawled_pages(self, session_id: str) -> List[Page]:
+    async def get_crawled_pages(self, session_id: str) -> list[Page]:
         """Get all pages crawled in a session."""
         # This would need to be implemented in the database manager
         # For now, return empty list
         return []
 
-    async def get_crawl_statistics(self, session_id: str) -> Dict[str, Any]:
+    async def get_crawl_statistics(self, session_id: str) -> dict[str, Any]:
         """Get statistics for a crawl session."""
         session = await self.db_manager.get_crawl_session(session_id)
         if not session:
@@ -694,7 +692,7 @@ class DocumentationCrawler:
     async def wait_for_completion(
         self,
         session_id: str,
-        timeout: Optional[float] = None
+        timeout: float | None = None
     ) -> CrawlSession:
         """Wait for a crawl session to complete."""
         start_time = time.time()

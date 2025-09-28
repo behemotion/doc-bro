@@ -12,15 +12,17 @@ It handles:
 """
 
 import logging
-import uuid
-from typing import Dict, Any, Optional, List
 from datetime import datetime
+from typing import Any
 
 from fastapi import HTTPException, status
 from pydantic import ValidationError
 
-from src.models.installation import InstallationRequest, InstallationResponse
-from src.services.installation_wizard import InstallationWizardService, InstallationWizardError
+from src.models.installation import InstallationRequest
+from src.services.installation_wizard import (
+    InstallationWizardError,
+    InstallationWizardService,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -31,9 +33,9 @@ class InstallationStartService:
     def __init__(self):
         """Initialize the installation start service."""
         self.installation_wizard = InstallationWizardService()
-        self.active_installations: Dict[str, Dict[str, Any]] = {}
+        self.active_installations: dict[str, dict[str, Any]] = {}
 
-    async def start_installation(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def start_installation(self, request_data: dict[str, Any]) -> dict[str, Any]:
         """Start a new DocBro installation process.
 
         Args:
@@ -156,7 +158,7 @@ class InstallationStartService:
                 detail="Installation already in progress. Use force_reinstall=true to override."
             )
 
-    def get_installation_status(self, installation_id: str) -> Optional[Dict[str, Any]]:
+    def get_installation_status(self, installation_id: str) -> dict[str, Any] | None:
         """Get status of a tracked installation.
 
         Args:
@@ -167,7 +169,7 @@ class InstallationStartService:
         """
         return self.active_installations.get(installation_id)
 
-    def list_active_installations(self) -> List[Dict[str, Any]]:
+    def list_active_installations(self) -> list[dict[str, Any]]:
         """List all currently tracked active installations.
 
         Returns:

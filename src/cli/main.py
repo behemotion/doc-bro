@@ -3,7 +3,6 @@
 import asyncio
 import sys
 from pathlib import Path
-from typing import Optional, Any, List
 
 import click
 from rich.console import Console
@@ -16,12 +15,12 @@ except ImportError:
     UVLOOP_AVAILABLE = False
 
 from src.core.config import DocBroConfig
-from src.core.lib_logger import setup_logging, get_component_logger
+from src.core.lib_logger import get_component_logger, setup_logging
+from src.logic.crawler.core.crawler import DocumentationCrawler
 from src.services.database import DatabaseManager
-from src.services.vector_store import VectorStoreService
 from src.services.embeddings import EmbeddingService
 from src.services.rag import RAGSearchService
-from src.logic.crawler.core.crawler import DocumentationCrawler
+from src.services.vector_store import VectorStoreService
 from src.version import __version__
 
 
@@ -55,18 +54,18 @@ class AliasedGroup(click.Group):
 class DocBroApp:
     """Main DocBro application."""
 
-    def __init__(self, config: Optional[DocBroConfig] = None):
+    def __init__(self, config: DocBroConfig | None = None):
         """Initialize DocBro application."""
         self.config = config or DocBroConfig()
         self.console = Console()
         self.logger = None
 
         # Services
-        self.db_manager: Optional[DatabaseManager] = None
-        self.vector_store: Optional[VectorStoreService] = None
-        self.embedding_service: Optional[EmbeddingService] = None
-        self.rag_service: Optional[RAGSearchService] = None
-        self.crawler: Optional[DocumentationCrawler] = None
+        self.db_manager: DatabaseManager | None = None
+        self.vector_store: VectorStoreService | None = None
+        self.embedding_service: EmbeddingService | None = None
+        self.rag_service: RAGSearchService | None = None
+        self.crawler: DocumentationCrawler | None = None
 
         self._initialized = False
 
@@ -142,7 +141,7 @@ class DocBroApp:
 
 
 # Global app instance for CLI
-app: Optional[DocBroApp] = None
+app: DocBroApp | None = None
 
 
 def get_app() -> DocBroApp:
@@ -192,8 +191,6 @@ def _is_first_time_installation() -> bool:
 def _detect_uv_installation() -> bool:
     """Detect if this is running from a UV tool installation."""
     import os
-    import sys
-    from pathlib import Path
 
     # Check for UV environment variables
     if "UV_TOOL_DIR" in os.environ or "UVX_ROOT" in os.environ:
@@ -238,7 +235,7 @@ def _should_run_auto_setup() -> bool:
 @click.option("--no-progress", is_flag=True, help="Disable progress indicators")
 @click.option("--skip-auto-setup", is_flag=True, help="Skip automatic setup for first-time installations")
 @click.pass_context
-def main(ctx: click.Context, config_file: Optional[str], debug: bool, quiet: bool,
+def main(ctx: click.Context, config_file: str | None, debug: bool, quiet: bool,
          json: bool, no_color: bool, no_progress: bool, skip_auto_setup: bool):
     """DocBro - Local documentation crawler and search tool with RAG capabilities.
 
@@ -291,8 +288,8 @@ def main(ctx: click.Context, config_file: Optional[str], debug: bool, quiet: boo
             console.print("Starting automatic setup...\n")
 
             async def run_auto_setup():
-                from src.services.installation_wizard import InstallationWizardService
                 from src.models.installation import InstallationRequest
+                from src.services.installation_wizard import InstallationWizardService
 
                 wizard_service = InstallationWizardService()
                 request = InstallationRequest(
@@ -303,7 +300,7 @@ def main(ctx: click.Context, config_file: Optional[str], debug: bool, quiet: boo
                 try:
                     result = await wizard_service.run_installation(request)
                     if result.success:
-                        console.print(f"\n✅ [bold green]Setup completed successfully![/bold green]")
+                        console.print("\n✅ [bold green]Setup completed successfully![/bold green]")
                         console.print("\n[cyan]Quick start:[/cyan]")
                         console.print("  1. Create project: [cyan]docbro create myproject -u \"URL\"[/cyan]")
                         console.print("  2. Crawl docs:    [cyan]docbro crawl myproject[/cyan]")
@@ -333,13 +330,14 @@ def main(ctx: click.Context, config_file: Optional[str], debug: bool, quiet: boo
 
 
 # Import and register all commands
-from src.cli.commands.create import create
-from src.cli.commands.list import list_command
 from src.cli.commands.crawl import crawl
+from src.cli.commands.create import create
+from src.cli.commands.health import health
+from src.cli.commands.list import list_command
 from src.cli.commands.remove import remove
 from src.cli.commands.serve import serve
-from src.cli.commands.health import health
 from src.cli.commands.setup import setup
+
 # Legacy commands removed - functionality moved to unified health command
 
 # Initialize CLI interface components (for standardized progress displays)

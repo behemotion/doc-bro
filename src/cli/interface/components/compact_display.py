@@ -2,12 +2,11 @@
 CompactProgressDisplay component for simple vertical layout
 """
 
-from typing import Dict, Any, Optional
-from rich.console import Console
+from typing import Any
 
-from ..models.enums import LayoutMode, ProcessingState, CompletionStatus
-from ..models.embedding_status import EmbeddingStatus
 from ..models.completion_summary import CompletionSummary
+from ..models.embedding_status import EmbeddingStatus
+from ..models.enums import CompletionStatus, LayoutMode, ProcessingState
 from ..services.terminal_adapter import TerminalAdapter
 from ..services.text_truncator import TextTruncator
 
@@ -15,16 +14,16 @@ from ..services.text_truncator import TextTruncator
 class CompactProgressDisplay:
     """Component for compact vertical text layout progress display"""
 
-    def __init__(self, terminal_adapter: Optional[TerminalAdapter] = None,
-                 text_truncator: Optional[TextTruncator] = None):
+    def __init__(self, terminal_adapter: TerminalAdapter | None = None,
+                 text_truncator: TextTruncator | None = None):
         """Initialize compact progress display"""
         self.terminal_adapter = terminal_adapter or TerminalAdapter()
         self.text_truncator = text_truncator or TextTruncator()
         self.console = self.terminal_adapter.get_console()
         self.layout_mode = LayoutMode.COMPACT
-        self.current_title: Optional[str] = None
-        self.current_project: Optional[str] = None
-        self.embedding_status: Optional[EmbeddingStatus] = None
+        self.current_title: str | None = None
+        self.current_project: str | None = None
+        self.embedding_status: EmbeddingStatus | None = None
 
     def start_operation(self, title: str, project_name: str) -> None:
         """
@@ -39,7 +38,7 @@ class CompactProgressDisplay:
         self.console.print(f"\\n{title}")
         self.console.print(f"Project: {project_name}")
 
-    def update_metrics(self, metrics: Dict[str, Any]) -> None:
+    def update_metrics(self, metrics: dict[str, Any]) -> None:
         """
         Update progress metrics display
 
@@ -112,7 +111,7 @@ class CompactProgressDisplay:
         self.console.print(f"Embedding: {status_text}")
 
     def complete_operation(self, project_name: str, operation_type: str,
-                          duration: float, success_metrics: Dict[str, Any],
+                          duration: float, success_metrics: dict[str, Any],
                           status: CompletionStatus) -> None:
         """
         Show final results and hide progress display

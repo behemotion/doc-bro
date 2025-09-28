@@ -1,18 +1,24 @@
 """Database service for managing project data."""
 
-import asyncio
-import sqlite3
-import aiosqlite
-from datetime import datetime
-from typing import Dict, List, Optional, Any, Tuple
-from pathlib import Path
-import uuid
 import json
-import logging
+import sqlite3
+import uuid
+from datetime import datetime
+from pathlib import Path
+from typing import Any
 
-from src.models import Project, ProjectStatus, CrawlSession, CrawlStatus, Page, PageStatus
+import aiosqlite
+
 from src.core.config import DocBroConfig
 from src.core.lib_logger import get_component_logger
+from src.models import (
+    CrawlSession,
+    CrawlStatus,
+    Page,
+    PageStatus,
+    Project,
+    ProjectStatus,
+)
 
 
 class DatabaseError(Exception):
@@ -23,15 +29,15 @@ class DatabaseError(Exception):
 class DatabaseManager:
     """Manages SQLite database operations for DocBro."""
 
-    def __init__(self, config: Optional[DocBroConfig] = None):
+    def __init__(self, config: DocBroConfig | None = None):
         """Initialize database manager."""
         self.config = config or DocBroConfig()
         self.db_path = self.config.database_path
         self.logger = get_component_logger("database")
 
         # Connection pool
-        self._connection: Optional[aiosqlite.Connection] = None  # Main DB connection
-        self._project_connections: Dict[str, aiosqlite.Connection] = {}  # Project-specific connections
+        self._connection: aiosqlite.Connection | None = None  # Main DB connection
+        self._project_connections: dict[str, aiosqlite.Connection] = {}  # Project-specific connections
         self._initialized = False
 
     async def initialize(self) -> None:
@@ -308,12 +314,12 @@ class DatabaseManager:
     async def create_project(
         self,
         name: str,
-        source_url: Optional[str] = None,
+        source_url: str | None = None,
         crawl_depth: int = 2,
         embedding_model: str = "mxbai-embed-large",
         chunk_size: int = 1000,
         chunk_overlap: int = 100,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: dict[str, Any] | None = None
     ) -> Project:
         """Create a new project."""
         self._ensure_initialized()
@@ -364,7 +370,7 @@ class DatabaseManager:
                 raise DatabaseError(f"Project with name '{name}' already exists")
             raise DatabaseError(f"Failed to create project: {e}")
 
-    async def get_project(self, project_id: str) -> Optional[Project]:
+    async def get_project(self, project_id: str) -> Project | None:
         """Get project by ID."""
         self._ensure_initialized()
 
@@ -381,7 +387,7 @@ class DatabaseManager:
 
         return self._project_from_row(row)
 
-    async def get_project_by_name(self, name: str) -> Optional[Project]:
+    async def get_project_by_name(self, name: str) -> Project | None:
         """Get project by name."""
         self._ensure_initialized()
 
@@ -400,10 +406,10 @@ class DatabaseManager:
 
     async def list_projects(
         self,
-        status: Optional[ProjectStatus] = None,
-        limit: Optional[int] = None,
+        status: ProjectStatus | None = None,
+        limit: int | None = None,
         offset: int = 0
-    ) -> List[Project]:
+    ) -> list[Project]:
         """List projects with optional filtering."""
         self._ensure_initialized()
 
@@ -460,12 +466,12 @@ class DatabaseManager:
     async def update_project(
         self,
         project_id: str,
-        source_url: Optional[str] = None,
-        crawl_depth: Optional[int] = None,
-        embedding_model: Optional[str] = None,
-        chunk_size: Optional[int] = None,
-        chunk_overlap: Optional[int] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        source_url: str | None = None,
+        crawl_depth: int | None = None,
+        embedding_model: str | None = None,
+        chunk_size: int | None = None,
+        chunk_overlap: int | None = None,
+        metadata: dict[str, Any] | None = None
     ) -> Project:
         """Update project fields."""
         self._ensure_initialized()
@@ -636,7 +642,7 @@ class DatabaseManager:
 
         return session
 
-    async def get_crawl_session(self, session_id: str) -> Optional[CrawlSession]:
+    async def get_crawl_session(self, session_id: str) -> CrawlSession | None:
         """Get crawl session by ID from any project database."""
         self._ensure_initialized()
 
@@ -677,7 +683,7 @@ class DatabaseManager:
 
         return None
 
-    def _project_from_row(self, row: Tuple) -> Project:
+    def _project_from_row(self, row: tuple) -> Project:
         """Create Project from database row."""
         (id, name, source_url, status, crawl_depth, embedding_model,
          chunk_size, chunk_overlap, created_at, updated_at, last_crawl_at,
@@ -702,7 +708,7 @@ class DatabaseManager:
             metadata=json.loads(metadata) if metadata else {}
         )
 
-    def _session_from_row(self, row: Tuple) -> CrawlSession:
+    def _session_from_row(self, row: tuple) -> CrawlSession:
         """Create CrawlSession from database row."""
         (id, project_id, status, crawl_depth, current_depth, current_url, user_agent, rate_limit,
          timeout, created_at, started_at, completed_at, updated_at,
@@ -771,9 +777,9 @@ class DatabaseManager:
     async def get_project_sessions(
         self,
         project_id: str,
-        status: Optional[CrawlStatus] = None,
+        status: CrawlStatus | None = None,
         archived: bool = False
-    ) -> List[CrawlSession]:
+    ) -> list[CrawlSession]:
         """Get sessions for a project."""
         self._ensure_initialized()
 
@@ -806,7 +812,7 @@ class DatabaseManager:
 
         return [self._session_from_row(row) for row in rows]
 
-    async def cleanup_incomplete_sessions(self, project_id: str, reset_pages: bool = False) -> Dict[str, int]:
+    async def cleanup_incomplete_sessions(self, project_id: str, reset_pages: bool = False) -> dict[str, int]:
         """Clean up incomplete crawl sessions and optionally reset pages for fresh crawl."""
         self._ensure_initialized()
 
@@ -880,7 +886,7 @@ class DatabaseManager:
         session_id: str,
         url: str,
         crawl_depth: int,
-        parent_url: Optional[str] = None
+        parent_url: str | None = None
     ) -> Page:
         """Create a new page record."""
         self._ensure_initialized()
@@ -919,7 +925,7 @@ class DatabaseManager:
 
         return page
 
-    async def get_page(self, page_id: str) -> Optional[Page]:
+    async def get_page(self, page_id: str) -> Page | None:
         """Get page by ID from any project database."""
         self._ensure_initialized()
 
@@ -1000,7 +1006,7 @@ class DatabaseManager:
 
         return page
 
-    async def get_page_by_url(self, project_id: str, url: str) -> Optional[Page]:
+    async def get_page_by_url(self, project_id: str, url: str) -> Page | None:
         """Get page by URL for a specific project."""
         self._ensure_initialized()
 
@@ -1030,9 +1036,9 @@ class DatabaseManager:
     async def get_project_pages(
         self,
         project_id: str,
-        status: Optional[PageStatus] = None,
-        limit: Optional[int] = None
-    ) -> List[Page]:
+        status: PageStatus | None = None,
+        limit: int | None = None
+    ) -> list[Page]:
         """Get pages for a project."""
         self._ensure_initialized()
 
@@ -1070,7 +1076,7 @@ class DatabaseManager:
 
         return [self._page_from_row(row) for row in rows]
 
-    async def get_pages_by_hash(self, content_hash: str) -> List[Page]:
+    async def get_pages_by_hash(self, content_hash: str) -> list[Page]:
         """Get pages with matching content hash."""
         self._ensure_initialized()
 
@@ -1087,7 +1093,7 @@ class DatabaseManager:
         rows = await cursor.fetchall()
         return [self._page_from_row(row) for row in rows]
 
-    def _page_from_row(self, row: Tuple) -> Page:
+    def _page_from_row(self, row: tuple) -> Page:
         """Create Page from database row."""
         (id, project_id, session_id, url, status, title, content_html,
          content_text, content_hash, mime_type, charset, language,
@@ -1129,7 +1135,7 @@ class DatabaseManager:
 
     # Statistics and utility operations
 
-    async def get_project_metrics(self, project_id: str) -> Dict[str, Any]:
+    async def get_project_metrics(self, project_id: str) -> dict[str, Any]:
         """Get comprehensive project metrics."""
         self._ensure_initialized()
 
@@ -1182,7 +1188,7 @@ class DatabaseManager:
         embedding_model: str = "mxbai-embed-large",
         chunk_size: int = 1000,
         chunk_overlap: int = 100,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: dict[str, Any] | None = None
     ) -> Project:
         """Recreate project (archive old data and create new)."""
         self._ensure_initialized()
@@ -1211,7 +1217,7 @@ class DatabaseManager:
             metadata=metadata
         )
 
-    async def cleanup_project(self, project_id: str) -> Dict[str, Any]:
+    async def cleanup_project(self, project_id: str) -> dict[str, Any]:
         """Clean up all project data."""
         self._ensure_initialized()
 

@@ -1,10 +1,10 @@
 """ErrorEntry model for individual crawl errors."""
 
-from datetime import datetime
-from typing import Optional
+from datetime import UTC, datetime
 from enum import Enum
-from pydantic import ConfigDict, BaseModel, Field, field_validator, HttpUrl
 from uuid import uuid4
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ErrorType(str, Enum):
@@ -25,10 +25,10 @@ class ErrorEntry(BaseModel):
     url: str = Field(..., min_length=1)
     error_type: ErrorType = Field(default=ErrorType.UNKNOWN)
     error_message: str = Field(..., max_length=500)
-    error_code: Optional[int] = Field(default=None, ge=100, le=599)
+    error_code: int | None = Field(default=None, ge=100, le=599)
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     retry_count: int = Field(default=0, ge=0)
-    stacktrace: Optional[str] = None
+    stacktrace: str | None = None
 
     @field_validator('url')
     @classmethod
@@ -51,8 +51,7 @@ class ErrorEntry(BaseModel):
     def validate_timestamp(cls, v: datetime) -> datetime:
         """Ensure timestamp is UTC."""
         if v.tzinfo is None:
-            from datetime import timezone
-            return v.replace(tzinfo=timezone.utc)
+            return v.replace(tzinfo=UTC)
         return v
 
     def is_retryable(self) -> bool:

@@ -1,10 +1,10 @@
 """Project data model."""
 
 from datetime import datetime
-from typing import Optional, Dict, Any
 from enum import Enum
-from pydantic import BaseModel, Field, field_validator, ConfigDict
-from pathlib import Path
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class ProjectStatus(str, Enum):
@@ -23,7 +23,7 @@ class Project(BaseModel):
 
     id: str = Field(description="Unique project identifier")
     name: str = Field(description="Human-readable project name")
-    source_url: Optional[str] = Field(default=None, description="Base URL to start crawling from")
+    source_url: str | None = Field(default=None, description="Base URL to start crawling from")
     status: ProjectStatus = Field(default=ProjectStatus.CREATED, description="Current project status")
 
     # Crawl configuration
@@ -35,7 +35,7 @@ class Project(BaseModel):
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-    last_crawl_at: Optional[datetime] = Field(default=None)
+    last_crawl_at: datetime | None = Field(default=None)
 
     # Statistics
     total_pages: int = Field(default=0, ge=0)
@@ -44,7 +44,7 @@ class Project(BaseModel):
     failed_pages: int = Field(default=0, ge=0)
 
     # Metadata
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict(
         use_enum_values=True,
@@ -75,13 +75,12 @@ class Project(BaseModel):
             raise ValueError("Source URL must be a valid HTTP/HTTPS URL")
         return v
 
-    @field_validator('chunk_overlap')
-    @classmethod
-    def validate_chunk_overlap(cls, v, info):
+    @model_validator(mode='after')
+    def validate_chunk_overlap_against_size(self) -> 'Project':
         """Validate chunk overlap is less than chunk size."""
-        if info.data.get('chunk_size') and v >= info.data['chunk_size']:
+        if self.chunk_size and self.chunk_overlap and self.chunk_overlap >= self.chunk_size:
             raise ValueError("Chunk overlap must be less than chunk size")
-        return v
+        return self
 
     def update_status(self, new_status: ProjectStatus) -> None:
         """Update project status and timestamp."""
@@ -107,7 +106,7 @@ class Project(BaseModel):
         age = datetime.utcnow() - self.last_crawl_at
         return age.total_seconds() > (max_age_hours * 3600)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""
         return {
             "id": self.id,
@@ -130,7 +129,7 @@ class Project(BaseModel):
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Project':
+    def from_dict(cls, data: dict[str, Any]) -> 'Project':
         """Create Project from dictionary."""
         # Handle datetime fields
         if 'created_at' in data and isinstance(data['created_at'], str):

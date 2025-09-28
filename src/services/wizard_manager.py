@@ -1,28 +1,28 @@
 """Wizard manager for interactive CLI operations."""
 
-import click
-from typing import Any, Optional, Dict, Callable, List
+from collections.abc import Callable
+from typing import Any
+
 from rich.console import Console
-from rich.prompt import Prompt, Confirm
 from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
-from src.models.wizard_state import WizardState, WizardType, WizardStep
+from src.models.wizard_state import WizardState, WizardStep, WizardType
 
 
 class WizardManager:
     """Manages interactive wizard flows for CLI commands."""
 
-    def __init__(self, console: Optional[Console] = None):
+    def __init__(self, console: Console | None = None):
         """Initialize wizard manager.
 
         Args:
             console: Rich console for output
         """
         self.console = console or Console()
-        self.state: Optional[WizardState] = None
-        self.validators: Dict[str, Callable] = {
+        self.state: WizardState | None = None
+        self.validators: dict[str, Callable] = {
             'url': self._validate_url,
             'project_name': self._validate_project_name,
             'depth': self._validate_depth,
@@ -30,7 +30,7 @@ class WizardManager:
             'port': self._validate_port,
         }
 
-    def create_project_wizard(self) -> Dict[str, Any]:
+    def create_project_wizard(self) -> dict[str, Any]:
         """Run the create project wizard.
 
         Returns:
@@ -150,7 +150,7 @@ class WizardManager:
             f"[cyan]{progress_text}[/cyan] {progress_bar} {self.state.get_progress():.0f}%\n"
         )
 
-    def _prompt_for_input(self, step: WizardStep) -> Optional[str]:
+    def _prompt_for_input(self, step: WizardStep) -> str | None:
         """Prompt user for input.
 
         Args:
@@ -338,7 +338,7 @@ class WizardManager:
 
         return True, ""
 
-    def configure_service_wizard(self, service_name: str) -> Dict[str, Any]:
+    def configure_service_wizard(self, service_name: str) -> dict[str, Any]:
         """Run wizard to configure a service.
 
         Args:
@@ -357,7 +357,7 @@ class WizardManager:
         # For now, return empty dict
         return {}
 
-    def get_state(self) -> Optional[WizardState]:
+    def get_state(self) -> WizardState | None:
         """Get current wizard state.
 
         Returns:

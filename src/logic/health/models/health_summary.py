@@ -1,6 +1,6 @@
 """Health summary aggregation model."""
 
-from typing import List
+
 from pydantic import BaseModel, Field, computed_field
 
 from .health_check import HealthCheck
@@ -33,7 +33,7 @@ class HealthSummary(BaseModel):
         return ((self.warning_count + self.error_count) / self.total_checks) * 100
 
     @classmethod
-    def from_health_checks(cls, checks: List[HealthCheck]) -> 'HealthSummary':
+    def from_health_checks(cls, checks: list[HealthCheck]) -> 'HealthSummary':
         """Create summary from list of health checks."""
         total = len(checks)
         healthy = sum(1 for check in checks if check.status == HealthStatus.HEALTHY)

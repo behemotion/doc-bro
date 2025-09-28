@@ -1,9 +1,8 @@
 """ProgressTracker model with ProgressStep and StepStatus for setup wizard."""
-from dataclasses import dataclass
 from datetime import datetime
-from typing import List, Optional
 from enum import Enum
-from pydantic import BaseModel, Field, ConfigDict
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class StepStatus(Enum):
@@ -21,9 +20,9 @@ class ProgressStep(BaseModel):
     id: str = Field(..., description="Unique step identifier")
     name: str = Field(..., description="Human-readable step name")
     status: StepStatus = Field(..., description="Current step status")
-    start_time: Optional[datetime] = Field(None, description="Step start time")
-    end_time: Optional[datetime] = Field(None, description="Step completion time")
-    error_message: Optional[str] = Field(None, description="Error message if failed")
+    start_time: datetime | None = Field(None, description="Step start time")
+    end_time: datetime | None = Field(None, description="Step completion time")
+    error_message: str | None = Field(None, description="Error message if failed")
     retry_count: int = Field(default=0, description="Number of retry attempts")
 
     def get_duration_seconds(self) -> float:
@@ -38,12 +37,12 @@ class ProgressTracker(BaseModel):
     """Real-time progress tracking with step-by-step status"""
     model_config = ConfigDict(str_strip_whitespace=True)
 
-    steps: List[ProgressStep] = Field(default_factory=list, description="List of progress steps")
+    steps: list[ProgressStep] = Field(default_factory=list, description="List of progress steps")
     total_steps: int = Field(..., description="Total number of steps")
     completed_steps: int = Field(default=0, description="Number of completed steps")
-    current_step: Optional[str] = Field(None, description="Current step ID")
+    current_step: str | None = Field(None, description="Current step ID")
     start_time: datetime = Field(default_factory=datetime.now, description="Overall start time")
-    estimated_completion: Optional[datetime] = Field(None, description="Estimated completion time")
+    estimated_completion: datetime | None = Field(None, description="Estimated completion time")
 
     def add_step(self, step_id: str, name: str) -> None:
         """Add a new progress step"""

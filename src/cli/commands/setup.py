@@ -1,16 +1,16 @@
 """Unified setup command for all setup operations."""
 
+
 import click
-from typing import Optional
-from src.logic.setup.core.orchestrator import SetupOrchestrator
-from src.logic.setup.core.router import CommandRouter
-from src.core.lib_logger import get_logger
-from src.core.config import get_config
-from src.logic.health.services.health_reporter import HealthReporter
 from rich.console import Console
 from rich.table import Table
 
-logger = get_logger(__name__)
+from src.core.config import get_config
+from src.logic.health.services.health_reporter import HealthReporter
+from src.logic.setup.core.orchestrator import SetupOrchestrator
+from src.logic.setup.core.router import CommandRouter
+
+logger = logging.getLogger(__name__)
 console = Console()
 
 
@@ -105,7 +105,7 @@ def setup(
     force: bool,
     auto: bool,
     non_interactive: bool,
-    vector_store: Optional[str],
+    vector_store: str | None,
     backup: bool,
     dry_run: bool,
     preserve_data: bool

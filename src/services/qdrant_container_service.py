@@ -1,10 +1,10 @@
 """QdrantContainerService with "docbro-memory-qdrant" naming enforcement."""
 import asyncio
-from typing import Dict, Any, Optional, List, Tuple
-from pathlib import Path
-from src.services.docker_service_manager import DockerServiceManager
-from src.models.service_configuration import ServiceConfiguration, ServiceStatus
+from typing import Any
+
 from src.core.lib_logger import get_logger
+from src.models.service_configuration import ServiceConfiguration, ServiceStatus
+from src.services.docker_service_manager import DockerServiceManager
 
 logger = get_logger(__name__)
 
@@ -12,7 +12,7 @@ logger = get_logger(__name__)
 class QdrantContainerService:
     """Service for managing Qdrant containers with standardized naming."""
 
-    def __init__(self, docker_manager: Optional[DockerServiceManager] = None):
+    def __init__(self, docker_manager: DockerServiceManager | None = None):
         """Initialize Qdrant container service."""
         self.docker_manager = docker_manager or DockerServiceManager()
         self.standard_name = "docbro-memory-qdrant"
@@ -24,9 +24,9 @@ class QdrantContainerService:
     async def install_qdrant(
         self,
         force_rename: bool = True,
-        custom_port: Optional[int] = None,
-        data_dir: Optional[str] = None
-    ) -> Dict[str, Any]:
+        custom_port: int | None = None,
+        data_dir: str | None = None
+    ) -> dict[str, Any]:
         """Install Qdrant with DocBro standard naming."""
         try:
             logger.info("Starting Qdrant installation with DocBro standards")
@@ -109,7 +109,7 @@ class QdrantContainerService:
                 "error": f"Installation failed: {e}"
             }
 
-    async def _find_existing_qdrant_containers(self) -> List[Dict[str, Any]]:
+    async def _find_existing_qdrant_containers(self) -> list[dict[str, Any]]:
         """Find existing Qdrant containers."""
         try:
             all_containers = await self.docker_manager.list_docbro_containers()
@@ -130,7 +130,7 @@ class QdrantContainerService:
             logger.error(f"Failed to find existing Qdrant containers: {e}")
             return []
 
-    async def _handle_existing_containers(self, containers: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def _handle_existing_containers(self, containers: list[dict[str, Any]]) -> dict[str, Any]:
         """Handle existing Qdrant containers by renaming or removing."""
         results = {"success": True, "renamed": [], "removed": [], "errors": []}
 
@@ -262,7 +262,7 @@ class QdrantContainerService:
             logger.error(f"Failed to stop Qdrant: {e}")
             return False
 
-    async def remove_qdrant(self, remove_data: bool = False) -> Dict[str, Any]:
+    async def remove_qdrant(self, remove_data: bool = False) -> dict[str, Any]:
         """Remove Qdrant container and optionally data."""
         try:
             results = {"container_removed": False, "volume_removed": False, "errors": []}
@@ -291,7 +291,7 @@ class QdrantContainerService:
             logger.error(f"Failed to remove Qdrant: {e}")
             return {"container_removed": False, "volume_removed": False, "errors": [str(e)]}
 
-    async def get_qdrant_info(self) -> Dict[str, Any]:
+    async def get_qdrant_info(self) -> dict[str, Any]:
         """Get detailed Qdrant information."""
         try:
             service_config = await self.get_qdrant_status()
@@ -325,7 +325,7 @@ class QdrantContainerService:
             logger.error(f"Failed to get Qdrant info: {e}")
             return {"error": str(e)}
 
-    def get_connection_config(self) -> Dict[str, Any]:
+    def get_connection_config(self) -> dict[str, Any]:
         """Get Qdrant connection configuration for clients."""
         return {
             "host": "localhost",

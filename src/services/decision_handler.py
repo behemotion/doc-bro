@@ -6,11 +6,11 @@ with the InstallationWizardService to handle decision resolution workflow.
 """
 
 import json
+import logging
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Union
-import logging
+from typing import Any
 
 from src.models.installation import CriticalDecisionPoint
 from src.services.config import ConfigService
@@ -44,7 +44,7 @@ class DecisionHandler:
     def __init__(self):
         """Initialize decision handler."""
         self.config_service = ConfigService()
-        self.installation_wizard: Optional[InstallationWizardService] = None
+        self.installation_wizard: InstallationWizardService | None = None
 
     def _get_installation_wizard(self) -> InstallationWizardService:
         """Get installation wizard service instance.
@@ -56,7 +56,7 @@ class DecisionHandler:
             self.installation_wizard = InstallationWizardService()
         return self.installation_wizard
 
-    async def get_installation_decisions(self, installation_id: str) -> List[Dict[str, Any]]:
+    async def get_installation_decisions(self, installation_id: str) -> list[dict[str, Any]]:
         """Get critical decisions for an installation.
 
         Args:
@@ -92,7 +92,7 @@ class DecisionHandler:
                 return []
 
             # Load decisions from file
-            with open(decisions_path, 'r') as f:
+            with open(decisions_path) as f:
                 decisions_data = json.load(f)
 
             # Validate and convert to CriticalDecisionPoint models
@@ -117,7 +117,7 @@ class DecisionHandler:
     async def submit_installation_decision(
         self,
         installation_id: str,
-        decision_data: Dict[str, Any]
+        decision_data: dict[str, Any]
     ) -> bool:
         """Submit user choice for a critical decision.
 
@@ -159,7 +159,7 @@ class DecisionHandler:
             if not decisions_path.exists():
                 raise DecisionNotFoundError(f"No decisions found for installation {installation_id}")
 
-            with open(decisions_path, 'r') as f:
+            with open(decisions_path) as f:
                 decisions_data = json.load(f)
 
             # Find and update the decision
@@ -207,7 +207,7 @@ class DecisionHandler:
     async def save_installation_decisions(
         self,
         installation_id: str,
-        decisions: List[CriticalDecisionPoint]
+        decisions: list[CriticalDecisionPoint]
     ) -> None:
         """Save critical decisions for an installation.
 
@@ -273,7 +273,7 @@ class DecisionHandler:
     async def _validate_user_choice(
         self,
         decision: CriticalDecisionPoint,
-        user_choice: Union[str, Dict[str, Any]]
+        user_choice: str | dict[str, Any]
     ) -> None:
         """Validate user choice against decision options.
 
@@ -311,7 +311,7 @@ class DecisionHandler:
         self,
         installation_id: str,
         decision_id: str,
-        user_choice: Union[str, Dict[str, Any]]
+        user_choice: str | dict[str, Any]
     ) -> None:
         """Notify installation wizard that a decision has been resolved.
 

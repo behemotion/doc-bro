@@ -2,8 +2,9 @@
 ProgressBox model for CLI progress display
 """
 
-from typing import Dict, Any, Optional
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ProgressBox(BaseModel):
@@ -11,7 +12,7 @@ class ProgressBox(BaseModel):
 
     title: str = Field(..., min_length=1, description="Operation title")
     project_name: str = Field(..., min_length=1, description="Target project identifier")
-    metrics: Dict[str, Any] = Field(default_factory=dict, description="Dynamic progress metrics")
+    metrics: dict[str, Any] = Field(default_factory=dict, description="Dynamic progress metrics")
     current_operation: str = Field(default="", description="Current activity description")
     border_style: str = Field(default="rounded", description="Box border styling")
     width: int = Field(default=80, ge=40, description="Box width in characters")

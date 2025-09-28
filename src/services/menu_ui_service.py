@@ -2,29 +2,27 @@
 Menu UI service for interactive settings configuration.
 """
 
-from typing import Any, Dict, List, Optional
-import sys
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
-from rich.prompt import Prompt, Confirm
-from rich.layout import Layout
-from rich.live import Live
+from typing import Any
 
-from src.models.ui import SettingsMenuItem, MenuState, MenuConfig
+from rich.console import Console
+from rich.live import Live
+from rich.prompt import Confirm, Prompt
+from rich.table import Table
+
 from src.core.config import DocBroConfig
+from src.models.ui import MenuConfig, MenuState, SettingsMenuItem
 
 
 class MenuUIService:
     """Service for interactive menu UI using Rich."""
 
-    def __init__(self, console: Optional[Console] = None):
+    def __init__(self, console: Console | None = None):
         """Initialize menu UI service."""
         self.console = console or Console()
         self.state = MenuState()
         self.config = MenuConfig(title="DocBro Settings")
 
-    def create_menu_items(self, settings: DocBroConfig) -> List[SettingsMenuItem]:
+    def create_menu_items(self, settings: DocBroConfig) -> list[SettingsMenuItem]:
         """Create menu items from settings."""
         items = []
 
@@ -185,7 +183,7 @@ class MenuUIService:
 
         return table
 
-    def validate_input(self, item: SettingsMenuItem, value_str: str) -> tuple[bool, Any, Optional[str]]:
+    def validate_input(self, item: SettingsMenuItem, value_str: str) -> tuple[bool, Any, str | None]:
         """Validate user input for a menu item."""
         try:
             # Type conversion
@@ -258,7 +256,7 @@ class MenuUIService:
 
         return "none"
 
-    def run_interactive_menu(self, settings: GlobalSettings) -> Dict[str, Any]:
+    def run_interactive_menu(self, settings: GlobalSettings) -> dict[str, Any]:
         """Run the interactive menu and return updated settings."""
         # Initialize menu items
         self.state.items = self.create_menu_items(settings)

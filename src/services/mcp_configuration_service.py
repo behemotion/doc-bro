@@ -1,9 +1,14 @@
 """MCPConfigurationService for universal MCP client configuration generation."""
 import json
 from pathlib import Path
-from typing import Dict, Any, Optional, List
-from src.models.mcp_configuration import MCPConfiguration, AuthConfig, ConnectionSettings
+from typing import Any
+
 from src.core.lib_logger import get_logger
+from src.models.mcp_configuration import (
+    AuthConfig,
+    ConnectionSettings,
+    MCPConfiguration,
+)
 
 logger = get_logger(__name__)
 
@@ -18,12 +23,12 @@ class MCPConfigurationService:
 
     def generate_universal_config(
         self,
-        server_url: Optional[str] = None,
-        server_name: Optional[str] = None,
-        capabilities: Optional[List[str]] = None,
+        server_url: str | None = None,
+        server_name: str | None = None,
+        capabilities: list[str] | None = None,
         auth_method: str = "none",
         connection_timeout: int = 30
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Generate universal MCP config removing Claude Code specifics."""
         # Use defaults if not provided
         server_url = server_url or self.default_server_url
@@ -63,7 +68,7 @@ class MCPConfigurationService:
 
         return config
 
-    def _remove_claude_specific_keys(self, config: Dict[str, Any]) -> None:
+    def _remove_claude_specific_keys(self, config: dict[str, Any]) -> None:
         """Remove Claude Code specific keys from configuration."""
         claude_specific_keys = [
             "claude_code",
@@ -80,7 +85,7 @@ class MCPConfigurationService:
                 logger.info(f"Removing Claude Code specific key: {key}")
                 del config[key]
 
-    def save_config(self, config: Dict[str, Any], config_path: Path) -> bool:
+    def save_config(self, config: dict[str, Any], config_path: Path) -> bool:
         """Save MCP configuration to file."""
         try:
             # Ensure directory exists
@@ -97,14 +102,14 @@ class MCPConfigurationService:
             logger.error(f"Failed to save MCP configuration: {e}")
             return False
 
-    def load_config(self, config_path: Path) -> Optional[Dict[str, Any]]:
+    def load_config(self, config_path: Path) -> dict[str, Any] | None:
         """Load MCP configuration from file."""
         try:
             if not config_path.exists():
                 logger.warning(f"MCP configuration file not found: {config_path}")
                 return None
 
-            with open(config_path, 'r') as f:
+            with open(config_path) as f:
                 config = json.load(f)
 
             logger.info(f"MCP configuration loaded from: {config_path}")
@@ -114,7 +119,7 @@ class MCPConfigurationService:
             logger.error(f"Failed to load MCP configuration: {e}")
             return None
 
-    def validate_config(self, config: Dict[str, Any]) -> bool:
+    def validate_config(self, config: dict[str, Any]) -> bool:
         """Validate MCP configuration structure."""
         required_fields = ["server_name", "server_url", "api_version", "capabilities"]
 
@@ -151,8 +156,8 @@ class MCPConfigurationService:
     def create_client_specific_config(
         self,
         client_type: str,
-        base_config: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        base_config: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """Create client-specific MCP configuration."""
         # Start with base config or generate universal one
         if base_config is None:
@@ -184,7 +189,7 @@ class MCPConfigurationService:
 
         return client_config
 
-    def get_server_status_config(self) -> Dict[str, Any]:
+    def get_server_status_config(self) -> dict[str, Any]:
         """Get configuration for server status checking."""
         return {
             "server_url": self.default_server_url,

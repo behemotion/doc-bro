@@ -1,12 +1,11 @@
 """DockerServiceManager for container lifecycle and standardized naming."""
-import docker
-import asyncio
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any
+
 from docker.models.containers import Container
-from docker.models.volumes import Volume
-from docker.models.networks import Network
-from src.models.service_configuration import ServiceConfiguration, ServiceStatus
+
+import docker
 from src.core.lib_logger import get_logger
+from src.models.service_configuration import ServiceStatus
 
 logger = get_logger(__name__)
 
@@ -53,11 +52,11 @@ class DockerServiceManager:
         self,
         image: str,
         service_type: str,
-        port_mappings: Optional[Dict[str, str]] = None,
-        environment: Optional[Dict[str, str]] = None,
-        volumes: Optional[Dict[str, str]] = None,
+        port_mappings: dict[str, str] | None = None,
+        environment: dict[str, str] | None = None,
+        volumes: dict[str, str] | None = None,
         force_recreate: bool = False
-    ) -> Tuple[bool, str]:
+    ) -> tuple[bool, str]:
         """Create container with standardized naming."""
         try:
             client = self._get_client()
@@ -193,7 +192,7 @@ class DockerServiceManager:
             logger.error(f"Failed to get container status {container_name}: {e}")
             return ServiceStatus.ERROR
 
-    async def list_docbro_containers(self) -> List[Dict[str, Any]]:
+    async def list_docbro_containers(self) -> list[dict[str, Any]]:
         """List all DocBro-related containers."""
         try:
             client = self._get_client()
@@ -217,7 +216,7 @@ class DockerServiceManager:
             logger.error(f"Failed to list DocBro containers: {e}")
             return []
 
-    def _format_ports(self, ports_dict: Dict) -> str:
+    def _format_ports(self, ports_dict: dict) -> str:
         """Format port mappings for display."""
         if not ports_dict:
             return "No ports"
@@ -232,7 +231,7 @@ class DockerServiceManager:
 
         return ", ".join(port_strings)
 
-    def _get_container_by_name(self, name: str) -> Optional[Container]:
+    def _get_container_by_name(self, name: str) -> Container | None:
         """Get container by name."""
         try:
             client = self._get_client()
@@ -267,8 +266,8 @@ class DockerServiceManager:
     async def rename_container(
         self,
         current_name: str,
-        new_name: Optional[str] = None,
-        service_type: Optional[str] = None
+        new_name: str | None = None,
+        service_type: str | None = None
     ) -> bool:
         """Rename container to follow DocBro naming standards."""
         try:
@@ -317,7 +316,7 @@ class DockerServiceManager:
             logger.error(f"Failed to get logs for {container_name}: {e}")
             return f"Error getting logs: {e}"
 
-    async def cleanup_docbro_resources(self, include_volumes: bool = False) -> Dict[str, int]:
+    async def cleanup_docbro_resources(self, include_volumes: bool = False) -> dict[str, int]:
         """Clean up all DocBro-related Docker resources."""
         results = {"containers": 0, "volumes": 0, "networks": 0}
 

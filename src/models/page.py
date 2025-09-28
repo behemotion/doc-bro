@@ -1,11 +1,12 @@
 """Page data model."""
 
-from datetime import datetime
-from typing import Optional, Dict, Any, List
-from enum import Enum
-from pydantic import BaseModel, Field, field_validator, ConfigDict
 import hashlib
+from datetime import datetime
+from enum import Enum
+from typing import Any
 from urllib.parse import urlparse
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class PageStatus(str, Enum):
@@ -28,41 +29,41 @@ class Page(BaseModel):
     status: PageStatus = Field(default=PageStatus.DISCOVERED, description="Current page status")
 
     # Content
-    title: Optional[str] = Field(default=None, description="Page title")
-    content_html: Optional[str] = Field(default=None, description="Raw HTML content")
-    content_text: Optional[str] = Field(default=None, description="Extracted text content")
-    content_hash: Optional[str] = Field(default=None, description="Content hash for deduplication")
+    title: str | None = Field(default=None, description="Page title")
+    content_html: str | None = Field(default=None, description="Raw HTML content")
+    content_text: str | None = Field(default=None, description="Extracted text content")
+    content_hash: str | None = Field(default=None, description="Content hash for deduplication")
 
     # Metadata
     mime_type: str = Field(default="text/html", description="Content MIME type")
     charset: str = Field(default="utf-8", description="Content character encoding")
-    language: Optional[str] = Field(default=None, description="Detected language code")
+    language: str | None = Field(default=None, description="Detected language code")
     size_bytes: int = Field(default=0, ge=0, description="Content size in bytes")
 
     # Crawl metadata
     crawl_depth: int = Field(ge=0, description="Depth at which page was discovered")
-    parent_url: Optional[str] = Field(default=None, description="URL that linked to this page")
-    response_code: Optional[int] = Field(default=None, description="HTTP response code")
-    response_time_ms: Optional[int] = Field(default=None, description="Response time in milliseconds")
+    parent_url: str | None = Field(default=None, description="URL that linked to this page")
+    response_code: int | None = Field(default=None, description="HTTP response code")
+    response_time_ms: int | None = Field(default=None, description="Response time in milliseconds")
 
     # Timestamps
     discovered_at: datetime = Field(default_factory=datetime.utcnow)
-    crawled_at: Optional[datetime] = Field(default=None)
-    processed_at: Optional[datetime] = Field(default=None)
-    indexed_at: Optional[datetime] = Field(default=None)
+    crawled_at: datetime | None = Field(default=None)
+    processed_at: datetime | None = Field(default=None)
+    indexed_at: datetime | None = Field(default=None)
 
     # Error handling
-    error_message: Optional[str] = Field(default=None)
+    error_message: str | None = Field(default=None)
     retry_count: int = Field(default=0, ge=0)
     max_retries: int = Field(default=3, ge=0)
 
     # Links and structure
-    outbound_links: List[str] = Field(default_factory=list, description="URLs found on this page")
-    internal_links: List[str] = Field(default_factory=list, description="Internal links found")
-    external_links: List[str] = Field(default_factory=list, description="External links found")
+    outbound_links: list[str] = Field(default_factory=list, description="URLs found on this page")
+    internal_links: list[str] = Field(default_factory=list, description="Internal links found")
+    external_links: list[str] = Field(default_factory=list, description="External links found")
 
     # Metadata
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict(
         use_enum_values=True,
@@ -97,11 +98,11 @@ class Page(BaseModel):
 
     def update_content(
         self,
-        title: Optional[str] = None,
-        content_html: Optional[str] = None,
-        content_text: Optional[str] = None,
-        mime_type: Optional[str] = None,
-        charset: Optional[str] = None
+        title: str | None = None,
+        content_html: str | None = None,
+        content_text: str | None = None,
+        mime_type: str | None = None,
+        charset: str | None = None
     ) -> None:
         """Update page content."""
         if title is not None:
@@ -124,7 +125,7 @@ class Page(BaseModel):
         self,
         response_code: int,
         response_time_ms: int,
-        error_message: Optional[str] = None
+        error_message: str | None = None
     ) -> None:
         """Mark page as crawled."""
         self.response_code = response_code
@@ -207,7 +208,7 @@ class Page(BaseModel):
             return False
         return self.content_hash == other.content_hash
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""
         return {
             "id": self.id,
@@ -243,7 +244,7 @@ class Page(BaseModel):
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Page':
+    def from_dict(cls, data: dict[str, Any]) -> 'Page':
         """Create Page from dictionary."""
         # Handle datetime fields
         datetime_fields = ['discovered_at', 'crawled_at', 'processed_at', 'indexed_at']

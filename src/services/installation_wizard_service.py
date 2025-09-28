@@ -1,17 +1,17 @@
 """InstallationWizardService orchestrating the setup flow."""
 import asyncio
-from typing import Dict, List, Any, Optional
 from datetime import datetime
-from pathlib import Path
-from src.models.installation_profile import InstallationProfile, InstallationState
-from src.models.service_configuration import ServiceConfiguration, ServiceStatus
-from src.services.system_requirements_service import SystemRequirementsService
-from src.services.docker_service_manager import DockerServiceManager
-from src.services.qdrant_container_service import QdrantContainerService
-from src.services.progress_tracking_service import ProgressTrackingService
-from src.services.retry_service import RetryService
-from src.services.mcp_configuration_service import MCPConfigurationService
+from typing import Any
+
 from src.core.lib_logger import get_logger
+from src.models.installation_profile import InstallationProfile, InstallationState
+from src.models.service_configuration import ServiceStatus
+from src.services.docker_service_manager import DockerServiceManager
+from src.services.mcp_configuration_service import MCPConfigurationService
+from src.services.progress_tracking_service import ProgressTrackingService
+from src.services.qdrant_container_service import QdrantContainerService
+from src.services.retry_service import RetryService
+from src.services.system_requirements_service import SystemRequirementsService
 
 logger = get_logger(__name__)
 
@@ -43,9 +43,9 @@ class InstallationWizardService:
     async def start_installation(
         self,
         force_reinstall: bool = False,
-        custom_qdrant_port: Optional[int] = None,
-        custom_data_dir: Optional[str] = None
-    ) -> Dict[str, Any]:
+        custom_qdrant_port: int | None = None,
+        custom_data_dir: str | None = None
+    ) -> dict[str, Any]:
         """Start the complete installation process."""
         try:
             logger.info("Starting DocBro installation wizard")
@@ -162,8 +162,8 @@ class InstallationWizardService:
     async def _execute_qdrant_installation(
         self,
         force_reinstall: bool,
-        custom_port: Optional[int],
-        custom_data_dir: Optional[str]
+        custom_port: int | None,
+        custom_data_dir: str | None
     ) -> bool:
         """Execute Qdrant installation with retry logic."""
         try:
@@ -255,7 +255,7 @@ class InstallationWizardService:
             logger.error(f"Final validation failed: {e}")
             return False
 
-    async def _get_service_configurations(self) -> List[Dict[str, Any]]:
+    async def _get_service_configurations(self) -> list[dict[str, Any]]:
         """Get current service configurations."""
         try:
             services = []
@@ -277,7 +277,7 @@ class InstallationWizardService:
             logger.error(f"Failed to get service configurations: {e}")
             return []
 
-    async def check_installation_status(self) -> Dict[str, Any]:
+    async def check_installation_status(self) -> dict[str, Any]:
         """Check current installation status."""
         try:
             # Check if services are running
@@ -311,7 +311,7 @@ class InstallationWizardService:
             logger.error(f"Failed to check installation status: {e}")
             return {"status": "ERROR", "error": str(e)}
 
-    async def uninstall_docbro(self, remove_data: bool = False) -> Dict[str, Any]:
+    async def uninstall_docbro(self, remove_data: bool = False) -> dict[str, Any]:
         """Uninstall DocBro components."""
         try:
             logger.info("Starting DocBro uninstall")
@@ -355,7 +355,7 @@ class InstallationWizardService:
             logger.error(f"Uninstall failed: {e}")
             return {"success": False, "error": str(e)}
 
-    def get_installation_recommendations(self) -> List[str]:
+    def get_installation_recommendations(self) -> list[str]:
         """Get installation recommendations based on system state."""
         recommendations = [
             "Ensure Docker Desktop is installed and running",

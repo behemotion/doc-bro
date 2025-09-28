@@ -1,10 +1,8 @@
 """List command for DocBro CLI."""
 
 import asyncio
-from typing import Optional
 
 import click
-from rich.console import Console
 from rich.table import Table
 
 # Optional uvloop for better performance
@@ -37,7 +35,7 @@ def get_app():
 @click.option("--limit", "-l", type=int, help="Limit number of results")
 @click.option("--json", is_flag=True, help="Output in JSON format")
 @click.pass_context
-def list_command(ctx: click.Context, status: Optional[str], limit: Optional[int], json: bool):
+def list_command(ctx: click.Context, status: str | None, limit: int | None, json: bool):
     """List all documentation projects."""
     async def _list():
         app = get_app()
@@ -68,7 +66,6 @@ def list_command(ctx: click.Context, status: Optional[str], limit: Optional[int]
             if json:
                 # JSON output
                 import json as json_lib
-                from datetime import datetime
 
                 project_data = []
                 for project in projects:

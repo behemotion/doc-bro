@@ -2,18 +2,23 @@
 
 import asyncio
 from pathlib import Path
-from typing import Optional, Dict, Any
-from src.logic.setup.models.operation import SetupOperation, OperationType, OperationStatus
-from src.logic.setup.models.configuration import SetupConfiguration
-from src.logic.setup.services.initializer import SetupInitializer
-from src.logic.setup.services.uninstaller import SetupUninstaller
-from src.logic.setup.services.configurator import SetupConfigurator
-from src.logic.setup.services.validator import SetupValidator
-from src.logic.setup.services.detector import ServiceDetector
-from src.logic.setup.services.reset_handler import ResetHandler
-from src.logic.setup.core.menu import InteractiveMenu
-from src.logic.setup.utils.prompts import confirm_action, confirm_dangerous_action
+from typing import Any
+
 from src.core.lib_logger import get_logger
+from src.logic.setup.core.menu import InteractiveMenu
+from src.logic.setup.models.configuration import SetupConfiguration
+from src.logic.setup.models.operation import (
+    OperationStatus,
+    OperationType,
+    SetupOperation,
+)
+from src.logic.setup.services.configurator import SetupConfigurator
+from src.logic.setup.services.detector import ServiceDetector
+from src.logic.setup.services.initializer import SetupInitializer
+from src.logic.setup.services.reset_handler import ResetHandler
+from src.logic.setup.services.uninstaller import SetupUninstaller
+from src.logic.setup.services.validator import SetupValidator
+from src.logic.setup.utils.prompts import confirm_action, confirm_dangerous_action
 
 logger = get_logger(__name__)
 
@@ -21,7 +26,7 @@ logger = get_logger(__name__)
 class SetupOrchestrator:
     """Orchestrates all setup operations."""
 
-    def __init__(self, home_dir: Optional[Path] = None):
+    def __init__(self, home_dir: Path | None = None):
         """Initialize the orchestrator.
 
         Args:
@@ -40,13 +45,13 @@ class SetupOrchestrator:
         self.detector = ServiceDetector()
         self.reset_handler = ResetHandler(home_dir=self.home_dir)
 
-        self.current_operation: Optional[SetupOperation] = None
+        self.current_operation: SetupOperation | None = None
 
     def initialize(
         self,
         auto: bool = False,
         force: bool = False,
-        vector_store: Optional[str] = None,
+        vector_store: str | None = None,
         non_interactive: bool = False,
         **kwargs
     ) -> SetupOperation:
@@ -216,7 +221,7 @@ class SetupOrchestrator:
     def reset(
         self,
         force: bool = False,
-        vector_store: Optional[str] = None,
+        vector_store: str | None = None,
         preserve_data: bool = False,
         **kwargs
     ) -> SetupOperation:
@@ -347,7 +352,7 @@ class SetupOrchestrator:
             default="sqlite_vec"
         )
 
-    def _build_flags(self, options: Dict[str, Any]) -> set:
+    def _build_flags(self, options: dict[str, Any]) -> set:
         """Build flags set from options."""
         flags = set()
 
