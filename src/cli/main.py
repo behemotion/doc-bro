@@ -252,7 +252,7 @@ def main(ctx: click.Context, config_file: str | None, debug: bool, quiet: bool,
     \b
     QUICK START:
       docbro setup                                  # Interactive setup wizard
-      docbro project create --name myproject --type crawling
+      docbro project create myproject --type crawling
       docbro crawl myproject
       docbro serve                                  # Start MCP server for AI assistants
 
@@ -260,8 +260,9 @@ def main(ctx: click.Context, config_file: str | None, debug: bool, quiet: bool,
     PROJECT MANAGEMENT:
       docbro project                                # Interactive project menu
       docbro project list                           # List all projects
-      docbro project create --name <name> --type <type>  # Create project
-      docbro project remove --name myproject       # Remove project
+      docbro project create <name> --type <type>    # Create project
+      docbro project remove myproject               # Remove project
+      docbro project show myproject                 # Show project details
       docbro health                                 # Check system health
 
     \b
