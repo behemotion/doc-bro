@@ -299,7 +299,7 @@ class InteractiveMenu:
             while True:
                 depth_str = Prompt.ask(
                     "Enter default crawl depth (1-10)",
-                    default="3"
+                    default="2"
                 )
                 try:
                     depth = int(depth_str)

@@ -46,7 +46,7 @@ class DocBroConfig(PydanticBaseSettings):
     ollama_timeout: int = Field(default=300, env="DOCBRO_OLLAMA_TIMEOUT")
 
     # Crawling configuration
-    default_crawl_depth: int = Field(default=3, env="DOCBRO_DEFAULT_CRAWL_DEPTH")
+    default_crawl_depth: int = Field(default=2, env="DOCBRO_DEFAULT_CRAWL_DEPTH")
     default_rate_limit: float = Field(default=1.0, env="DOCBRO_DEFAULT_RATE_LIMIT")
     max_page_size_mb: float = Field(default=10.0, env="DOCBRO_MAX_PAGE_SIZE_MB")
     outdated_days: int = Field(default=60, env="DOCBRO_OUTDATED_DAYS")

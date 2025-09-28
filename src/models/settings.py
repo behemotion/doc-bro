@@ -38,7 +38,7 @@ class GlobalSettings(BaseModel):
 
     # Crawling Configuration
     crawl_depth: int = Field(
-        default=3,
+        default=2,
         ge=1,
         le=10,
         description="Default crawling depth (1-10 levels)"
@@ -134,7 +134,7 @@ class GlobalSettings(BaseModel):
                 "embedding_model": "mxbai-embed-large",
                 "vector_store_provider": "sqlite_vec",
                 "vector_storage": "~/.local/share/docbro/vectors",
-                "crawl_depth": 3,
+                "crawl_depth": 2,
                 "chunk_size": 1500,
                 "rag_top_k": 5,
                 "rag_temperature": 0.7
