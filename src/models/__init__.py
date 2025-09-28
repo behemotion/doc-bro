@@ -14,8 +14,8 @@ from .installation import (
     InstallationRequest,
     InstallationResponse,
     SystemRequirements as InstallationSystemRequirements,
+    CriticalDecisionPoint,
 )
-from .decision_point import CriticalDecisionPoint
 from .system_requirements import SystemRequirements
 from .installation_state import InstallationState
 from .installation_profile import InstallationProfile
