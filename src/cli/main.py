@@ -235,6 +235,7 @@ def main(ctx: click.Context, config_file: str | None, debug: bool, quiet: bool,
       docbro project --create <name> --type <type>  # Create project
       docbro project --remove myproject             # Remove project
       docbro project --show myproject               # Show project details
+      docbro upload                                 # Upload files to projects
       docbro health                                 # Check system health
 
     \b
