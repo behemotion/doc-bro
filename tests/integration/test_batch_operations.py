@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from click.testing import CliRunner
 from unittest.mock import patch, MagicMock, AsyncMock
 from src.cli.main import main
-from logic.crawler.core.batch import BatchCrawler
+from src.logic.crawler.core.batch import BatchCrawler
 
 
 class TestBatchOperationsIntegration:
@@ -146,7 +146,7 @@ class TestBatchOperationsIntegration:
 
     def test_batch_summary_generation(self):
         """Test batch operation summary generation."""
-        from logic.crawler.core.batch import BatchCrawler
+        from src.logic.crawler.core.batch import BatchCrawler
 
         crawler = BatchCrawler()
 

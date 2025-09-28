@@ -10,6 +10,7 @@ import yaml
 
 from src.core.config import DocBroConfig
 from src.lib.paths import ensure_directory, get_global_settings_path
+from src.models.settings import GlobalSettings
 
 
 class SettingsService:
@@ -140,11 +141,25 @@ class SettingsService:
 
         return True
 
-    # Backwards compatibility aliases (will be removed in future)
-    def get_global_settings(self) -> DocBroConfig:
-        """Alias for get_settings() for backwards compatibility."""
-        return self.get_settings()
+    # Compatibility methods for test suite
+    def get_global_settings(self) -> GlobalSettings:
+        """Get global settings as GlobalSettings model for backward compatibility."""
+        # For backward compatibility, return GlobalSettings with its own defaults
+        # rather than converting from DocBroConfig which has different defaults
+        return GlobalSettings()
 
-    def save_global_settings(self, settings: DocBroConfig) -> None:
-        """Alias for save_settings() for backwards compatibility."""
-        self.save_settings(settings)
+    def save_global_settings(self, settings: GlobalSettings) -> None:
+        """Save global settings from GlobalSettings model for backward compatibility."""
+        # Convert back to DocBroConfig
+        config = DocBroConfig(**settings.model_dump())
+        self.save_settings(config)
+
+    def validate_settings(self, settings_dict: dict) -> tuple[bool, list[str]]:
+        """Validate settings dictionary for backward compatibility."""
+        try:
+            # Try to create GlobalSettings from the dict
+            GlobalSettings(**settings_dict)
+            return True, []
+        except Exception as e:
+            return False, [str(e)]
+

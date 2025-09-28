@@ -4,7 +4,7 @@ import pytest
 import asyncio
 import time
 from unittest.mock import MagicMock, patch
-from logic.crawler.utils.progress import ProgressReporter, CrawlPhase
+from src.logic.crawler.utils.progress import ProgressReporter, CrawlPhase
 
 
 class TestProgressUpdatePerformance:

@@ -7,7 +7,7 @@ from click.testing import CliRunner
 from unittest.mock import patch, MagicMock, mock_open
 from datetime import datetime
 from src.cli.main import main
-from logic.crawler.analytics.reporter import ErrorReporter
+from src.logic.crawler.analytics.reporter import ErrorReporter
 
 
 class TestErrorReportingIntegration:
@@ -98,7 +98,7 @@ class TestErrorReportingIntegration:
 
     def test_error_report_formats(self):
         """Test that reports are saved in both JSON and text formats."""
-        from logic.crawler.analytics.reporter import ErrorReporter
+        from src.logic.crawler.analytics.reporter import ErrorReporter
 
         reporter = ErrorReporter("test-project")
 
@@ -119,7 +119,7 @@ class TestErrorReportingIntegration:
 
     def test_error_report_location(self):
         """Test that error reports are saved in correct location."""
-        from logic.crawler.analytics.reporter import ErrorReporter
+        from src.logic.crawler.analytics.reporter import ErrorReporter
         from platformdirs import user_data_dir
 
         reporter = ErrorReporter("test-project")
@@ -182,7 +182,7 @@ class TestErrorReportingIntegration:
 
     def test_report_overwrite_on_recrawl(self):
         """Test that reports are overwritten on project recrawl."""
-        from logic.crawler.analytics.reporter import ErrorReporter
+        from src.logic.crawler.analytics.reporter import ErrorReporter
 
         # First crawl
         reporter1 = ErrorReporter("test-project")
@@ -205,7 +205,7 @@ class TestErrorReportingIntegration:
 
     def test_error_details_in_report(self):
         """Test that error reports contain all necessary details."""
-        from logic.crawler.analytics.reporter import ErrorReporter
+        from src.logic.crawler.analytics.reporter import ErrorReporter
 
         reporter = ErrorReporter("test-project")
 
@@ -234,7 +234,7 @@ class TestErrorReportingIntegration:
 
     def test_error_report_with_stats(self):
         """Test that error report includes crawl statistics."""
-        from logic.crawler.analytics.reporter import ErrorReporter
+        from src.logic.crawler.analytics.reporter import ErrorReporter
 
         reporter = ErrorReporter("test-project")
         reporter.update_stats(

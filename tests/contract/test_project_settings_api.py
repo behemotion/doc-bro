@@ -22,7 +22,7 @@ class TestProjectSettingsAPI:
             crawl_depth=5,
             chunk_size=2000
         )
-        project_settings._modified_fields = {"crawl_depth", "chunk_size"}
+        project_settings.modified_fields = {"crawl_depth", "chunk_size"}
 
         effective = EffectiveSettings.from_configs(global_settings, project_settings)
 
@@ -80,7 +80,7 @@ class TestProjectSettingsAPI:
             crawl_depth=8,
             chunk_size=2500
         )
-        project_settings._modified_fields = {"crawl_depth", "chunk_size"}
+        project_settings.modified_fields = {"crawl_depth", "chunk_size"}
 
         # Save
         service.save_project_settings(project_settings, project_dir)

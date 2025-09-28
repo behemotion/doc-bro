@@ -75,7 +75,7 @@ def crawl(ctx: click.Context, name: str | None, url: str | None, max_pages: int 
 
     \b
     WORKFLOW:
-      1. Ensure project exists: docbro list
+      1. Ensure project exists: docbro project list
       2. Start crawling: docbro crawl myproject
       3. Check progress: look for completion message
       4. Use content: docbro serve (starts MCP server for AI assistants)

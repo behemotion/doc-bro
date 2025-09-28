@@ -24,36 +24,6 @@ from src.services.vector_store import VectorStoreService
 from src.version import __version__
 
 
-class AliasedGroup(click.Group):
-    """Click group that supports command aliases."""
-
-    def get_command(self, ctx, cmd_name):
-        """Get command by name or alias."""
-        # Define aliases (legacy create/list/remove now unified under project)
-        aliases = {
-            'create': 'project',
-            'add': 'project',
-            'new': 'project',
-            'list': 'project',
-            'ls': 'project',
-            'remove': 'project',
-            'delete': 'project',
-            'erase': 'project',
-            'rm': 'project'
-        }
-
-        # Resolve alias to actual command name
-        cmd_name = aliases.get(cmd_name, cmd_name)
-
-        # Get the actual command
-        return super().get_command(ctx, cmd_name)
-
-    def list_commands(self, ctx):
-        """List commands in alphabetical order."""
-        commands = super().list_commands(ctx)
-        return sorted(commands)
-
-
 class DocBroApp:
     """Main DocBro application."""
 
@@ -228,7 +198,7 @@ def _should_run_auto_setup() -> bool:
     return _is_first_time_installation() and _detect_uv_installation()
 
 
-@click.group(cls=AliasedGroup, invoke_without_command=True)
+@click.group(invoke_without_command=True)
 @click.version_option(__version__, "--version", "-v", help="Show version and exit")
 @click.option("--config-file", type=click.Path(exists=True), help="Configuration file path")
 @click.option("--debug", is_flag=True, help="Enable debug output")
@@ -252,27 +222,24 @@ def main(ctx: click.Context, config_file: str | None, debug: bool, quiet: bool,
     \b
     QUICK START:
       docbro setup                                  # Interactive setup wizard
-      docbro project create myproject --type crawling
+      docbro project --create myproject --type crawling
       docbro crawl myproject
       docbro serve                                  # Start MCP server for AI assistants
 
     \b
     PROJECT MANAGEMENT:
       docbro project                                # Interactive project menu
-      docbro project list                           # List all projects
-      docbro project create <name> --type <type>    # Create project
-      docbro project remove myproject               # Remove project
-      docbro project show myproject                 # Show project details
+      docbro project --list                         # List all projects
+      docbro project --create <name> --type <type>  # Create project
+      docbro project --remove myproject             # Remove project
+      docbro project --show myproject               # Show project details
+      docbro upload                                 # Upload files to projects
       docbro health                                 # Check system health
 
     \b
     VECTOR STORE OPTIONS:
       - SQLite-vec: Local, no dependencies, perfect for getting started
       - Qdrant: Scalable, production-ready, requires Docker
-
-    \b
-    LEGACY ALIASES (for backward compatibility):
-      create/add/new → project  |  list/ls → project  |  remove/delete/erase/rm → project
 
     \b
     AI ASSISTANT INTEGRATION:
@@ -326,7 +293,7 @@ def main(ctx: click.Context, config_file: str | None, debug: bool, quiet: bool,
                     if result.success:
                         console.print("\n✅ [bold green]Setup completed successfully![/bold green]")
                         console.print("\n[cyan]Quick start:[/cyan]")
-                        console.print("  1. Create project: [cyan]docbro create myproject -u \"URL\"[/cyan]")
+                        console.print("  1. Create project: [cyan]docbro project --create myproject --type crawling[/cyan]")
                         console.print("  2. Crawl docs:    [cyan]docbro crawl myproject[/cyan]")
                         console.print("  3. Start server:  [cyan]docbro serve[/cyan]")
                         console.print("\n[dim]For more options: docbro --help[/dim]")
@@ -344,7 +311,7 @@ def main(ctx: click.Context, config_file: str | None, debug: bool, quiet: bool,
         console.print(f"DocBro v{__version__} - Documentation Crawler & Search Tool\n")
         console.print("[cyan]Common commands:[/cyan]")
         console.print("  docbro setup                  Interactive setup wizard")
-        console.print("  docbro project                Manage projects (create/list/remove)")
+        console.print("  docbro project                Manage projects (--create/--list/--remove)")
         console.print("  docbro crawl <name>           Crawl documentation")
         console.print("  docbro serve                  Start MCP server")
         console.print("  docbro health                 Check service health")
@@ -358,6 +325,7 @@ from src.cli.commands.health import health
 from src.cli.commands.project import project
 from src.cli.commands.serve import serve
 from src.cli.commands.setup import setup
+from src.cli.commands.upload import upload
 
 # Legacy commands removed - functionality moved to unified health command
 
@@ -373,12 +341,12 @@ except ImportError:
 # Add commands to main group
 main.add_command(project)
 main.add_command(crawl)
+main.add_command(upload)
 main.add_command(serve)
 main.add_command(health)
 main.add_command(setup)
-# Legacy commands removed - use 'docbro health --system' and 'docbro health --services' instead
 
-# Create an alias for backward compatibility with tests
+# CLI alias
 cli = main
 
 if __name__ == "__main__":

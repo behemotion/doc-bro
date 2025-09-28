@@ -14,7 +14,7 @@ try:
     from src.logic.projects.upload.upload_manager import UploadManager
     from src.logic.projects.models.project import Project, ProjectType, ProjectStatus
     from src.logic.projects.models.upload import UploadSource, UploadSourceType, UploadResult
-    from src.logic.projects.models.files import ValidationResult, ProgressUpdate
+    from src.logic.projects.models.validation import ValidationResult, ProgressUpdate
 except ImportError:
     # Expected to fail in TDD - create mock classes for testing
     class ProjectType:

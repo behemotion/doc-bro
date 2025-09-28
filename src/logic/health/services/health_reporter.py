@@ -224,9 +224,9 @@ class HealthReporter:
         table.add_column("Example", style="dim", width=25)
 
         # Core commands
-        table.add_row("docbro create <name> --url <url>", "Create a new documentation project", "docbro create myapi --url https://api.docs")
+        table.add_row("docbro project create <name> --type <type>", "Create a new documentation project", "docbro project create myapi --type crawling")
         table.add_row("docbro crawl <name>", "Crawl and index documentation", "docbro crawl myapi")
-        table.add_row("docbro list", "List all projects", "docbro list --status ready")
+        table.add_row("docbro project list", "List all projects", "docbro project list --status active")
         table.add_row("docbro serve", "Start MCP server", "docbro serve --port 9382")
 
         # Setup commands
@@ -235,7 +235,7 @@ class HealthReporter:
         table.add_row("docbro health", "Check system health", "docbro health")
 
         # Advanced usage
-        table.add_row("docbro remove <name>", "Remove a project", "docbro remove myapi")
+        table.add_row("docbro project remove <name>", "Remove a project", "docbro project remove myapi")
         table.add_row("docbro crawl <name> --update", "Update existing project", "docbro crawl myapi --update")
 
         with console.capture() as capture:

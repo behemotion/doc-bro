@@ -5,7 +5,7 @@ import asyncio
 from click.testing import CliRunner
 from unittest.mock import patch, MagicMock, AsyncMock
 from src.cli.main import main
-from logic.crawler.utils.progress import ProgressReporter, CrawlPhase
+from src.logic.crawler.utils.progress import ProgressReporter, CrawlPhase
 
 
 class TestCrawlProgressIntegration:
@@ -139,7 +139,7 @@ class TestCrawlProgressIntegration:
 
     def test_progress_bar_components(self):
         """Test that progress bars have all required components."""
-        from logic.crawler.utils.progress import ProgressReporter
+        from src.logic.crawler.utils.progress import ProgressReporter
         from rich.console import Console
 
         console = Console()
@@ -155,7 +155,7 @@ class TestCrawlProgressIntegration:
 
     def test_progress_context_manager(self):
         """Test progress context manager behavior."""
-        from logic.crawler.utils.progress import ProgressReporter
+        from src.logic.crawler.utils.progress import ProgressReporter
 
         reporter = ProgressReporter()
 

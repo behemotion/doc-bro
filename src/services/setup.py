@@ -402,13 +402,13 @@ DocBro has been successfully configured:
 [dim]Data Directory:[/dim] {context.user_data_dir}
 
 [bold]Next Steps:[/bold]
-1. Create your first project: [cyan]docbro create myproject --url https://docs.example.com[/cyan]
+1. Create your first project: [cyan]docbro project create myproject --type crawling[/cyan]
 2. Crawl documentation: [cyan]docbro crawl myproject[/cyan]
 3. Search your docs: [cyan]docbro search "query" --project myproject[/cyan]
 
 [bold]Need help?[/bold]
 • Check status: [cyan]docbro status[/cyan]
-• List projects: [cyan]docbro list[/cyan]
+• List projects: [cyan]docbro project list[/cyan]
 • Get help: [cyan]docbro --help[/cyan]
 
 [dim]If you skipped service installation, you can set them up later.
