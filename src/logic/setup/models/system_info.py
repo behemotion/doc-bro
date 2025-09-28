@@ -90,7 +90,7 @@ class SystemInfoPanel:
 
         # Import here to avoid circular dependencies
         try:
-            from src.services.settings import GlobalSettingsService
+            from src.services.settings_service import SettingsService
             from src.logic.setup.services.detector import ServiceDetector
             from src.models.project import ProjectDatabase
         except ImportError:
@@ -100,8 +100,8 @@ class SystemInfoPanel:
 
         try:
             # Collect settings
-            settings_service = GlobalSettingsService()
-            settings = await settings_service.load_async()
+            settings_service = SettingsService()
+            settings = settings_service.get_settings()
             self.global_settings = {
                 "Vector Store Provider": getattr(settings, 'vector_store_provider', 'sqlite_vec'),
                 "Embedding Model": getattr(settings, 'embedding_model', 'mxbai-embed-large'),
