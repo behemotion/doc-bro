@@ -44,16 +44,46 @@ def crawl(ctx: click.Context, name: str | None, url: str | None, max_pages: int 
          rate_limit: float, depth: int | None, update: bool, all: bool, debug: bool):
     """Start crawling a documentation project.
 
-    Enhanced flexible crawl modes:
-    - docbro crawl myproject                  # Use existing URL
-    - docbro crawl myproject --url "URL"      # Provide/update URL
-    - docbro crawl myproject --depth 3        # Override depth
+    Crawl documentation websites to build a local searchable knowledge base.
+    The crawler follows links, extracts content, and creates vector embeddings.
 
-    Examples:
-      docbro crawl my-project                  # Crawl a specific project
-      docbro crawl my-project --url "URL"     # Set URL and crawl
-      docbro crawl --update my-project        # Update an existing project
+    \b
+    CRAWL MODES:
+      docbro crawl myproject                  # Crawl using project's configured URL
+      docbro crawl myproject -u "URL"         # Set/update URL and crawl
+      docbro crawl --update myproject         # Re-crawl to update content
       docbro crawl --update --all             # Update all projects
+
+    \b
+    PERFORMANCE OPTIONS:
+      -m, --max-pages N    Limit crawl to N pages (useful for testing)
+      -r, --rate-limit F   Requests per second (default: 1.0, be respectful!)
+      -d, --depth N        Override default crawl depth for this session
+
+    \b
+    UPDATE MODES:
+      --update             Re-crawl existing projects to get latest content
+      --all                Process all projects (use with --update)
+
+    \b
+    EXAMPLES:
+      docbro crawl django                     # Crawl Django project
+      docbro crawl fastapi -d 2 -m 50         # Crawl FastAPI, depth 2, max 50 pages
+      docbro crawl docs -u "https://new-url.com/"  # Update URL and crawl
+      docbro crawl --update --all             # Update all projects
+      docbro crawl myproject --debug          # Show detailed crawl progress
+
+    \b
+    WORKFLOW:
+      1. Ensure project exists: docbro list
+      2. Start crawling: docbro crawl myproject
+      3. Check progress: look for completion message
+      4. Use content: docbro serve (starts MCP server for AI assistants)
+
+    \b
+    RATE LIMITING:
+      Please be respectful of target websites. Default rate limit is 1 req/sec.
+      Increase only if you own the target site or have explicit permission.
     """
     async def _crawl():
         app = get_app()

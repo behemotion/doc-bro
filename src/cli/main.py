@@ -29,14 +29,17 @@ class AliasedGroup(click.Group):
 
     def get_command(self, ctx, cmd_name):
         """Get command by name or alias."""
-        # Define aliases
+        # Define aliases (legacy create/list/remove now unified under project)
         aliases = {
-            'add': 'create',
-            'new': 'create',
-            'delete': 'remove',
-            'erase': 'remove',
-            'rm': 'remove',
-            'ls': 'list'
+            'create': 'project',
+            'add': 'project',
+            'new': 'project',
+            'list': 'project',
+            'ls': 'project',
+            'remove': 'project',
+            'delete': 'project',
+            'erase': 'project',
+            'rm': 'project'
         }
 
         # Resolve alias to actual command name
@@ -242,18 +245,38 @@ def main(ctx: click.Context, config_file: str | None, debug: bool, quiet: bool,
     DocBro crawls documentation websites, stores them locally, and provides
     semantic search through an MCP server for AI assistants like Claude.
 
-    Quick start:
-      docbro create myproject -u "https://docs.example.com"
+    \b
+    INSTALLATION:
+      uv tool install git+https://github.com/behemotion/doc-bro
+
+    \b
+    QUICK START:
+      docbro setup                                  # Interactive setup wizard
+      docbro project create --name myproject --type crawling
       docbro crawl myproject
-      docbro serve
+      docbro serve                                  # Start MCP server for AI assistants
 
-    For interactive setup:
-      docbro setup
+    \b
+    PROJECT MANAGEMENT:
+      docbro project                                # Interactive project menu
+      docbro project list                           # List all projects
+      docbro project create --name <name> --type <type>  # Create project
+      docbro project remove --name myproject       # Remove project
+      docbro health                                 # Check system health
 
-    Command aliases:
-      create: add, new
-      remove: delete, erase, rm
-      list: ls
+    \b
+    VECTOR STORE OPTIONS:
+      - SQLite-vec: Local, no dependencies, perfect for getting started
+      - Qdrant: Scalable, production-ready, requires Docker
+
+    \b
+    LEGACY ALIASES (for backward compatibility):
+      create/add/new → project  |  list/ls → project  |  remove/delete/erase/rm → project
+
+    \b
+    AI ASSISTANT INTEGRATION:
+      Once the MCP server is running (docbro serve), AI assistants like Claude
+      can access your documentation for context-aware responses.
     """
     # Store context for commands
     ctx.ensure_object(dict)
@@ -320,10 +343,9 @@ def main(ctx: click.Context, config_file: str | None, debug: bool, quiet: bool,
         console.print(f"DocBro v{__version__} - Documentation Crawler & Search Tool\n")
         console.print("[cyan]Common commands:[/cyan]")
         console.print("  docbro setup                  Interactive setup wizard")
-        console.print("  docbro create <name> -u URL   Create a project")
+        console.print("  docbro project                Manage projects (create/list/remove)")
         console.print("  docbro crawl <name>           Crawl documentation")
         console.print("  docbro serve                  Start MCP server")
-        console.print("  docbro list                   List all projects")
         console.print("  docbro health                 Check service health")
         console.print("  docbro --help                 Show all commands")
         ctx.exit(0)
@@ -331,10 +353,8 @@ def main(ctx: click.Context, config_file: str | None, debug: bool, quiet: bool,
 
 # Import and register all commands
 from src.cli.commands.crawl import crawl
-from src.cli.commands.create import create
 from src.cli.commands.health import health
-from src.cli.commands.list import list_command
-from src.cli.commands.remove import remove
+from src.cli.commands.project import project
 from src.cli.commands.serve import serve
 from src.cli.commands.setup import setup
 
@@ -350,10 +370,8 @@ except ImportError:
     pass
 
 # Add commands to main group
-main.add_command(create)
-main.add_command(list_command, name="list")
+main.add_command(project)
 main.add_command(crawl)
-main.add_command(remove)
 main.add_command(serve)
 main.add_command(health)
 main.add_command(setup)

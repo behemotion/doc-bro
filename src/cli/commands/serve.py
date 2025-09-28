@@ -27,14 +27,47 @@ def get_app():
 def serve(ctx: click.Context, host: str, port: int, foreground: bool, status: bool):
     """Start the MCP server for AI assistant integration.
 
-    The MCP (Model Context Protocol) server provides documentation access
-    to AI assistants like Claude.
+    The MCP (Model Context Protocol) server exposes your documentation
+    to AI assistants like Claude, enabling context-aware responses.
 
-    Examples:
-      docbro serve                   # Start server in background
+    \b
+    SERVER MODES:
+      docbro serve                   # Start in background (recommended)
       docbro serve --foreground      # Run in foreground (for debugging)
+      docbro serve --status          # Check if server is running
+
+    \b
+    CONFIGURATION:
+      --host HOST      Server bind address (default: 0.0.0.0, all interfaces)
+      --port PORT      Server port (default: 9382)
+      -f, --foreground Run in foreground instead of background
+
+    \b
+    MCP INTEGRATION:
+      Once running, the server provides documentation access to AI assistants:
+      - Real-time search across all your crawled projects
+      - Semantic similarity matching for relevant content
+      - Automatic context injection for better AI responses
+
+    \b
+    EXAMPLES:
+      docbro serve                   # Start server (background)
+      docbro serve -f                # Run in foreground for debugging
       docbro serve --port 8080       # Use custom port
       docbro serve --status          # Check if server is running
+
+    \b
+    CLIENT SETUP:
+      Configure your AI assistant to connect to:
+      - URL: http://localhost:9382 (or your custom host:port)
+      - Protocol: MCP (Model Context Protocol)
+
+    \b
+    TROUBLESHOOTING:
+      - Use --foreground to see real-time server logs
+      - Check --status to verify server is responding
+      - Ensure no other service is using the port
+      - Run 'docbro health' to verify system components
     """
     import socket
 
