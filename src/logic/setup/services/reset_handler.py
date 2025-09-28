@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from src.logic.setup.services.initializer import SetupInitializer
 from src.logic.setup.services.uninstaller import SetupUninstaller
 from src.logic.setup.services.configurator import SetupConfigurator
-from src.lib.logging import get_logger
+from src.core.lib_logger import get_logger
 
 logger = get_logger(__name__)
 

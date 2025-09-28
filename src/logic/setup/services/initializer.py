@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Optional, Dict, Any
 import sqlite3
-from src.lib.logging import get_logger
+from src.core.lib_logger import get_logger
 
 logger = get_logger(__name__)
 

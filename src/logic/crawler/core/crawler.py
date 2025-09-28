@@ -108,6 +108,35 @@ class DocumentationCrawler:
 
         self.logger.debug("Crawler cleaned up")
 
+    def _is_documentation_url(self, url: str) -> bool:
+        """Check if URL likely contains documentation content."""
+        # Skip common asset file extensions
+        asset_extensions = {
+            '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.webp',  # Images
+            '.css', '.js', '.map',                                      # Stylesheets/Scripts
+            '.pdf', '.zip', '.tar', '.gz',                             # Downloads
+            '.woff', '.woff2', '.ttf', '.eot',                         # Fonts
+            '.xml', '.json', '.yaml', '.yml'                           # Data files
+        }
+
+        # Check if URL ends with asset extension
+        url_lower = url.lower()
+        for ext in asset_extensions:
+            if url_lower.endswith(ext):
+                return False
+
+        # Skip common asset directory patterns
+        asset_patterns = [
+            '/assets/', '/static/', '/css/', '/js/', '/images/', '/img/',
+            '/fonts/', '/downloads/', '/_static/', '/stylesheets/'
+        ]
+
+        for pattern in asset_patterns:
+            if pattern in url_lower:
+                return False
+
+        return True
+
     async def start_crawl(
         self,
         project_id: str,
@@ -203,7 +232,7 @@ class DocumentationCrawler:
                         self._crawl_queue.get(),
                         timeout=timeout_seconds
                     )
-                    self.logger.debug(f"Got URL from queue: {url}, depth: {depth}")
+                    self.logger.info(f"Got URL from queue: {url}, depth: {depth}, visited_urls: {len(self._visited_urls)}")
 
                     # Update progress with current depth and counts
                     if depth != current_depth:
@@ -236,7 +265,7 @@ class DocumentationCrawler:
 
                 # Skip if already visited
                 if url in self._visited_urls:
-                    self.logger.debug(f"Skipping already visited URL: {url}")
+                    self.logger.info(f"Skipping already visited URL: {url} (visited: {self._visited_urls})")
                     continue
 
                 # Skip if depth exceeded
@@ -244,9 +273,10 @@ class DocumentationCrawler:
                     self.logger.info(f"Skipping URL due to depth {depth} > {project.crawl_depth}: {url}")
                     continue
 
-                # Mark as visited
-                self._visited_urls.add(url)
-                self.logger.debug(f"Marked URL as visited: {url}")
+                # Skip asset files - focus on documentation content
+                if not self._is_documentation_url(url):
+                    self.logger.debug(f"Skipping asset URL during processing: {url}")
+                    continue
 
                 # Check robots.txt
                 self.logger.debug(f"Checking robots.txt for URL: {url}")
@@ -260,14 +290,28 @@ class DocumentationCrawler:
                 # Apply rate limiting
                 await self._apply_rate_limit(url, session.rate_limit)
 
-                # Create page record
-                page = await self.db_manager.create_page(
-                    project_id=project.id,
-                    session_id=session.id,
-                    url=url,
-                    crawl_depth=depth,
-                    parent_url=parent_url
-                )
+                # Check if page already exists
+                page = await self.db_manager.get_page_by_url(project.id, url)
+                if page:
+                    # Page already exists, skip if it's not in a retryable state
+                    if page.status not in [PageStatus.DISCOVERED, PageStatus.FAILED, PageStatus.CRAWLING]:
+                        self.logger.debug(f"Page already processed, skipping: {url}")
+                        continue
+                    # Update session_id for retry
+                    page.session_id = session.id
+                else:
+                    # Create new page record
+                    page = await self.db_manager.create_page(
+                        project_id=project.id,
+                        session_id=session.id,
+                        url=url,
+                        crawl_depth=depth,
+                        parent_url=parent_url
+                    )
+
+                # Mark page as being crawled
+                page.mark_crawling()
+                await self.db_manager.update_page(page)
 
                 # Crawl the page
                 crawl_result = await self.crawl_page(url)
@@ -302,6 +346,11 @@ class DocumentationCrawler:
                         queued_count = 0
                         for link in page.internal_links:
                             if link not in self._visited_urls:
+                                # Skip asset files - focus on documentation content
+                                if not self._is_documentation_url(link):
+                                    self.logger.debug(f"Skipping asset URL: {link}")
+                                    continue
+
                                 new_depth = depth + 1
                                 if new_depth <= project.crawl_depth:
                                     self.logger.debug(f"Queueing link: {link} at depth {new_depth}")
@@ -340,6 +389,10 @@ class DocumentationCrawler:
                             "error_count": session.error_count
                         })
                         break
+
+                # Mark URL as visited after processing (successful or failed)
+                self._visited_urls.add(url)
+                self.logger.debug(f"Marked URL as visited: {url}")
 
                 # Update page in database
                 await self.db_manager.update_page(page)

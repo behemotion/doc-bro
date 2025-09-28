@@ -6,7 +6,7 @@ import shutil
 from typing import Dict, Any, Optional
 import httpx
 from src.logic.setup.models.service_info import ServiceInfo, ServiceStatus
-from src.lib.logging import get_logger
+from src.core.lib_logger import get_logger
 
 logger = get_logger(__name__)
 

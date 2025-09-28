@@ -4,7 +4,7 @@ import click
 from typing import Optional
 from src.logic.setup.core.orchestrator import SetupOrchestrator
 from src.logic.setup.core.router import CommandRouter
-from src.lib.logging import get_logger, setup_logging
+from src.core.lib_logger import get_logger
 from rich.console import Console
 
 logger = get_logger(__name__)
@@ -91,8 +91,6 @@ def setup(
         docbro setup --uninstall --force       # Uninstall without confirmation
         docbro setup --reset --preserve-data   # Reset but keep projects
     """
-    # Setup logging
-    setup_logging()
 
     # Initialize router and orchestrator
     router = CommandRouter()

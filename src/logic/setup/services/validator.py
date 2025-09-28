@@ -5,7 +5,7 @@ import platform
 import psutil
 from pathlib import Path
 from typing import Dict, Any
-from src.lib.logging import get_logger
+from src.core.lib_logger import get_logger
 
 logger = get_logger(__name__)
 
