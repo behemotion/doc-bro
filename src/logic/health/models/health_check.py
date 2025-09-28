@@ -1,11 +1,11 @@
 """Health check entity model."""
 
 from datetime import datetime
-from typing import Optional
-from pydantic import BaseModel, Field, validator
 
-from .status import HealthStatus
+from pydantic import BaseModel, Field, field_validator, model_validator
+
 from .category import HealthCategory
+from .status import HealthStatus
 
 
 class HealthCheck(BaseModel):
@@ -16,31 +16,32 @@ class HealthCheck(BaseModel):
     name: str = Field(..., min_length=1, description="Human-readable name of the check")
     status: HealthStatus = Field(..., description="Current status of the check")
     message: str = Field(..., description="Descriptive message about the check result")
-    details: Optional[str] = Field(None, description="Additional details or error information")
-    resolution: Optional[str] = Field(None, description="Actionable guidance for resolving issues")
+    details: str | None = Field(None, description="Additional details or error information")
+    resolution: str | None = Field(None, description="Actionable guidance for resolving issues")
     execution_time: float = Field(..., ge=0, description="Time taken to execute the check (seconds)")
 
-    @validator('id')
+    @field_validator('id')
+    @classmethod
     def validate_id_format(cls, v):
         """Validate ID format follows category.check_name pattern."""
         if not v or '.' not in v:
             raise ValueError("Health check ID must follow 'category.check_name' format")
         return v
 
-    @validator('name')
+    @field_validator('name')
+    @classmethod
     def validate_name_not_empty(cls, v):
         """Validate name is not empty."""
         if not v or not v.strip():
             raise ValueError("Health check name cannot be empty")
         return v.strip()
 
-    @validator('resolution')
-    def validate_resolution_required_for_issues(cls, v, values):
+    @model_validator(mode='after')
+    def validate_resolution_required_for_issues(self) -> 'HealthCheck':
         """Validate resolution is provided when status indicates issues."""
-        status = values.get('status')
-        if status and status in [HealthStatus.ERROR, HealthStatus.WARNING] and not v:
+        if self.status in [HealthStatus.ERROR, HealthStatus.WARNING] and not self.resolution:
             raise ValueError("Resolution guidance required for ERROR or WARNING status")
-        return v
+        return self
 
     @property
     def has_issues(self) -> bool:
@@ -65,10 +66,10 @@ class HealthCheck(BaseModel):
             "execution_time": self.execution_time
         }
 
-    class Config:
-        """Pydantic configuration."""
-        json_encoders = {
+    model_config = {
+        "json_encoders": {
             datetime: lambda v: v.isoformat(),
             HealthStatus: lambda v: v.value,
             HealthCategory: lambda v: v.value,
         }
+    }

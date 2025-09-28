@@ -2,11 +2,11 @@
 
 import json
 import logging
+import traceback
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Any
 from uuid import uuid4
-import traceback
 
 from platformdirs import user_data_dir
 
@@ -23,7 +23,7 @@ class ErrorReporter:
             project_name: Name of the project being crawled
         """
         self.project_name = project_name
-        self.errors: List[Dict[str, Any]] = []
+        self.errors: list[dict[str, Any]] = []
         self.start_time = datetime.utcnow()
         self.report_id = str(uuid4())
         self._stats = {
@@ -38,7 +38,7 @@ class ErrorReporter:
         url: str,
         error_type: str,
         error_message: str,
-        error_code: Optional[int] = None,
+        error_code: int | None = None,
         retry_count: int = 0,
         include_traceback: bool = False
     ) -> None:
@@ -70,10 +70,10 @@ class ErrorReporter:
 
     def update_stats(
         self,
-        total_pages: Optional[int] = None,
-        successful_pages: Optional[int] = None,
-        failed_pages: Optional[int] = None,
-        embeddings_count: Optional[int] = None
+        total_pages: int | None = None,
+        successful_pages: int | None = None,
+        failed_pages: int | None = None,
+        embeddings_count: int | None = None
     ) -> None:
         """Update crawl statistics.
 
@@ -111,7 +111,7 @@ class ErrorReporter:
         report_dir.mkdir(parents=True, exist_ok=True)
         return report_dir
 
-    def generate_report(self) -> Dict[str, Any]:
+    def generate_report(self) -> dict[str, Any]:
         """Generate a complete crawl report.
 
         Returns:
@@ -144,7 +144,7 @@ class ErrorReporter:
 
         return report
 
-    def _generate_error_summary(self) -> Dict[str, Any]:
+    def _generate_error_summary(self) -> dict[str, Any]:
         """Generate summary statistics for errors.
 
         Returns:
@@ -199,7 +199,7 @@ class ErrorReporter:
         logger.info(f"Reports saved to {report_dir}")
         return json_path, text_path
 
-    def _format_human_report(self, report: Dict[str, Any]) -> str:
+    def _format_human_report(self, report: dict[str, Any]) -> str:
         """Format report for human readability.
 
         Args:

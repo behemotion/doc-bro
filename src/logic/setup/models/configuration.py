@@ -2,8 +2,9 @@
 
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional
-from pydantic import BaseModel, Field, field_validator, HttpUrl
+
+from pydantic import BaseModel, Field, field_validator
+
 from src.models.vector_store_types import VectorStoreProvider
 
 
@@ -22,15 +23,15 @@ class SetupConfiguration(BaseModel):
         default="mxbai-embed-large",
         description="Model for embeddings"
     )
-    directories: Dict[str, Path] = Field(
+    directories: dict[str, Path] = Field(
         default_factory=dict,
         description="System directories (config, data, cache)"
     )
-    services_detected: Dict[str, Dict] = Field(
+    services_detected: dict[str, dict] = Field(
         default_factory=dict,
         description="Available services and their info"
     )
-    installation_timestamp: Optional[datetime] = Field(
+    installation_timestamp: datetime | None = Field(
         default=None,
         description="When first installed (UTC)"
     )
@@ -67,14 +68,14 @@ class SetupConfiguration(BaseModel):
 
     @field_validator("directories")
     @classmethod
-    def validate_paths(cls, v: Dict[str, Path]) -> Dict[str, Path]:
+    def validate_paths(cls, v: dict[str, Path]) -> dict[str, Path]:
         """Validate that all paths are absolute."""
         for key, path in v.items():
             if not path.is_absolute():
                 raise ValueError(f"Directory path must be absolute: {key}={path}")
         return v
 
-    def update_service_status(self, service: str, info: Dict) -> None:
+    def update_service_status(self, service: str, info: dict) -> None:
         """Update the status of a detected service."""
         self.services_detected[service] = {
             **info,
@@ -92,7 +93,7 @@ class SetupConfiguration(BaseModel):
             self.installation_timestamp = datetime.utcnow()
             self.last_modified = datetime.utcnow()
 
-    def to_yaml_dict(self) -> Dict:
+    def to_yaml_dict(self) -> dict:
         """Convert to YAML-serializable dictionary."""
         data = self.model_dump(exclude_none=True)
 
@@ -115,7 +116,7 @@ class SetupConfiguration(BaseModel):
         return data
 
     @classmethod
-    def from_yaml_dict(cls, data: Dict) -> "SetupConfiguration":
+    def from_yaml_dict(cls, data: dict) -> "SetupConfiguration":
         """Create from YAML-loaded dictionary."""
         # Convert string paths back to Path objects
         if "directories" in data:

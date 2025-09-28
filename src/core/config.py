@@ -3,10 +3,10 @@
 import os
 from enum import Enum
 from pathlib import Path
-from typing import Optional
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import SettingsConfigDict
+
 try:
     from pydantic_settings import BaseSettings as PydanticBaseSettings
 except ImportError:
@@ -44,7 +44,7 @@ class DocBroConfig(PydanticBaseSettings):
 
     # Service URLs
     qdrant_url: str = Field(default="http://localhost:6333")
-    qdrant_api_key: Optional[str] = Field(default=None)
+    qdrant_api_key: str | None = Field(default=None)
     ollama_url: str = Field(default="http://localhost:11434")
     ollama_timeout: int = Field(default=300)
 
@@ -65,10 +65,35 @@ class DocBroConfig(PydanticBaseSettings):
     rag_top_k: int = Field(default=5, ge=1, le=20)
     rag_temperature: float = Field(default=0.7, ge=0.0, le=1.0)
 
+    # Project defaults configuration
+    project_max_file_size: int = Field(default=10485760, ge=1048576)  # 10MB default, min 1MB
+    project_allowed_formats_images: list[str] = Field(
+        default_factory=lambda: ['jpg', 'jpeg', 'png', 'gif', 'tiff', 'webp', 'svg']
+    )
+    project_allowed_formats_audio: list[str] = Field(
+        default_factory=lambda: ['mp3', 'wav', 'flac', 'ogg']
+    )
+    project_allowed_formats_video: list[str] = Field(
+        default_factory=lambda: ['mp4', 'avi', 'mkv', 'webm']
+    )
+    project_allowed_formats_archives: list[str] = Field(
+        default_factory=lambda: ['zip', 'tar', 'gz', '7z', 'rar']
+    )
+    project_allowed_formats_documents: list[str] = Field(
+        default_factory=lambda: ['pdf', 'docx', 'txt', 'md', 'html', 'json', 'xml']
+    )
+    project_allowed_formats_code: list[str] = Field(
+        default_factory=lambda: ['py', 'js', 'ts', 'go', 'rs', 'java', 'cpp', 'c', 'h']
+    )
+
+    # CLI configuration
+    cli_global_unique_shortcuts: bool = Field(default=True)
+    cli_two_char_fallback: bool = Field(default=True)
+
     # MCP Server configuration
     mcp_host: str = Field(default="localhost")
     mcp_port: int = Field(default=9382)
-    mcp_auth_token: Optional[str] = Field(default=None)
+    mcp_auth_token: str | None = Field(default=None)
 
     # Database configuration
     database_url: str = Field(
@@ -77,7 +102,7 @@ class DocBroConfig(PydanticBaseSettings):
 
     # Logging configuration
     log_level: str = Field(default="WARNING")
-    log_file: Optional[Path] = Field(default=None)
+    log_file: Path | None = Field(default=None)
 
     model_config = SettingsConfigDict(
         env_file=".env",

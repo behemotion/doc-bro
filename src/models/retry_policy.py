@@ -1,8 +1,7 @@
 """RetryPolicy model with exponential backoff logic (2s, 4s, 8s)."""
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Type, List, Optional
-from pydantic import BaseModel, Field, ConfigDict
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 @dataclass
@@ -10,8 +9,8 @@ class RetryState:
     """State tracking for retry attempts"""
     attempt_number: int
     next_delay_seconds: float
-    last_error: Optional[Exception] = None
-    started_at: Optional[float] = None
+    last_error: Exception | None = None
+    started_at: float | None = None
 
 
 class RetryPolicy(BaseModel):
@@ -22,7 +21,7 @@ class RetryPolicy(BaseModel):
     base_delay_seconds: float = Field(default=2.0, description="Base delay in seconds")
     max_delay_seconds: float = Field(default=8.0, description="Maximum delay in seconds")
     backoff_multiplier: float = Field(default=2.0, description="Backoff multiplier")
-    retryable_errors: List[str] = Field(
+    retryable_errors: list[str] = Field(
         default_factory=lambda: ["ConnectionError", "TimeoutError", "OSError"],
         description="List of retryable error class names"
     )

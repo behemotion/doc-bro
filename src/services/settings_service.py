@@ -5,14 +5,11 @@ Settings service for managing DocBro configuration.
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional
+
 import yaml
 
-from src.lib.paths import (
-    get_global_settings_path,
-    ensure_directory
-)
 from src.core.config import DocBroConfig
+from src.lib.paths import ensure_directory, get_global_settings_path
 
 
 class SettingsService:
@@ -27,14 +24,16 @@ class SettingsService:
         """Load settings from file or create defaults."""
         if self.settings_path.exists():
             try:
-                with open(self.settings_path, 'r') as f:
+                with open(self.settings_path) as f:
                     data = yaml.safe_load(f)
                     if data and 'settings' in data:
                         settings_data = data['settings']
 
                         # Convert string back to enums if needed
                         if 'vector_store_provider' in settings_data and isinstance(settings_data['vector_store_provider'], str):
-                            from src.models.vector_store_types import VectorStoreProvider
+                            from src.models.vector_store_types import (
+                                VectorStoreProvider,
+                            )
                             settings_data['vector_store_provider'] = VectorStoreProvider.from_string(settings_data['vector_store_provider'])
 
                         if 'qdrant_deployment' in settings_data and isinstance(settings_data['qdrant_deployment'], str):
@@ -95,7 +94,7 @@ class SettingsService:
         except Exception:
             return False
 
-    def reset_to_defaults(self, backup: bool = True) -> Optional[Path]:
+    def reset_to_defaults(self, backup: bool = True) -> Path | None:
         """Reset settings to factory defaults."""
         if backup and self.settings_path.exists():
             # Create backup
@@ -118,7 +117,7 @@ class SettingsService:
             return True
 
         try:
-            with open(self.settings_path, 'r') as f:
+            with open(self.settings_path) as f:
                 data = yaml.safe_load(f)
 
             # Check if this is v1 format

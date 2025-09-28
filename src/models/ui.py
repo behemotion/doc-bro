@@ -2,7 +2,8 @@
 UI models for interactive settings menu.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -15,7 +16,7 @@ class SettingsMenuItem(BaseModel):
     value_type: str = Field(..., description="Data type (int/float/str/bool)")
     description: str = Field(..., description="Help text")
     is_editable: bool = Field(default=True, description="Can be modified")
-    validation: Optional[Dict[str, Any]] = Field(
+    validation: dict[str, Any] | None = Field(
         default=None,
         description="Validation rules (min/max/choices)"
     )
@@ -51,13 +52,13 @@ class MenuState(BaseModel):
     """State management for interactive settings menu."""
 
     current_index: int = Field(default=0, description="Selected item index")
-    items: List[SettingsMenuItem] = Field(
+    items: list[SettingsMenuItem] = Field(
         default_factory=list,
         description="Menu items"
     )
     editing: bool = Field(default=False, description="Currently editing a value")
     edit_buffer: str = Field(default="", description="Text being edited")
-    message: Optional[str] = Field(None, description="Status/error message")
+    message: str | None = Field(None, description="Status/error message")
     changes_made: bool = Field(default=False, description="Track if any changes made")
 
     def move_up(self) -> bool:
@@ -74,7 +75,7 @@ class MenuState(BaseModel):
             return True
         return False
 
-    def get_current_item(self) -> Optional[SettingsMenuItem]:
+    def get_current_item(self) -> SettingsMenuItem | None:
         """Get currently selected item."""
         if 0 <= self.current_index < len(self.items):
             return self.items[self.current_index]

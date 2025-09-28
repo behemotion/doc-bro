@@ -440,8 +440,8 @@ class UninstallService:
         try:
             logger.info("Removing all projects as part of uninstall")
             # Import database manager to get projects
-            from src.services.database import DatabaseManager
             from src.core.config import DocBroConfig
+            from src.services.database import DatabaseManager
 
             config = DocBroConfig()
             db_manager = DatabaseManager(config)

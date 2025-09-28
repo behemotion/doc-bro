@@ -5,14 +5,14 @@ import logging
 import subprocess
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
-import docker
 import httpx
-from docker.errors import DockerException, NotFound
+from docker.errors import DockerException
 from docker.models.containers import Container
 from qdrant_client import QdrantClient
 from qdrant_client.http.exceptions import ResponseHandlingException
+
+import docker
 
 from .config import DocBroConfig, ServiceDeployment
 
@@ -51,7 +51,7 @@ class DockerServiceManager:
                     return False
             return False
 
-    def get_service_containers(self) -> Dict[str, Optional[Container]]:
+    def get_service_containers(self) -> dict[str, Container | None]:
         """Get containers for DocBro services."""
         if not self.is_docker_available():
             return {"qdrant": None}
@@ -71,7 +71,7 @@ class DockerServiceManager:
             logger.error(f"Failed to get Docker containers: {e}")
             return {"qdrant": None}
 
-    def start_services(self, services: Optional[List[str]] = None) -> bool:
+    def start_services(self, services: list[str] | None = None) -> bool:
         """Start Docker services using docker-compose."""
         if not self.docker_compose_file.exists():
             logger.error(f"Docker compose file not found: {self.docker_compose_file}")
@@ -89,7 +89,7 @@ class DockerServiceManager:
             logger.error(f"Failed to start Docker services: {e.stderr}")
             return False
 
-    def stop_services(self, services: Optional[List[str]] = None) -> bool:
+    def stop_services(self, services: list[str] | None = None) -> bool:
         """Stop Docker services using docker-compose."""
         if not self.docker_compose_file.exists():
             logger.error(f"Docker compose file not found: {self.docker_compose_file}")
@@ -123,7 +123,7 @@ class DockerServiceManager:
         except subprocess.CalledProcessError as e:
             return f"Failed to get logs for {service}: {e.stderr}"
 
-    async def wait_for_services(self, timeout: int = 60) -> Dict[str, bool]:
+    async def wait_for_services(self, timeout: int = 60) -> dict[str, bool]:
         """Wait for services to become healthy."""
         start_time = time.time()
         health_checker = ServiceHealthChecker(self.config)
@@ -155,7 +155,7 @@ class ServiceHealthChecker:
         """Initialize with configuration."""
         self.config = config
 
-    async def check_qdrant(self) -> Tuple[bool, str]:
+    async def check_qdrant(self) -> tuple[bool, str]:
         """Check Qdrant service health."""
         try:
             client = QdrantClient(url=self.config.qdrant_url)
@@ -167,7 +167,7 @@ class ServiceHealthChecker:
             return False, f"Unexpected error: {e}"
 
 
-    async def check_ollama(self) -> Tuple[bool, str]:
+    async def check_ollama(self) -> tuple[bool, str]:
         """Check Ollama service health."""
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
@@ -183,11 +183,10 @@ class ServiceHealthChecker:
         except Exception as e:
             return False, f"Connection failed: {e}"
 
-    async def check_database(self) -> Tuple[bool, str]:
+    async def check_database(self) -> tuple[bool, str]:
         """Check database connection."""
         try:
             from sqlalchemy import create_engine, text
-            from sqlalchemy.engine import Engine
 
             # Convert async URL to sync for health check
             db_url = self.config.database_url.replace("+aiosqlite", "")
@@ -201,7 +200,7 @@ class ServiceHealthChecker:
         except Exception as e:
             return False, f"Database error: {e}"
 
-    async def check_all_services(self) -> Dict[str, bool]:
+    async def check_all_services(self) -> dict[str, bool]:
         """Check health of all services."""
         tasks = {
             "qdrant": self.check_qdrant(),
@@ -212,7 +211,7 @@ class ServiceHealthChecker:
         results = await asyncio.gather(*tasks.values(), return_exceptions=True)
 
         health_status = {}
-        for service, result in zip(tasks.keys(), results):
+        for service, result in zip(tasks.keys(), results, strict=False):
             if isinstance(result, Exception):
                 health_status[service] = False
                 logger.error(f"Health check failed for {service}: {result}")
@@ -306,6 +305,6 @@ class ServiceConnectionManager:
 
         self._connections.clear()
 
-    async def test_all_connections(self) -> Dict[str, bool]:
+    async def test_all_connections(self) -> dict[str, bool]:
         """Test all service connections."""
         return await self.health_checker.check_all_services()

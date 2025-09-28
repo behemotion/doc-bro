@@ -2,12 +2,11 @@
 
 import platform
 import sys
-from typing import List, Optional
 
-from ..models.health_check import HealthCheck
-from ..models.system_info import SystemInfo
-from ..models.status import HealthStatus
 from ..models.category import HealthCategory
+from ..models.health_check import HealthCheck
+from ..models.status import HealthStatus
+from ..models.system_info import SystemInfo
 
 
 class SystemValidator:
@@ -236,7 +235,7 @@ class SystemValidator:
                 execution_time=execution_time
             )
 
-    async def validate_all_system_requirements(self) -> List[HealthCheck]:
+    async def validate_all_system_requirements(self) -> list[HealthCheck]:
         """Validate all system requirements."""
         import asyncio
 
@@ -277,10 +276,9 @@ class SystemValidator:
         except (ValueError, IndexError):
             return False
 
-    async def _get_uv_version(self) -> Optional[str]:
+    async def _get_uv_version(self) -> str | None:
         """Get UV version if available."""
         import asyncio
-        import subprocess
 
         try:
             process = await asyncio.create_subprocess_exec(
@@ -298,7 +296,7 @@ class SystemValidator:
                 return output
             return None
 
-        except (FileNotFoundError, asyncio.TimeoutError):
+        except (TimeoutError, FileNotFoundError):
             return None
         except Exception:
             return None

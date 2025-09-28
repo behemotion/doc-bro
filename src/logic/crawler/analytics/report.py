@@ -1,10 +1,10 @@
 """CrawlReport model for tracking crawl operation results."""
 
-from datetime import datetime
-from typing import List, Optional
+from datetime import UTC, datetime
 from enum import Enum
-from pydantic import ConfigDict, BaseModel, Field, field_validator
 from uuid import uuid4
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ..models.error import ErrorEntry
 
@@ -30,8 +30,8 @@ class CrawlReport(BaseModel):
     failed_pages: int = Field(default=0, ge=0)
     embeddings_count: int = Field(default=0, ge=0)
     duration_seconds: float = Field(default=0.0, ge=0.0)
-    errors: List[ErrorEntry] = Field(default_factory=list)
-    report_path: Optional[str] = None
+    errors: list[ErrorEntry] = Field(default_factory=list)
+    report_path: str | None = None
 
     @field_validator('failed_pages')
     @classmethod
@@ -51,8 +51,7 @@ class CrawlReport(BaseModel):
         """Ensure timestamp is UTC."""
         if v.tzinfo is None:
             # Assume UTC if no timezone
-            from datetime import timezone
-            return v.replace(tzinfo=timezone.utc)
+            return v.replace(tzinfo=UTC)
         return v
 
     def add_error(self, error: ErrorEntry) -> None:

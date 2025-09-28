@@ -1,29 +1,29 @@
 """Setup wizard service for first-run configuration."""
 
-import asyncio
-import subprocess
+import logging
 import shutil
+import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
-import logging
 
 import click
 from rich.console import Console
 from rich.panel import Panel
-from rich.prompt import Prompt, Confirm
 from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.prompt import Confirm
 from rich.table import Table
-from rich.text import Text
+
+from src.models.installation import (
+    CriticalDecisionPoint,
+    InstallationContext,
+    ServiceStatus,
+    SetupWizardState,
+)
+from src.models.system_requirements import SystemRequirements
 
 from .config import ConfigService
 from .detection import ServiceDetectionService
 from .system_validator import SystemRequirementsService
-from src.models.installation import (
-    InstallationContext, ServiceStatus, SetupWizardState, PackageMetadata,
-    CriticalDecisionPoint
-)
-from src.models.system_requirements import SystemRequirements
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -47,7 +47,7 @@ class SetupWizardService:
         self.config_service = ConfigService()
         self.detection_service = ServiceDetectionService()
         self.system_validator = SystemRequirementsService()
-        self.state: Optional[SetupWizardState] = None
+        self.state: SetupWizardState | None = None
 
     def create_wizard_state(self) -> SetupWizardState:
         """Create new setup wizard state."""
@@ -57,14 +57,14 @@ class SetupWizardService:
         )
         return self.state
 
-    def load_wizard_state(self) -> Optional[SetupWizardState]:
+    def load_wizard_state(self) -> SetupWizardState | None:
         """Load existing setup wizard state if available."""
         wizard_path = self.config_service.config_dir / "wizard.json"
         if not wizard_path.exists():
             return None
 
         try:
-            with open(wizard_path, 'r') as f:
+            with open(wizard_path) as f:
                 import json
                 data = json.load(f)
                 if 'setup_start_time' in data:
@@ -226,7 +226,7 @@ This setup wizard will help you configure DocBro for first use.
 
         console.print(f"[green]✓ Python version OK: {version}[/green]")
 
-    async def _detect_services(self) -> Dict[str, ServiceStatus]:
+    async def _detect_services(self) -> dict[str, ServiceStatus]:
         """Detect external service availability."""
         console.print("\n[bold]Detecting external services...[/bold]")
 
@@ -263,7 +263,7 @@ This setup wizard will help you configure DocBro for first use.
 
         return statuses
 
-    async def _handle_service_installation(self, statuses: Dict[str, ServiceStatus]) -> None:
+    async def _handle_service_installation(self, statuses: dict[str, ServiceStatus]) -> None:
         """Handle installation of missing services."""
         missing_services = [name for name, status in statuses.items() if not status.available]
 
@@ -423,7 +423,7 @@ DocBro will guide you through the process when needed.[/dim]
         context = self.config_service.load_installation_context()
         return context is None
 
-    def get_setup_status(self) -> Dict[str, any]:
+    def get_setup_status(self) -> dict[str, any]:
         """Get current setup status for display."""
         context = self.config_service.load_installation_context()
         wizard_state = self.load_wizard_state()
@@ -447,7 +447,7 @@ DocBro will guide you through the process when needed.[/dim]
             "data_dir": str(context.user_data_dir)
         }
 
-    def get_service_prompts(self) -> Dict[str, str]:
+    def get_service_prompts(self) -> dict[str, str]:
         """Get service-related prompts for setup wizard.
 
         Returns dictionary of service prompts, excluding Redis which was removed.
@@ -458,15 +458,13 @@ DocBro will guide you through the process when needed.[/dim]
             "qdrant": "Qdrant is the vector database for document storage. Start Qdrant?"
         }
 
-    def _detect_critical_decisions(self) -> List[CriticalDecisionPoint]:
+    def _detect_critical_decisions(self) -> list[CriticalDecisionPoint]:
         """Detect situations requiring critical user decisions.
 
         Returns:
             List of critical decision points requiring user input
         """
-        import socket
         import uuid
-        from typing import List
 
         decisions = []
 
@@ -577,7 +575,7 @@ DocBro will guide you through the process when needed.[/dim]
             logger.error(f"System requirements validation error: {e}")
             raise SetupError(f"Failed to validate system requirements: {e}")
 
-    def get_system_requirements_summary(self, requirements: SystemRequirements) -> Dict[str, any]:
+    def get_system_requirements_summary(self, requirements: SystemRequirements) -> dict[str, any]:
         """Get a summary of system requirements for display.
 
         Args:

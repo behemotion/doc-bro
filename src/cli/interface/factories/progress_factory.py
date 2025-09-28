@@ -2,7 +2,6 @@
 CLI progress reporter factory
 """
 
-from typing import Optional
 
 from ..services.progress_coordinator import ProgressDisplayCoordinator
 from ..services.terminal_adapter import TerminalAdapter
@@ -11,7 +10,7 @@ from ..services.terminal_adapter import TerminalAdapter
 class ProgressFactory:
     """Factory for creating progress display components"""
 
-    def __init__(self, terminal_adapter: Optional[TerminalAdapter] = None):
+    def __init__(self, terminal_adapter: TerminalAdapter | None = None):
         """Initialize progress factory"""
         self.terminal_adapter = terminal_adapter or TerminalAdapter()
 

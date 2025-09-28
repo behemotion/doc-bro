@@ -1,6 +1,7 @@
 """MCPConfiguration model for universal MCP client configuration."""
-from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field, ConfigDict
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ConnectionSettings(BaseModel):
@@ -17,7 +18,7 @@ class AuthConfig(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
     method: str = Field(..., description="Auth method: bearer_token, api_key, none")
-    credentials: Optional[Dict[str, str]] = Field(None, description="Auth credentials")
+    credentials: dict[str, str] | None = Field(None, description="Auth credentials")
 
 
 class MCPConfiguration(BaseModel):
@@ -27,11 +28,11 @@ class MCPConfiguration(BaseModel):
     server_name: str = Field(default="docbro", description="Server name")
     server_url: str = Field(..., description="Server URL")
     api_version: str = Field(default="1.0", description="API version")
-    capabilities: List[str] = Field(default_factory=lambda: ["search", "crawl", "embed"])
-    authentication: Optional[AuthConfig] = Field(None, description="Authentication config")
+    capabilities: list[str] = Field(default_factory=lambda: ["search", "crawl", "embed"])
+    authentication: AuthConfig | None = Field(None, description="Authentication config")
     connection_settings: ConnectionSettings = Field(default_factory=ConnectionSettings)
 
-    def generate_mcp_config(self) -> Dict[str, Any]:
+    def generate_mcp_config(self) -> dict[str, Any]:
         """Generate universal MCP config dict"""
         config = {
             "server_name": self.server_name,

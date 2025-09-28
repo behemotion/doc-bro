@@ -3,10 +3,9 @@
 import asyncio
 import hashlib
 import json
-from datetime import datetime
-from typing import List, Optional, Dict, Any, Union
+from typing import Any
+
 import httpx
-import logging
 
 from src.core.config import DocBroConfig
 from src.core.lib_logger import get_component_logger
@@ -20,17 +19,17 @@ class EmbeddingError(Exception):
 class EmbeddingService:
     """Manages text embedding operations using Ollama."""
 
-    def __init__(self, config: Optional[DocBroConfig] = None):
+    def __init__(self, config: DocBroConfig | None = None):
         """Initialize embedding service."""
         self.config = config or DocBroConfig()
         self.logger = get_component_logger("embeddings")
 
         # HTTP client for Ollama API
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: httpx.AsyncClient | None = None
         self._initialized = False
 
         # Embedding cache
-        self._cache: Dict[str, List[float]] = {}
+        self._cache: dict[str, list[float]] = {}
         self._cache_hits = 0
         self._cache_misses = 0
 
@@ -116,7 +115,7 @@ class EmbeddingService:
         except httpx.RequestError as e:
             raise EmbeddingError(f"Cannot connect to Ollama: {e}")
 
-    async def _list_models(self) -> List[str]:
+    async def _list_models(self) -> list[str]:
         """List available models in Ollama."""
         try:
             response = await self._client.get(f"{self.config.ollama_url}/api/tags")
@@ -165,7 +164,7 @@ class EmbeddingService:
         except Exception as e:
             raise EmbeddingError(f"Failed to pull model {model_name}: {e}")
 
-    async def _get_model_info(self, model_name: str) -> Dict[str, Any]:
+    async def _get_model_info(self, model_name: str) -> dict[str, Any]:
         """Get model information."""
         try:
             payload = {"name": model_name}
@@ -192,15 +191,15 @@ class EmbeddingService:
 
     def _get_cache_key(self, text: str, model: str) -> str:
         """Generate cache key for text and model."""
-        content = f"{model}:{text}".encode('utf-8')
+        content = f"{model}:{text}".encode()
         return hashlib.sha256(content).hexdigest()
 
     async def create_embedding(
         self,
         text: str,
-        model: Optional[str] = None,
+        model: str | None = None,
         use_cache: bool = True
-    ) -> List[float]:
+    ) -> list[float]:
         """Create embedding for text."""
         self._ensure_initialized()
 
@@ -263,11 +262,11 @@ class EmbeddingService:
 
     async def create_embeddings(
         self,
-        texts: List[str],
-        model: Optional[str] = None,
+        texts: list[str],
+        model: str | None = None,
         batch_size: int = 10,
         use_cache: bool = True
-    ) -> List[List[float]]:
+    ) -> list[list[float]]:
         """Create embeddings for multiple texts."""
         self._ensure_initialized()
 
@@ -313,7 +312,7 @@ class EmbeddingService:
 
         return embeddings
 
-    async def get_embedding_dimension(self, model: Optional[str] = None) -> int:
+    async def get_embedding_dimension(self, model: str | None = None) -> int:
         """Get embedding dimension for a model."""
         self._ensure_initialized()
 
@@ -359,15 +358,15 @@ class EmbeddingService:
 
     async def similarity(
         self,
-        embedding1: List[float],
-        embedding2: List[float]
+        embedding1: list[float],
+        embedding2: list[float]
     ) -> float:
         """Calculate cosine similarity between two embeddings."""
         if len(embedding1) != len(embedding2):
             raise EmbeddingError("Embeddings must have the same dimension")
 
         # Calculate cosine similarity
-        dot_product = sum(a * b for a, b in zip(embedding1, embedding2))
+        dot_product = sum(a * b for a, b in zip(embedding1, embedding2, strict=False))
         magnitude1 = sum(a * a for a in embedding1) ** 0.5
         magnitude2 = sum(a * a for a in embedding2) ** 0.5
 
@@ -397,7 +396,7 @@ class EmbeddingService:
         except Exception as e:
             return False, f"Health check failed: {e}"
 
-    def get_cache_stats(self) -> Dict[str, Any]:
+    def get_cache_stats(self) -> dict[str, Any]:
         """Get embedding cache statistics."""
         total_requests = self._cache_hits + self._cache_misses
         hit_rate = (self._cache_hits / total_requests) * 100 if total_requests > 0 else 0

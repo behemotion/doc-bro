@@ -2,7 +2,7 @@
 
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -33,11 +33,11 @@ class ComponentStatus(BaseModel):
     component_name: str = Field(
         description="Identifier for the component"
     )
-    component_path: Optional[Path] = Field(
+    component_path: Path | None = Field(
         default=None,
         description="File system path if applicable"
     )
-    size_bytes: Optional[int] = Field(
+    size_bytes: int | None = Field(
         default=None,
         description="Size of component if known"
     )
@@ -45,7 +45,7 @@ class ComponentStatus(BaseModel):
         default=RemovalStatus.PENDING,
         description="Current status of the component"
     )
-    error_message: Optional[str] = Field(
+    error_message: str | None = Field(
         default=None,
         description="Error details if failed"
     )
@@ -90,7 +90,7 @@ class ComponentStatus(BaseModel):
         self.transition_to(RemovalStatus.FAILED)
         self.error_message = error_message
 
-    def mark_as_skipped(self, reason: Optional[str] = None) -> None:
+    def mark_as_skipped(self, reason: str | None = None) -> None:
         """Mark component as skipped."""
         self.transition_to(RemovalStatus.SKIPPED)
         if reason:

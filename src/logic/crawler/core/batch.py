@@ -2,15 +2,17 @@
 
 import asyncio
 import logging
-from typing import List, Dict, Any, Optional, Callable
+from collections.abc import Callable
 from datetime import datetime
+from typing import Any
 
-from ..models.batch import BatchOperation
 from src.models.project_status import ProjectStatus
-from .crawler import DocumentationCrawler
-from ..analytics.reporter import ErrorReporter
-from ..utils.progress import ProgressReporter, CrawlPhase
 from src.services.project_manager import ProjectManager
+
+from ..analytics.reporter import ErrorReporter
+from ..models.batch import BatchOperation
+from ..utils.progress import CrawlPhase, ProgressReporter
+from .crawler import DocumentationCrawler
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +22,8 @@ class BatchCrawler:
 
     def __init__(
         self,
-        project_manager: Optional[ProjectManager] = None,
-        progress_reporter: Optional[ProgressReporter] = None
+        project_manager: ProjectManager | None = None,
+        progress_reporter: ProgressReporter | None = None
     ):
         """Initialize batch crawler.
 
@@ -31,17 +33,17 @@ class BatchCrawler:
         """
         self.project_manager = project_manager or ProjectManager()
         self.progress_reporter = progress_reporter
-        self.operation: Optional[BatchOperation] = None
+        self.operation: BatchOperation | None = None
         self._cancelled = False
 
     async def crawl_all(
         self,
-        projects: Optional[List[ProjectStatus]] = None,
-        max_pages: Optional[int] = None,
+        projects: list[ProjectStatus] | None = None,
+        max_pages: int | None = None,
         rate_limit: float = 1.0,
         continue_on_error: bool = True,
-        progress_callback: Optional[Callable] = None
-    ) -> Dict[str, Any]:
+        progress_callback: Callable | None = None
+    ) -> dict[str, Any]:
         """Crawl all projects in batch.
 
         Args:
@@ -122,9 +124,9 @@ class BatchCrawler:
     async def crawl_project(
         self,
         project: ProjectStatus,
-        max_pages: Optional[int] = None,
+        max_pages: int | None = None,
         rate_limit: float = 1.0
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Crawl a single project.
 
         Args:
@@ -142,8 +144,8 @@ class BatchCrawler:
         await self.project_manager.update_project(project)
 
         # Create crawler and error reporter
-        from src.services.database import DatabaseManager
         from src.core.config import DocBroConfig
+        from src.services.database import DatabaseManager
 
         config = DocBroConfig()
         db_manager = DatabaseManager(config)
@@ -242,7 +244,7 @@ class BatchCrawler:
         if self.operation:
             logger.info(f"Cancelling batch operation {self.operation.operation_id}")
 
-    def get_progress(self) -> Dict[str, Any]:
+    def get_progress(self) -> dict[str, Any]:
         """Get current progress.
 
         Returns:
@@ -260,7 +262,7 @@ class BatchCrawler:
             "current_project": self.operation.get_current_project()
         }
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Get operation summary.
 
         Returns:
@@ -271,7 +273,7 @@ class BatchCrawler:
 
         return self.operation.get_summary()
 
-    def generate_summary(self) -> Dict[str, Any]:
+    def generate_summary(self) -> dict[str, Any]:
         """Generate detailed summary of batch operation.
 
         Returns:
@@ -296,7 +298,7 @@ class BatchCrawler:
 
         return summary
 
-    def format_summary(self, summary: Dict[str, Any]) -> str:
+    def format_summary(self, summary: dict[str, Any]) -> str:
         """Format summary for display.
 
         Args:
@@ -324,7 +326,7 @@ class BatchCrawler:
 
         return "\n".join(lines)
 
-    def get_results(self) -> Dict[str, Any]:
+    def get_results(self) -> dict[str, Any]:
         """Get results for all projects.
 
         Returns:
@@ -360,7 +362,7 @@ class BatchCrawler:
         else:
             return "Processing..."
 
-    def get_estimated_completion(self) -> Optional[datetime]:
+    def get_estimated_completion(self) -> datetime | None:
         """Get estimated completion time.
 
         Returns:
@@ -370,7 +372,7 @@ class BatchCrawler:
             return self.operation.estimated_completion
         return None
 
-    def get_all_errors(self) -> List[Dict[str, Any]]:
+    def get_all_errors(self) -> list[dict[str, Any]]:
         """Get all errors from batch operation.
 
         Returns:

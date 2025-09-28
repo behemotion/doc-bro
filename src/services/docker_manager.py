@@ -6,13 +6,14 @@ specifically Qdrant containers used by DocBro.
 
 import asyncio
 import logging
-from typing import Optional, Dict, Any, List
 from pathlib import Path
+from typing import Any
 
 try:
-    import docker
+    from docker.errors import APIError, DockerException, NotFound
     from docker.models.containers import Container
-    from docker.errors import DockerException, NotFound, APIError
+
+    import docker
     DOCKER_AVAILABLE = True
 except ImportError:
     # Handle case where docker package is not installed
@@ -23,9 +24,9 @@ except ImportError:
     APIError = Exception
     DOCKER_AVAILABLE = False
 
-from ..models.setup_types import ExternalDependencyError, TimeoutError as SetupTimeoutError
-from .docker_compatibility import DockerManagerCompatible, DockerAPICompatibility
-
+from ..models.setup_types import ExternalDependencyError
+from ..models.setup_types import TimeoutError as SetupTimeoutError
+from .docker_compatibility import DockerAPICompatibility, DockerManagerCompatible
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +37,8 @@ def check_docker_availability() -> tuple[bool, str]:
     Returns:
         tuple: (is_available, message)
     """
-    import subprocess
     import shutil
+    import subprocess
 
     # Check if docker command exists
     docker_cmd = shutil.which("docker")
@@ -186,7 +187,7 @@ class DockerManager:
 
     def __init__(self):
         """Initialize Docker client."""
-        self._client: Optional[Any] = None
+        self._client: Any | None = None
         self._connected = False
         self._compat_manager = DockerManagerCompatible()
         self._api_compat = DockerAPICompatibility()
@@ -217,7 +218,7 @@ class DockerManager:
                     asyncio.get_event_loop().run_in_executor(None, self._client.ping),
                     timeout=timeout
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning(f"Docker connection timed out after {timeout} seconds")
                 raise ExternalDependencyError(f"Docker daemon not responding (timeout after {timeout}s)")
 
@@ -255,7 +256,7 @@ class DockerManager:
         """Check if connected to Docker daemon."""
         return self._connected and self._client is not None
 
-    async def get_docker_version(self) -> Dict[str, Any]:
+    async def get_docker_version(self) -> dict[str, Any]:
         """Get Docker version information."""
         if not self.is_connected():
             await self.connect()
@@ -269,7 +270,7 @@ class DockerManager:
             logger.error(f"Failed to get Docker version: {e}")
             raise ExternalDependencyError(f"Cannot get Docker version: {e}")
 
-    async def check_docker_health(self) -> Dict[str, Any]:
+    async def check_docker_health(self) -> dict[str, Any]:
         """Check Docker daemon health with timeout protection."""
         try:
             # Use timeout for the entire health check
@@ -291,7 +292,7 @@ class DockerManager:
             # Apply timeout to entire health check operation
             try:
                 return await asyncio.wait_for(_do_health_check(), timeout=10.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning("Docker health check timed out")
                 return {
                     "available": False,
@@ -315,7 +316,7 @@ class DockerManager:
                 "error": f"Docker health check failed: {e}"
             }
 
-    async def find_container(self, name: str) -> Optional[Container]:
+    async def find_container(self, name: str) -> Container | None:
         """Find container by name."""
         if not self.is_connected():
             await self.connect()
@@ -334,7 +335,7 @@ class DockerManager:
             logger.error(f"Failed to list containers: {e}")
             raise ExternalDependencyError(f"Cannot list Docker containers: {e}")
 
-    async def get_container_status(self, name: str) -> Dict[str, Any]:
+    async def get_container_status(self, name: str) -> dict[str, Any]:
         """Get container status information."""
         container = await self.find_container(name)
 
@@ -374,9 +375,9 @@ class DockerManager:
         self,
         container_name: str = "docbro-memory-qdrant",
         port: int = 6333,
-        data_path: Optional[Path] = None,
+        data_path: Path | None = None,
         image: str = "qdrant/qdrant:v1.15.1"
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Create and start Qdrant container."""
         if not self.is_connected():
             await self.connect()
@@ -481,7 +482,7 @@ class DockerManager:
         self,
         container_name: str = "docbro-memory-qdrant",
         **kwargs
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Recreate Qdrant container (remove old, create new)."""
         logger.info(f"Recreating Qdrant container: {container_name}")
 

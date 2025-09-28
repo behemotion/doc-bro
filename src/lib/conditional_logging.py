@@ -2,7 +2,6 @@
 
 import logging
 import sys
-from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 
@@ -20,7 +19,7 @@ class ConditionalHandler(logging.Handler):
         self.debug_enabled = debug_enabled
         self.stream = stream or sys.stderr
         self._suppressed_count = 0
-        self._last_suppressed_time: Optional[datetime] = None
+        self._last_suppressed_time: datetime | None = None
 
     def set_debug_enabled(self, enabled: bool) -> None:
         """Update debug state.
@@ -136,11 +135,11 @@ class LoggingConfigurator:
 
     def __init__(self):
         """Initialize the logging configurator."""
-        self.handler: Optional[ConditionalHandler] = None
-        self.formatter: Optional[CleanFormatter] = None
-        self._original_handlers: List[logging.Handler] = []
+        self.handler: ConditionalHandler | None = None
+        self.formatter: CleanFormatter | None = None
+        self._original_handlers: list[logging.Handler] = []
 
-    def configure(self, debug_enabled: bool = False, log_file: Optional[str] = None) -> None:
+    def configure(self, debug_enabled: bool = False, log_file: str | None = None) -> None:
         """Configure application logging.
 
         Args:
@@ -228,7 +227,7 @@ class LoggingConfigurator:
 
 
 # Global configurator instance
-_configurator: Optional[LoggingConfigurator] = None
+_configurator: LoggingConfigurator | None = None
 
 
 def get_logging_configurator() -> LoggingConfigurator:
@@ -243,7 +242,7 @@ def get_logging_configurator() -> LoggingConfigurator:
     return _configurator
 
 
-def configure_cli_logging(debug: bool = False, log_file: Optional[str] = None) -> None:
+def configure_cli_logging(debug: bool = False, log_file: str | None = None) -> None:
     """Convenience function to configure CLI logging.
 
     Args:

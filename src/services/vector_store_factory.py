@@ -1,12 +1,12 @@
 """Vector store factory for creating appropriate vector store services."""
 
 import logging
-from typing import Union
+
 from src.core.config import DocBroConfig
 from src.models.vector_store_types import VectorStoreProvider
-from src.services.sqlite_vec_service import SQLiteVecService, detect_sqlite_vec
-from src.services.vector_store import VectorStoreService, VectorStoreError
 from src.services.settings_service import SettingsService
+from src.services.sqlite_vec_service import SQLiteVecService, detect_sqlite_vec
+from src.services.vector_store import VectorStoreError, VectorStoreService
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +15,7 @@ class VectorStoreFactory:
     """Factory for creating vector store services based on configuration."""
 
     @staticmethod
-    def create_vector_store(config: DocBroConfig = None, provider: VectorStoreProvider = None) -> Union[VectorStoreService, SQLiteVecService]:
+    def create_vector_store(config: DocBroConfig = None, provider: VectorStoreProvider = None) -> VectorStoreService | SQLiteVecService:
         """Create appropriate vector store service based on provider."""
 
         # If provider not specified, get from settings

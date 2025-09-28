@@ -1,9 +1,9 @@
 """ProjectStatus model for tracking documentation project state."""
 
-from datetime import datetime
-from typing import Optional
+from datetime import UTC, datetime
 from enum import Enum
-from pydantic import ConfigDict, BaseModel, Field, field_validator
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ProjectState(str, Enum):
@@ -19,16 +19,16 @@ class ProjectStatus(BaseModel):
     """Current state and statistics of a documentation project."""
 
     project_name: str = Field(..., min_length=1)
-    last_crawl_time: Optional[datetime] = None
+    last_crawl_time: datetime | None = None
     total_documents: int = Field(default=0, ge=0)
     total_embeddings: int = Field(default=0, ge=0)
     index_size_mb: float = Field(default=0.0, ge=0.0)
     status: ProjectState = Field(default=ProjectState.UNINITIALIZED)
-    last_error: Optional[str] = None
+    last_error: str | None = None
     crawl_count: int = Field(default=0, ge=0)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-    url: Optional[str] = None
+    url: str | None = None
     crawl_depth: int = Field(default=2, ge=1, le=10)
     model: str = Field(default="mxbai-embed-large")
 
@@ -45,11 +45,10 @@ class ProjectStatus(BaseModel):
 
     @field_validator('last_crawl_time', 'created_at', 'updated_at')
     @classmethod
-    def validate_timestamps(cls, v: Optional[datetime]) -> Optional[datetime]:
+    def validate_timestamps(cls, v: datetime | None) -> datetime | None:
         """Ensure timestamps are UTC."""
         if v and v.tzinfo is None:
-            from datetime import timezone
-            return v.replace(tzinfo=timezone.utc)
+            return v.replace(tzinfo=UTC)
         return v
 
     def increment_crawl(self) -> None:
@@ -82,9 +81,9 @@ class ProjectStatus(BaseModel):
 
     def update_statistics(
         self,
-        documents: Optional[int] = None,
-        embeddings: Optional[int] = None,
-        index_size: Optional[float] = None
+        documents: int | None = None,
+        embeddings: int | None = None,
+        index_size: float | None = None
     ) -> None:
         """Update project statistics.
 

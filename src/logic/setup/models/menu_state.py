@@ -1,6 +1,7 @@
 """Menu state tracking model."""
 
-from typing import List, Dict, Any, Optional
+from typing import Any
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -15,11 +16,11 @@ class MenuState(BaseModel):
         default=0,
         description="Current cursor position in menu"
     )
-    menu_stack: List[str] = Field(
+    menu_stack: list[str] = Field(
         default_factory=lambda: ["main"],
         description="Navigation history stack"
     )
-    pending_changes: Dict[str, Any] = Field(
+    pending_changes: dict[str, Any] = Field(
         default_factory=dict,
         description="Unsaved modifications"
     )
@@ -38,7 +39,7 @@ class MenuState(BaseModel):
 
     @field_validator("menu_stack")
     @classmethod
-    def validate_menu_stack_depth(cls, v: List[str]) -> List[str]:
+    def validate_menu_stack_depth(cls, v: list[str]) -> list[str]:
         """Prevent menu stack overflow."""
         max_depth = 10
         if len(v) > max_depth:
@@ -59,7 +60,7 @@ class MenuState(BaseModel):
         self.current_menu = menu_id
         self.selected_index = 0  # Reset selection for new menu
 
-    def go_back(self) -> Optional[str]:
+    def go_back(self) -> str | None:
         """Navigate back to previous menu."""
         if len(self.menu_stack) <= 1:
             return None  # Already at root menu
@@ -84,7 +85,7 @@ class MenuState(BaseModel):
         """Check if there are unsaved changes."""
         return bool(self.pending_changes)
 
-    def save_changes(self) -> Dict[str, Any]:
+    def save_changes(self) -> dict[str, Any]:
         """Return pending changes and clear them."""
         changes = self.pending_changes.copy()
         self.pending_changes.clear()

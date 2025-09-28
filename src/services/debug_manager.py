@@ -1,9 +1,9 @@
 """Debug infrastructure for conditional logging and output control."""
 
 import logging
-from typing import Optional, Dict, Any
-from contextlib import contextmanager
 import sys
+from contextlib import contextmanager
+from typing import Any
 
 
 class DebugManager:
@@ -91,7 +91,7 @@ class DebugManager:
         should_output = force or self._debug_enabled
         yield should_output
 
-    def format_debug_info(self, info: Dict[str, Any]) -> str:
+    def format_debug_info(self, info: dict[str, Any]) -> str:
         """Format debug information for display.
 
         Args:
@@ -140,7 +140,7 @@ class DebugManager:
 
 
 # Global instance for singleton pattern
-_debug_manager_instance: Optional[DebugManager] = None
+_debug_manager_instance: DebugManager | None = None
 
 
 def get_debug_manager() -> DebugManager:

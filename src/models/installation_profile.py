@@ -1,17 +1,16 @@
 """Installation Profile model for UV/UVX installation feature and setup wizard."""
 
-from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, Optional, List
-from uuid import UUID, uuid4
-import re
 import os
-import sys
 import platform
-from packaging import version
+import sys
+from datetime import datetime
 from enum import Enum
+from pathlib import Path
+from typing import Any
+from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from packaging import version
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class InstallationState(Enum):
@@ -37,6 +36,7 @@ class SystemInfo(BaseModel):
     def detect_current_system(cls) -> "SystemInfo":
         """Detect current system information"""
         import shutil
+
         import psutil
 
         # Get Python version
@@ -71,7 +71,7 @@ class SystemInfo(BaseModel):
             docker_available=docker_available
         )
 
-    def validate_requirements(self) -> Dict[str, bool]:
+    def validate_requirements(self) -> dict[str, bool]:
         """Validate system requirements against installation criteria"""
         return {
             "python_version": self._validate_python_version(),
@@ -121,8 +121,8 @@ class InstallationProfile(BaseModel):
     cache_dir: Path = Field(..., description="Cache directory (XDG compliant)")
 
     # Setup wizard enhancements
-    system_info: Optional[SystemInfo] = Field(None, description="System information for validation")
-    service_statuses: Dict[str, Any] = Field(
+    system_info: SystemInfo | None = Field(None, description="System information for validation")
+    service_statuses: dict[str, Any] = Field(
         default_factory=dict,
         description="Status of external services (Docker, Qdrant, etc.)"
     )
@@ -130,10 +130,10 @@ class InstallationProfile(BaseModel):
         default=InstallationState.NOT_STARTED,
         description="Current installation state"
     )
-    configuration_path: Optional[Path] = Field(None, description="Path to configuration file")
+    configuration_path: Path | None = Field(None, description="Path to configuration file")
 
     # User configuration and preferences
-    user_preferences: Dict[str, Any] = Field(
+    user_preferences: dict[str, Any] = Field(
         default_factory=dict,
         description="User-selected configuration options"
     )
@@ -143,13 +143,13 @@ class InstallationProfile(BaseModel):
         default_factory=datetime.now,
         description="Installation start timestamp"
     )
-    completed_at: Optional[datetime] = Field(
+    completed_at: datetime | None = Field(
         None,
         description="Installation completion timestamp"
     )
 
     # Error tracking
-    error_message: Optional[str] = Field(None, description="Error message if installation failed")
+    error_message: str | None = Field(None, description="Error message if installation failed")
 
     @field_validator('install_method')
     @classmethod
@@ -245,7 +245,7 @@ class InstallationProfile(BaseModel):
 
     @field_validator('completed_at')
     @classmethod
-    def validate_completed_after_created(cls, v: Optional[datetime], info) -> Optional[datetime]:
+    def validate_completed_after_created(cls, v: datetime | None, info) -> datetime | None:
         """Validate completed_at is after created_at if both are set."""
         if v is not None and hasattr(info, 'data') and 'created_at' in info.data:
             created_at = info.data['created_at']
@@ -261,13 +261,13 @@ class InstallationProfile(BaseModel):
         """Mark installation as completed with current timestamp."""
         self.completed_at = datetime.now()
 
-    def get_duration(self) -> Optional[float]:
+    def get_duration(self) -> float | None:
         """Get installation duration in seconds if completed."""
         if self.completed_at is None:
             return None
         return (self.completed_at - self.created_at).total_seconds()
 
-    def to_summary(self) -> Dict[str, Any]:
+    def to_summary(self) -> dict[str, Any]:
         """Generate a summary of the installation profile."""
         return {
             "id": str(self.id),
@@ -312,7 +312,7 @@ class InstallationProfile(BaseModel):
         requirements = self.system_info.validate_requirements()
         return all(requirements.values())
 
-    def get_failed_requirements(self) -> List[str]:
+    def get_failed_requirements(self) -> list[str]:
         """Get list of failed requirement names"""
         if not self.system_info:
             return ["system_info_missing"]
@@ -323,7 +323,7 @@ class InstallationProfile(BaseModel):
         """Update status for a specific service"""
         self.service_statuses[service_name] = status
 
-    def get_service_status(self, service_name: str) -> Optional[Any]:
+    def get_service_status(self, service_name: str) -> Any | None:
         """Get status for a specific service"""
         return self.service_statuses.get(service_name)
 
@@ -357,6 +357,6 @@ class InstallationStateTransitions:
         return to_state in cls.VALID_TRANSITIONS.get(from_state, [])
 
     @classmethod
-    def get_valid_next_states(cls, current_state: InstallationState) -> List[InstallationState]:
+    def get_valid_next_states(cls, current_state: InstallationState) -> list[InstallationState]:
         """Get list of valid next states from current state"""
         return cls.VALID_TRANSITIONS.get(current_state, [])

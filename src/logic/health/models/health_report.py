@@ -1,8 +1,8 @@
 """Health report entity model."""
 
 from datetime import datetime
-from typing import List
-from pydantic import BaseModel, Field, validator
+
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .health_check import HealthCheck
 from .health_summary import HealthSummary
@@ -14,63 +14,56 @@ class HealthReport(BaseModel):
 
     timestamp: datetime = Field(..., description="When the health report was generated")
     overall_status: HealthStatus = Field(..., description="Aggregated status across all checks")
-    checks: List[HealthCheck] = Field(..., min_items=1, description="List of individual health check results")
+    checks: list[HealthCheck] = Field(..., min_items=1, description="List of individual health check results")
     total_execution_time: float = Field(..., le=15.0, description="Total time for all health checks")
     timeout_occurred: bool = Field(..., description="Whether any checks timed out")
     summary: HealthSummary = Field(..., description="Aggregated count statistics")
 
-    @validator('checks')
+    @field_validator('checks')
+    @classmethod
     def validate_checks_not_empty(cls, v):
         """Validate checks list is not empty."""
         if not v:
             raise ValueError("Health report must contain at least one health check")
         return v
 
-    @validator('total_execution_time')
+    @field_validator('total_execution_time')
+    @classmethod
     def validate_execution_time_limit(cls, v):
         """Validate total execution time does not exceed 15 seconds."""
         if v > 15.0:
             raise ValueError("Total execution time must not exceed 15 seconds")
         return v
 
-    @validator('overall_status')
-    def validate_overall_status_derivation(cls, v, values):
-        """Validate overall status is correctly derived from individual checks."""
-        checks = values.get('checks', [])
-        if not checks:
-            return v
+    @model_validator(mode='after')
+    def validate_overall_consistency(self) -> 'HealthReport':
+        """Validate overall consistency of health report."""
+        if not self.checks:
+            return self
 
-        # Find the worst status among all checks
+        # Validate overall status is correctly derived from individual checks
         worst_status = HealthStatus.HEALTHY
-        for check in checks:
+        for check in self.checks:
             if check.status > worst_status:
                 worst_status = check.status
 
-        if v != worst_status:
+        if self.overall_status != worst_status:
             raise ValueError("Overall status must be derived from worst individual check status")
 
-        return v
+        # Validate summary counts match the actual checks
+        expected_summary = HealthSummary.from_health_checks(self.checks)
 
-    @validator('summary')
-    def validate_summary_matches_checks(cls, v, values):
-        """Validate summary counts match the actual checks."""
-        checks = values.get('checks', [])
-        if not checks:
-            return v
-
-        expected_summary = HealthSummary.from_health_checks(checks)
-
-        if (v.total_checks != expected_summary.total_checks or
-            v.healthy_count != expected_summary.healthy_count or
-            v.warning_count != expected_summary.warning_count or
-            v.error_count != expected_summary.error_count or
-            v.unavailable_count != expected_summary.unavailable_count):
+        if (self.summary.total_checks != expected_summary.total_checks or
+            self.summary.healthy_count != expected_summary.healthy_count or
+            self.summary.warning_count != expected_summary.warning_count or
+            self.summary.error_count != expected_summary.error_count or
+            self.summary.unavailable_count != expected_summary.unavailable_count):
             raise ValueError("Summary statistics must match actual health check counts")
 
-        return v
+        return self
 
     @classmethod
-    def create_from_checks(cls, checks: List[HealthCheck], execution_time: float,
+    def create_from_checks(cls, checks: list[HealthCheck], execution_time: float,
                           timeout_occurred: bool = False) -> 'HealthReport':
         """Create health report from list of health checks."""
         if not checks:
@@ -120,9 +113,9 @@ class HealthReport(BaseModel):
             "checks": [check.to_dict() for check in self.checks]
         }
 
-    class Config:
-        """Pydantic configuration."""
-        json_encoders = {
+    model_config = {
+        "json_encoders": {
             datetime: lambda v: v.isoformat(),
             HealthStatus: lambda v: v.value,
         }
+    }

@@ -1,12 +1,9 @@
 """Crawl command for DocBro CLI."""
 
 import asyncio
-from typing import Optional
 from datetime import datetime
 
 import click
-from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn
 
 # Optional uvloop for better performance
 try:
@@ -43,8 +40,8 @@ def get_app():
 @click.option("--all", is_flag=True, help="Process all projects")
 @click.option("--debug", is_flag=True, help="Show detailed crawl output")
 @click.pass_context
-def crawl(ctx: click.Context, name: Optional[str], url: Optional[str], max_pages: Optional[int],
-         rate_limit: float, depth: Optional[int], update: bool, all: bool, debug: bool):
+def crawl(ctx: click.Context, name: str | None, url: str | None, max_pages: int | None,
+         rate_limit: float, depth: int | None, update: bool, all: bool, debug: bool):
     """Start crawling a documentation project.
 
     Enhanced flexible crawl modes:
@@ -68,7 +65,6 @@ def crawl(ctx: click.Context, name: Optional[str], url: Optional[str], max_pages
                 raise click.ClickException("--all requires --update flag")
 
             from src.logic.crawler.core.batch import BatchCrawler
-            from src.logic.crawler.utils.progress import ProgressReporter
 
             try:
                 # Get all projects
@@ -145,7 +141,7 @@ def crawl(ctx: click.Context, name: Optional[str], url: Optional[str], max_pages
 
             # Use standardized progress display
             from src.cli.interface.factories.progress_factory import ProgressFactory
-            from src.cli.interface.models.enums import ProcessingState, CompletionStatus
+            from src.cli.interface.models.enums import CompletionStatus, ProcessingState
             from src.logic.crawler.analytics.reporter import ErrorReporter
 
             error_reporter = ErrorReporter(project_name=name)
@@ -173,9 +169,9 @@ def crawl(ctx: click.Context, name: Optional[str], url: Optional[str], max_pages
                         app.console.print(f"[yellow]⚠[/yellow] Reset {cleanup_result['pages_reset']} page(s) for fresh crawl")
 
                     if cleanup_result["incomplete_sessions_cleaned"] == 0 and cleanup_result["pages_reset"] == 0:
-                        app.console.print(f"[green]✓[/green] Project is ready for crawling")
+                        app.console.print("[green]✓[/green] Project is ready for crawling")
                     else:
-                        app.console.print(f"[green]✓[/green] Project prepared - starting fresh crawl")
+                        app.console.print("[green]✓[/green] Project prepared - starting fresh crawl")
 
                     # Start crawl
                     session = await app.crawler.start_crawl(
@@ -228,9 +224,9 @@ def crawl(ctx: click.Context, name: Optional[str], url: Optional[str], max_pages
                     app.console.print(f"[yellow]⚠[/yellow] Reset {cleanup_result['pages_reset']} page(s) for fresh crawl")
 
                 if cleanup_result["incomplete_sessions_cleaned"] == 0 and cleanup_result["pages_reset"] == 0:
-                    app.console.print(f"[green]✓[/green] Project is ready for crawling")
+                    app.console.print("[green]✓[/green] Project is ready for crawling")
                 else:
-                    app.console.print(f"[green]✓[/green] Project prepared - starting fresh crawl")
+                    app.console.print("[green]✓[/green] Project prepared - starting fresh crawl")
 
                 session = await app.crawler.start_crawl(
                     project_id=project.id,
@@ -268,11 +264,11 @@ def crawl(ctx: click.Context, name: Optional[str], url: Optional[str], max_pages
                     if session.pages_failed > 0:
                         app.console.print(f"\n⚠ Crawl completed with {session.pages_failed} errors")
                     else:
-                        app.console.print(f"\n[green]✓[/green] Crawl completed")
+                        app.console.print("\n[green]✓[/green] Crawl completed")
                     app.console.print(f"Error report saved to: {text_path}")
                     app.console.print(f"Review errors: open {text_path}")
                 else:
-                    app.console.print(f"\n[green]✓[/green] Crawl completed successfully")
+                    app.console.print("\n[green]✓[/green] Crawl completed successfully")
 
                 app.console.print(f"  Pages crawled: {session.pages_crawled}")
                 app.console.print(f"  Pages failed: {session.pages_failed}")
@@ -446,7 +442,7 @@ def crawl(ctx: click.Context, name: Optional[str], url: Optional[str], max_pages
                     if indexed_chunks_count > 0:
                         app.console.print(f"[bold]Chunks Created:[/bold] {indexed_chunks_count}")
 
-                app.console.print(f"[bold]Status:[/bold] [green]Ready for search[/green]")
+                app.console.print("[bold]Status:[/bold] [green]Ready for search[/green]")
                 app.console.print("="*60)
 
         except Exception as e:

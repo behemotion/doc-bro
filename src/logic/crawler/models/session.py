@@ -1,9 +1,10 @@
 """Crawl session data model."""
 
 from datetime import datetime
-from typing import Optional, Dict, Any, List
 from enum import Enum
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class CrawlStatus(str, Enum):
@@ -26,15 +27,15 @@ class CrawlSession(BaseModel):
     # Session configuration
     crawl_depth: int = Field(description="Maximum depth for this session")
     current_depth: int = Field(default=0, ge=0, description="Current crawling depth")
-    current_url: Optional[str] = Field(default=None, description="Currently processing URL")
+    current_url: str | None = Field(default=None, description="Currently processing URL")
     user_agent: str = Field(default="DocBro/1.0", description="User agent for requests")
     rate_limit: float = Field(default=1.0, ge=0.1, le=10.0, description="Requests per second")
     timeout: int = Field(default=30, ge=5, le=300, description="Request timeout in seconds")
 
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    started_at: Optional[datetime] = Field(default=None)
-    completed_at: Optional[datetime] = Field(default=None)
+    started_at: datetime | None = Field(default=None)
+    completed_at: datetime | None = Field(default=None)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     # Progress tracking
@@ -46,12 +47,12 @@ class CrawlSession(BaseModel):
     queue_size: int = Field(default=0, ge=0, description="Current crawl queue size")
 
     # Error tracking
-    error_message: Optional[str] = Field(default=None)
+    error_message: str | None = Field(default=None)
     error_count: int = Field(default=0, ge=0)
     max_errors: int = Field(default=50, ge=1, description="Maximum errors before stopping")
 
     # Metadata
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
     archived: bool = Field(default=False, description="Whether session is archived")
 
     model_config = ConfigDict(
@@ -121,14 +122,14 @@ class CrawlSession(BaseModel):
 
     def update_progress(
         self,
-        pages_discovered: Optional[int] = None,
-        pages_crawled: Optional[int] = None,
-        pages_failed: Optional[int] = None,
-        pages_skipped: Optional[int] = None,
-        total_size_bytes: Optional[int] = None,
-        current_depth: Optional[int] = None,
-        current_url: Optional[str] = None,
-        queue_size: Optional[int] = None
+        pages_discovered: int | None = None,
+        pages_crawled: int | None = None,
+        pages_failed: int | None = None,
+        pages_skipped: int | None = None,
+        total_size_bytes: int | None = None,
+        current_depth: int | None = None,
+        current_url: str | None = None,
+        queue_size: int | None = None
     ) -> None:
         """Update session progress."""
         if pages_discovered is not None:
@@ -156,7 +157,7 @@ class CrawlSession(BaseModel):
         self.updated_at = datetime.utcnow()
         return self.error_count >= self.max_errors
 
-    def get_duration(self) -> Optional[float]:
+    def get_duration(self) -> float | None:
         """Get session duration in seconds."""
         if not self.started_at:
             return None
@@ -164,7 +165,7 @@ class CrawlSession(BaseModel):
         end_time = self.completed_at or datetime.utcnow()
         return (end_time - self.started_at).total_seconds()
 
-    def get_pages_per_second(self) -> Optional[float]:
+    def get_pages_per_second(self) -> float | None:
         """Calculate pages crawled per second."""
         duration = self.get_duration()
         if not duration or duration <= 0:
@@ -188,7 +189,7 @@ class CrawlSession(BaseModel):
         """Check if session is completed (successfully or not)."""
         return self.status in [CrawlStatus.COMPLETED, CrawlStatus.FAILED, CrawlStatus.CANCELLED]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""
         return {
             "id": self.id,
@@ -221,7 +222,7 @@ class CrawlSession(BaseModel):
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'CrawlSession':
+    def from_dict(cls, data: dict[str, Any]) -> 'CrawlSession':
         """Create CrawlSession from dictionary."""
         # Handle datetime fields
         for field in ['created_at', 'started_at', 'completed_at', 'updated_at']:

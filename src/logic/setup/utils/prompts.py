@@ -1,10 +1,10 @@
 """User prompt utilities."""
 
-from typing import Optional, List, Tuple, Any
 from rich.console import Console
-from rich.prompt import Prompt, Confirm, IntPrompt
+from rich.prompt import Confirm, Prompt
 from rich.table import Table
-from src.cli.utils.navigation import ArrowNavigator, prompt_with_arrows
+
+from src.cli.utils.navigation import prompt_with_arrows
 from src.core.lib_logger import get_logger
 
 logger = get_logger(__name__)
@@ -13,7 +13,7 @@ logger = get_logger(__name__)
 def confirm_action(
     prompt: str,
     default: bool = False,
-    console: Optional[Console] = None
+    console: Console | None = None
 ) -> bool:
     """Get confirmation for an action.
 
@@ -37,7 +37,7 @@ def confirm_dangerous_action(
     first_prompt: str,
     second_prompt: str,
     default: bool = False,
-    console: Optional[Console] = None
+    console: Console | None = None
 ) -> bool:
     """Get double confirmation for dangerous actions with red text warning.
 
@@ -66,9 +66,9 @@ def confirm_dangerous_action(
 
 def prompt_choice(
     prompt: str,
-    choices: List[Tuple[str, str]],
-    default: Optional[str] = None,
-    console: Optional[Console] = None
+    choices: list[tuple[str, str]],
+    default: str | None = None,
+    console: Console | None = None
 ) -> str:
     """Prompt user to select from choices with arrow key navigation.
 
@@ -87,9 +87,9 @@ def prompt_choice(
 
 def prompt_text(
     prompt: str,
-    default: Optional[str] = None,
+    default: str | None = None,
     password: bool = False,
-    console: Optional[Console] = None
+    console: Console | None = None
 ) -> str:
     """Prompt for text input.
 
@@ -117,9 +117,9 @@ def prompt_text(
 
 def prompt_path(
     prompt: str,
-    default: Optional[str] = None,
+    default: str | None = None,
     must_exist: bool = False,
-    console: Optional[Console] = None
+    console: Console | None = None
 ) -> str:
     """Prompt for a file or directory path.
 
@@ -154,9 +154,9 @@ def prompt_path(
 
 def prompt_url(
     prompt: str,
-    default: Optional[str] = None,
+    default: str | None = None,
     validate: bool = True,
-    console: Optional[Console] = None
+    console: Console | None = None
 ) -> str:
     """Prompt for a URL.
 
@@ -191,9 +191,9 @@ def prompt_url(
 
 def prompt_multiselect(
     prompt: str,
-    choices: List[Tuple[str, str, bool]],
-    console: Optional[Console] = None
-) -> List[str]:
+    choices: list[tuple[str, str, bool]],
+    console: Console | None = None
+) -> list[str]:
     """Prompt for multiple selections.
 
     Args:
@@ -268,7 +268,7 @@ def prompt_multiselect(
 
 def show_warning(
     message: str,
-    console: Optional[Console] = None
+    console: Console | None = None
 ) -> None:
     """Show a warning message.
 
@@ -282,7 +282,7 @@ def show_warning(
 
 def show_error(
     message: str,
-    console: Optional[Console] = None
+    console: Console | None = None
 ) -> None:
     """Show an error message.
 
@@ -296,7 +296,7 @@ def show_error(
 
 def show_success(
     message: str,
-    console: Optional[Console] = None
+    console: Console | None = None
 ) -> None:
     """Show a success message.
 

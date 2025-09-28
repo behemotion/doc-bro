@@ -5,12 +5,12 @@ Provides models for displaying system configuration and service status
 
 import asyncio
 import time
-from typing import Dict, Any, List, Optional
 from pathlib import Path
-from rich.table import Table
-from rich.panel import Panel
-from rich.console import Console
+from typing import Any
+
 from pydantic import BaseModel, Field
+from rich.console import Console
+from rich.table import Table
 
 
 class ServiceStatus(BaseModel):
@@ -18,7 +18,7 @@ class ServiceStatus(BaseModel):
 
     name: str = Field(..., description="Service name (e.g., 'Ollama', 'Qdrant')")
     available: bool = Field(..., description="Whether service is accessible")
-    version: Optional[str] = Field(None, description="Detected version if available")
+    version: str | None = Field(None, description="Detected version if available")
     has_alternative: bool = Field(False, description="Whether functional alternative exists")
 
     @property
@@ -53,14 +53,14 @@ class SystemInfoPanel:
 
     def __init__(self):
         """Initialize system info panel."""
-        self.global_settings: Dict[str, Any] = {}
+        self.global_settings: dict[str, Any] = {}
         self.projects_count: int = 0
-        self.available_services: List[ServiceStatus] = []
-        self.vector_stores: List[str] = []
-        self.sql_databases: List[str] = []
-        self.directories: Optional[DirectoryInfo] = None
-        self._cache_time: Optional[float] = None
-        self._cached_data: Optional[Dict[str, Any]] = None
+        self.available_services: list[ServiceStatus] = []
+        self.vector_stores: list[str] = []
+        self.sql_databases: list[str] = []
+        self.directories: DirectoryInfo | None = None
+        self._cache_time: float | None = None
+        self._cached_data: dict[str, Any] | None = None
         self.console = Console()
 
     def collect_async(self) -> None:
@@ -90,9 +90,9 @@ class SystemInfoPanel:
 
         # Import here to avoid circular dependencies
         try:
-            from src.services.settings_service import SettingsService
             from src.logic.setup.services.detector import ServiceDetector
             from src.models.project import ProjectDatabase
+            from src.services.settings_service import SettingsService
         except ImportError:
             # Modules may not exist yet during testing
             self._set_default_values()
@@ -160,7 +160,7 @@ class SystemInfoPanel:
             # Update cache
             self._cache_time = time.time()
 
-        except Exception as e:
+        except Exception:
             # If collection fails, use defaults
             self._set_default_values()
 
@@ -209,7 +209,7 @@ class SystemInfoPanel:
 
         return table
 
-    def filter_services(self) -> List[ServiceStatus]:
+    def filter_services(self) -> list[ServiceStatus]:
         """
         Hide services with alternatives when unavailable.
 

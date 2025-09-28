@@ -1,14 +1,15 @@
 """Setup uninstaller service."""
 
-import shutil
 import os
+import shutil
 import stat
-from pathlib import Path
-from typing import Optional, Dict, Any, List
-from datetime import datetime
 import tarfile
-from src.logic.setup.models.uninstall_manifest import UninstallManifest
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
 from src.core.lib_logger import get_logger
+from src.logic.setup.models.uninstall_manifest import UninstallManifest
 
 logger = get_logger(__name__)
 
@@ -16,7 +17,7 @@ logger = get_logger(__name__)
 class SetupUninstaller:
     """Service for uninstalling DocBro."""
 
-    def __init__(self, home_dir: Optional[Path] = None):
+    def __init__(self, home_dir: Path | None = None):
         """Initialize the uninstaller.
 
         Args:
@@ -163,9 +164,9 @@ class SetupUninstaller:
 
     def execute(
         self,
-        manifest: Optional[UninstallManifest] = None,
+        manifest: UninstallManifest | None = None,
         force: bool = False
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Execute uninstallation.
 
         Args:

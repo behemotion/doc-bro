@@ -2,7 +2,6 @@
 TextTruncator service for text length management
 """
 
-from typing import Optional
 from ..models.enums import TruncationStrategy
 
 

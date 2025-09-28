@@ -4,6 +4,7 @@ TerminalAdapter service for terminal capability detection
 
 import os
 import sys
+
 from rich.console import Console
 
 

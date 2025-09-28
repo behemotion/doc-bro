@@ -1,15 +1,16 @@
 """Universal arrow key navigation utility for CLI interfaces."""
 
+import logging
 import sys
-from typing import Optional, List, Tuple, Any, Union, Callable
+from collections.abc import Callable
 from dataclasses import dataclass
+
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
 from rich.prompt import IntPrompt
-from src.core.lib_logger import get_logger
+from rich.table import Table
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 # Platform-specific imports for keyboard navigation
 try:
@@ -33,9 +34,9 @@ class NavigationChoice:
     """
     value: str
     label: str
-    description: Optional[str] = None
-    status: Optional[str] = None
-    style: Optional[str] = None
+    description: str | None = None
+    status: str | None = None
+    style: str | None = None
 
 
 @dataclass
@@ -54,7 +55,7 @@ class NavigationTheme:
 class ArrowNavigator:
     """Universal arrow key navigation utility."""
 
-    def __init__(self, console: Optional[Console] = None, theme: Optional[NavigationTheme] = None):
+    def __init__(self, console: Console | None = None, theme: NavigationTheme | None = None):
         """Initialize the navigator.
 
         Args:
@@ -121,7 +122,7 @@ class ArrowNavigator:
         key: str,
         current_index: int,
         choices_count: int
-    ) -> Tuple[int, Optional[str]]:
+    ) -> tuple[int, str | None]:
         """Handle navigation key input.
 
         Args:
@@ -156,11 +157,11 @@ class ArrowNavigator:
 
     def display_choices_table(
         self,
-        choices: List[NavigationChoice],
+        choices: list[NavigationChoice],
         current_index: int,
-        title: Optional[str] = None,
+        title: str | None = None,
         show_numbers: bool = None,
-        highlight_style: Optional[str] = None
+        highlight_style: str | None = None
     ) -> None:
         """Display choices in a table format.
 
@@ -247,12 +248,12 @@ class ArrowNavigator:
     def navigate_choices(
         self,
         prompt: str,
-        choices: Union[List[NavigationChoice], List[Tuple[str, str]]],
-        default: Optional[str] = None,
-        help_callback: Optional[Callable] = None,
+        choices: list[NavigationChoice] | list[tuple[str, str]],
+        default: str | None = None,
+        help_callback: Callable | None = None,
         show_instructions: bool = True,
         vim_keys: bool = True
-    ) -> Optional[str]:
+    ) -> str | None:
         """Interactive navigation through choices.
 
         Args:
@@ -367,11 +368,11 @@ class ArrowNavigator:
     def navigate_menu(
         self,
         title: str,
-        menu_items: List[NavigationChoice],
+        menu_items: list[NavigationChoice],
         default_index: int = 0,
         show_instructions: bool = True,
         vim_keys: bool = True
-    ) -> Optional[str]:
+    ) -> str | None:
         """Navigate a menu with title and return selected value.
 
         Args:
@@ -437,8 +438,8 @@ class ArrowNavigator:
 def create_navigation_choice(
     value: str,
     label: str,
-    description: Optional[str] = None,
-    status: Optional[str] = None
+    description: str | None = None,
+    status: str | None = None
 ) -> NavigationChoice:
     """Create a navigation choice object.
 
@@ -456,10 +457,10 @@ def create_navigation_choice(
 
 def prompt_with_arrows(
     prompt: str,
-    choices: Union[List[NavigationChoice], List[Tuple[str, str]]],
-    default: Optional[str] = None,
-    console: Optional[Console] = None
-) -> Optional[str]:
+    choices: list[NavigationChoice] | list[tuple[str, str]],
+    default: str | None = None,
+    console: Console | None = None
+) -> str | None:
     """Quick prompt with arrow navigation.
 
     Supports both ArrowNavigator (arrows) and AddressNavigator (numbers).
@@ -480,7 +481,7 @@ def prompt_with_arrows(
 def confirm_action(
     prompt: str,
     default: bool = False,
-    console: Optional[Console] = None
+    console: Console | None = None
 ) -> bool:
     """Display a yes/no confirmation prompt.
 

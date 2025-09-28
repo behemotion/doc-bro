@@ -1,14 +1,14 @@
 """Interactive menu system for setup operations."""
 
-import sys
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Any
+
 from rich.console import Console
-from rich.panel import Panel
+from rich.prompt import Confirm, Prompt
 from rich.table import Table
-from rich.prompt import Prompt, Confirm
-from src.logic.setup.models.menu_state import MenuState
+
 from src.cli.utils.navigation import ArrowNavigator, NavigationChoice
 from src.core.lib_logger import get_logger
+from src.logic.setup.models.menu_state import MenuState
 
 logger = get_logger(__name__)
 
@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 class InteractiveMenu:
     """Interactive menu for setup operations."""
 
-    def __init__(self, console: Optional[Console] = None):
+    def __init__(self, console: Console | None = None):
         """Initialize the interactive menu.
 
         Args:
@@ -26,7 +26,7 @@ class InteractiveMenu:
         self.state = MenuState()
         self.navigator = ArrowNavigator(console=self.console)
 
-    def run(self) -> Optional[str]:
+    def run(self) -> str | None:
         """Run the interactive menu.
 
         Returns:
@@ -116,7 +116,7 @@ class InteractiveMenu:
         self.state.push_menu(menu_id)
         self.current_index = 0
 
-    def get_main_menu_options(self) -> List[str]:
+    def get_main_menu_options(self) -> list[str]:
         """Get main menu options.
 
         Returns:
@@ -130,7 +130,7 @@ class InteractiveMenu:
             "Exit"
         ]
 
-    def filter_options(self, search: str) -> List[str]:
+    def filter_options(self, search: str) -> list[str]:
         """Filter options by search term.
 
         Args:
@@ -145,7 +145,7 @@ class InteractiveMenu:
         search_lower = search.lower()
         return [opt for opt in self.options if search_lower in opt.lower()]
 
-    def _show_current_menu(self) -> Optional[str]:
+    def _show_current_menu(self) -> str | None:
         """Show the current menu and get selection.
 
         Returns:
@@ -158,7 +158,7 @@ class InteractiveMenu:
         else:
             return None
 
-    def _show_main_menu(self) -> Optional[str]:
+    def _show_main_menu(self) -> str | None:
         """Show main menu and get selection.
 
         Returns:
@@ -195,7 +195,7 @@ class InteractiveMenu:
             default_index=0
         )
 
-    def _show_configuration_menu(self) -> Optional[str]:
+    def _show_configuration_menu(self) -> str | None:
         """Show configuration menu and get selection.
 
         Returns:
@@ -349,7 +349,7 @@ class InteractiveMenu:
                 configurator.save_config(config)
                 self.console.print("[green]✓ Configuration saved[/green]")
 
-    def start_uninstall(self) -> Optional[str]:
+    def start_uninstall(self) -> str | None:
         """Start uninstall process with confirmation.
 
         Returns:

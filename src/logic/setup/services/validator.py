@@ -1,10 +1,12 @@
 """System validation service."""
 
-import sys
 import platform
-import psutil
+import sys
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
+
+import psutil
+
 from src.core.lib_logger import get_logger
 
 logger = get_logger(__name__)
@@ -19,7 +21,7 @@ class SetupValidator:
         self.min_memory_gb = 4.0
         self.min_disk_gb = 2.0
 
-    def validate_system(self) -> Dict[str, Any]:
+    def validate_system(self) -> dict[str, Any]:
         """Validate all system requirements.
 
         Returns:
@@ -73,7 +75,7 @@ class SetupValidator:
 
         return results
 
-    def check_python_version(self) -> Dict[str, Any]:
+    def check_python_version(self) -> dict[str, Any]:
         """Check Python version requirement.
 
         Returns:
@@ -94,7 +96,7 @@ class SetupValidator:
             )
         }
 
-    def check_memory(self) -> Dict[str, Any]:
+    def check_memory(self) -> dict[str, Any]:
         """Check available memory.
 
         Returns:
@@ -115,7 +117,7 @@ class SetupValidator:
             )
         }
 
-    def check_disk_space(self) -> Dict[str, Any]:
+    def check_disk_space(self) -> dict[str, Any]:
         """Check available disk space.
 
         Returns:
@@ -136,7 +138,7 @@ class SetupValidator:
             )
         }
 
-    def check_platform(self) -> Dict[str, Any]:
+    def check_platform(self) -> dict[str, Any]:
         """Check platform compatibility.
 
         Returns:
@@ -159,7 +161,7 @@ class SetupValidator:
 
         return result
 
-    def check_uv_installed(self) -> Dict[str, Any]:
+    def check_uv_installed(self) -> dict[str, Any]:
         """Check if UV is installed.
 
         Returns:
@@ -181,7 +183,7 @@ class SetupValidator:
             )
         }
 
-    def check_write_permissions(self, path: Path) -> Dict[str, Any]:
+    def check_write_permissions(self, path: Path) -> dict[str, Any]:
         """Check write permissions for a path.
 
         Args:

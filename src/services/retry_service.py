@@ -3,9 +3,10 @@ RetryService with exponential backoff (2s, 4s, 8s) implementation.
 Provides async retry functionality for setup wizard operations.
 """
 import asyncio
-import time
 import logging
-from typing import Callable, Any, TypeVar, Awaitable
+import time
+from collections.abc import Awaitable, Callable
+from typing import TypeVar
 
 from src.models.retry_policy import RetryPolicy, RetryState
 

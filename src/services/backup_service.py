@@ -1,15 +1,16 @@
 """Backup service for creating pre-uninstall backups."""
 
-import os
-import tarfile
 import json
+import os
 import shutil
-from pathlib import Path
+import tarfile
 from datetime import datetime
-from typing import List, Dict, Optional, Any
-from src.models.backup_manifest import BackupManifest
-from src.models.component_status import ComponentStatus, ComponentType
+from pathlib import Path
+from typing import Any
+
 from src.core.lib_logger import get_logger
+from src.models.backup_manifest import BackupManifest
+from src.models.component_status import ComponentStatus
 
 logger = get_logger(__name__)
 
@@ -23,10 +24,10 @@ class BackupService:
 
     async def create_backup(
         self,
-        components: Dict[str, Any],
-        path: Optional[Path] = None,
+        components: dict[str, Any],
+        path: Path | None = None,
         docbro_version: str = "1.0.0"
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Create a backup archive of all components."""
         # Use default path if not specified
         if path is None:
@@ -112,7 +113,7 @@ class BackupService:
                 path.unlink()
             raise
 
-    async def estimate_backup_size(self, components: Dict[str, Any]) -> int:
+    async def estimate_backup_size(self, components: dict[str, Any]) -> int:
         """Estimate the size of the backup before creation."""
         total_size = 0
 
@@ -165,7 +166,7 @@ class BackupService:
             logger.info(f"Backup verified: {backup_path}")
             return True
 
-        except (tarfile.TarError, IOError) as e:
+        except (OSError, tarfile.TarError) as e:
             logger.error(f"Backup verification failed: {e}")
             return False
 
@@ -206,7 +207,7 @@ class BackupService:
             logger.warning(f"Could not backup file {file_path}: {e}")
             return 0
 
-    async def _export_container_configs(self, containers: List) -> int:
+    async def _export_container_configs(self, containers: list) -> int:
         """Export container configurations to JSON."""
         if not containers:
             return 0
@@ -233,7 +234,7 @@ class BackupService:
             logger.warning(f"Could not export container configs: {e}")
             return 0
 
-    async def _export_volume_metadata(self, volumes: List) -> int:
+    async def _export_volume_metadata(self, volumes: list) -> int:
         """Export volume metadata to JSON."""
         if not volumes:
             return 0

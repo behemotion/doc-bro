@@ -1,7 +1,7 @@
 """Command router for flag-based operation routing."""
 
-from typing import Dict, Any, Optional, Set, Tuple
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -9,7 +9,7 @@ class RouteOperation:
     """Represents a routed operation."""
 
     type: str
-    options: Dict[str, Any]
+    options: dict[str, Any]
 
 
 class CommandRouter:
@@ -29,7 +29,7 @@ class CommandRouter:
         force: bool = False,
         auto: bool = False,
         non_interactive: bool = False,
-        vector_store: Optional[str] = None,
+        vector_store: str | None = None,
         backup: bool = False,
         dry_run: bool = False,
         preserve_data: bool = False,
@@ -108,7 +108,7 @@ class CommandRouter:
         force: bool = False,
         auto: bool = False,
         non_interactive: bool = False,
-        vector_store: Optional[str] = None,
+        vector_store: str | None = None,
         backup: bool = False,
         dry_run: bool = False,
         preserve_data: bool = False,
@@ -208,7 +208,7 @@ Examples:
   docbro setup --reset --preserve-data          # Reset but keep projects
 """
 
-    def parse_conflict_error(self, flags: Set[str]) -> Tuple[str, str]:
+    def parse_conflict_error(self, flags: set[str]) -> tuple[str, str]:
         """Parse conflicting flags and generate error message with suggestion.
 
         Args:

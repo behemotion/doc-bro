@@ -4,7 +4,7 @@ import json
 import logging
 import sqlite3
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import aiosqlite
 
@@ -24,7 +24,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-def detect_sqlite_vec() -> Tuple[bool, str]:
+def detect_sqlite_vec() -> tuple[bool, str]:
     """Detect if sqlite-vec extension is available."""
     if not SQLITE_VEC_AVAILABLE:
         return False, "sqlite-vec not installed. Run: uv pip install --system sqlite-vec"
@@ -80,7 +80,7 @@ class SQLiteVecService:
         """Initialize SQLite-vec service."""
         self.config = config
         self.data_dir = Path(config.data_dir)
-        self.connections: Dict[str, aiosqlite.Connection] = {}
+        self.connections: dict[str, aiosqlite.Connection] = {}
         self.initialized = False
 
         # Create SQLite-vec configuration
@@ -90,11 +90,11 @@ class SQLiteVecService:
             data_directory=self.data_dir,
         )
 
-    def detect_extension(self) -> Tuple[bool, str]:
+    def detect_extension(self) -> tuple[bool, str]:
         """Detect if sqlite-vec extension is available."""
         return detect_sqlite_vec()
 
-    def check_sqlite_version(self) -> Tuple[bool, str]:
+    def check_sqlite_version(self) -> tuple[bool, str]:
         """Check SQLite version compatibility."""
         version = sqlite3.sqlite_version_info
 
@@ -239,8 +239,8 @@ class SQLiteVecService:
         self,
         collection: str,
         doc_id: str,
-        embedding: List[float],
-        metadata: Dict[str, Any],
+        embedding: list[float],
+        metadata: dict[str, Any],
     ) -> None:
         """Insert or update a document with its embedding."""
         conn = await self._get_connection(collection)
@@ -314,13 +314,13 @@ class SQLiteVecService:
                 )
 
             await conn.execute("COMMIT")
-        except Exception as e:
+        except Exception:
             await conn.execute("ROLLBACK")
             raise
 
     async def search(
-        self, collection: str, query_embedding: List[float], limit: int = 10
-    ) -> List[Dict[str, Any]]:
+        self, collection: str, query_embedding: list[float], limit: int = 10
+    ) -> list[dict[str, Any]]:
         """Search for similar documents."""
         conn = await self._get_connection(collection)
 
@@ -403,7 +403,7 @@ class SQLiteVecService:
 
         return False
 
-    async def get_collection_stats(self, name: str) -> Dict[str, Any]:
+    async def get_collection_stats(self, name: str) -> dict[str, Any]:
         """Get statistics about a collection."""
         try:
             conn = await self._get_connection(name)
@@ -452,7 +452,7 @@ class SQLiteVecService:
         except Exception:
             return False
 
-    async def list_collections(self) -> List[str]:
+    async def list_collections(self) -> list[str]:
         """List all collections."""
         collections = []
         try:
@@ -470,7 +470,7 @@ class SQLiteVecService:
     async def upsert_documents(
         self,
         collection_name: str,
-        documents: List[Dict[str, Any]],
+        documents: list[dict[str, Any]],
         batch_size: int = 100
     ) -> int:
         """Upsert multiple documents with batching."""
@@ -493,7 +493,7 @@ class SQLiteVecService:
         self,
         collection_name: str,
         document_id: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Get a specific document by ID."""
         try:
             conn = await self._get_connection(collection_name)
@@ -521,7 +521,7 @@ class SQLiteVecService:
     async def delete_documents(
         self,
         collection_name: str,
-        document_ids: List[str]
+        document_ids: list[str]
     ) -> int:
         """Delete multiple documents from the collection."""
         deleted_count = 0
@@ -563,9 +563,9 @@ class SQLiteVecService:
     async def add_embeddings(
         self,
         collection_name: str,
-        embeddings: List[List[float]],
-        ids: List[str],
-        metadatas: Optional[List[Dict[str, Any]]] = None
+        embeddings: list[list[float]],
+        ids: list[str],
+        metadatas: list[dict[str, Any]] | None = None
     ) -> int:
         """Add embeddings to collection (compatibility method).
 
@@ -573,7 +573,7 @@ class SQLiteVecService:
         It internally uses upsert_documents for the actual implementation.
         """
         documents = []
-        for i, (embedding, doc_id) in enumerate(zip(embeddings, ids)):
+        for i, (embedding, doc_id) in enumerate(zip(embeddings, ids, strict=False)):
             metadata = metadatas[i] if metadatas and i < len(metadatas) else {}
             documents.append({
                 "id": doc_id,

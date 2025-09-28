@@ -4,30 +4,24 @@ This is the main orchestration service that coordinates all setup operations.
 """
 
 import logging
-from typing import Optional, Dict, Any, List, Callable
+from datetime import UTC, datetime
+from typing import Any
 from uuid import uuid4
-from datetime import datetime, timezone
 
-from ..models.setup_types import (
-    SetupMode,
-    SetupStatus,
-    SessionStatus,
-    SetupStep,
-    VectorStorageConfig,
-    EmbeddingModelConfig,
-    MCPClientConfig
-)
 from ..models.setup_configuration import SetupConfiguration
 from ..models.setup_session import SetupSession
-from ..models.component_availability import ComponentAvailability
-
+from ..models.setup_types import (
+    EmbeddingModelConfig,
+    SetupMode,
+    SetupStep,
+    VectorStorageConfig,
+)
 from .component_health import ComponentHealthChecker
-from .docker_manager import DockerManager
-from .ollama_manager import OllamaManager
-from .mcp_detector import MCPDetector
 from .config_service import ConfigService
+from .docker_manager import DockerManager
+from .mcp_detector import MCPDetector
+from .ollama_manager import OllamaManager
 from .system_requirements_service import SystemRequirementsService
-
 
 logger = logging.getLogger(__name__)
 
@@ -225,7 +219,7 @@ class SetupLogicService:
                 await self.config_service.save_session(session)
             raise
 
-    async def get_setup_status(self) -> Dict[str, Any]:
+    async def get_setup_status(self) -> dict[str, Any]:
         """Get current setup status."""
         existing_setup = await self.config_service.check_existing_setup()
 
@@ -274,7 +268,7 @@ class SetupLogicService:
             "components_status": components_status
         }
 
-    async def detect_components(self) -> Dict[str, Any]:
+    async def detect_components(self) -> dict[str, Any]:
         """Detect all external components."""
         components = await self.health_checker.check_all_components()
 
@@ -291,7 +285,7 @@ class SetupLogicService:
         return result
 
     # Additional methods for API endpoints
-    async def create_setup_session(self, setup_mode: str, force_restart: bool = False) -> Dict[str, Any]:
+    async def create_setup_session(self, setup_mode: str, force_restart: bool = False) -> dict[str, Any]:
         """Create a new setup session (for API)."""
         session = SetupSession(
             setup_config_id=uuid4()
@@ -307,7 +301,7 @@ class SetupLogicService:
             "total_steps": session.total_steps
         }
 
-    async def get_session_status(self, session_id: str) -> Dict[str, Any]:
+    async def get_session_status(self, session_id: str) -> dict[str, Any]:
         """Get session status (for API)."""
         session = await self.config_service.load_session(session_id)
         if not session:
@@ -316,16 +310,16 @@ class SetupLogicService:
 
         return session.get_session_summary()
 
-    async def get_component_availability(self, session_id: str) -> Dict[str, Any]:
+    async def get_component_availability(self, session_id: str) -> dict[str, Any]:
         """Get component availability (for API)."""
         components = await self.health_checker.check_all_components()
 
         return {
             "components": [c.get_status_details() for c in components],
-            "last_checked": datetime.now(timezone.utc).isoformat()
+            "last_checked": datetime.now(UTC).isoformat()
         }
 
-    async def configure_components(self, session_id: str, config_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def configure_components(self, session_id: str, config_data: dict[str, Any]) -> dict[str, Any]:
         """Configure components (for API)."""
         # Mock implementation
         return {
@@ -335,7 +329,7 @@ class SetupLogicService:
             "warnings": []
         }
 
-    async def execute_setup(self, session_id: str) -> Dict[str, Any]:
+    async def execute_setup(self, session_id: str) -> dict[str, Any]:
         """Execute setup (for API)."""
         return {
             "execution_started": True,
@@ -350,7 +344,7 @@ class SetupLogicService:
             ]
         }
 
-    async def check_system_requirements(self) -> Dict[str, Any]:
+    async def check_system_requirements(self) -> dict[str, Any]:
         """Check system requirements for DocBro."""
         try:
             validation_results = await self.requirements_service.validate_all_requirements()
@@ -385,7 +379,7 @@ class SetupLogicService:
                 "warnings": []
             }
 
-    async def run_automated_setup(self, force: bool = False) -> Dict[str, Any]:
+    async def run_automated_setup(self, force: bool = False) -> dict[str, Any]:
         """Run automated setup with minimal user interaction."""
         try:
             logger.info("Starting automated setup")

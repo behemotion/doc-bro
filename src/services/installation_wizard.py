@@ -6,28 +6,28 @@ and handles resume/rollback capabilities.
 """
 
 import asyncio
+import logging
 import socket
 import uuid
-from datetime import datetime
+from collections.abc import Callable
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Callable, Union
-import logging
+from typing import Any
 
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
-from rich.prompt import Prompt, Confirm
-from rich.panel import Panel
-from rich.table import Table
+
+from src.models.installation import (
+    CriticalDecisionPoint,
+    InstallationContext,
+    InstallationRequest,
+    InstallationResponse,
+    ServiceStatus,
+)
+from src.models.installation_profile import InstallationProfile
+from src.models.installation_state import InstallationState
 
 from .config import ConfigService
 from .detection import ServiceDetectionService
 from .setup import SetupWizardService
-from src.models.installation import (
-    InstallationContext, ServiceStatus, SystemRequirements,
-    CriticalDecisionPoint, InstallationRequest, InstallationResponse
-)
-from src.models.installation_state import InstallationState
-from src.models.installation_profile import InstallationProfile
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -54,14 +54,14 @@ class InstallationWizardService:
         self.console = Console()
 
         # Installation state management
-        self.installation_state: Optional[InstallationState] = None
-        self.installation_profile: Optional[InstallationProfile] = None
-        self.critical_decisions: List[CriticalDecisionPoint] = []
+        self.installation_state: InstallationState | None = None
+        self.installation_profile: InstallationProfile | None = None
+        self.critical_decisions: list[CriticalDecisionPoint] = []
 
         # Progress tracking
-        self.progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None
+        self.progress_callback: Callable[[dict[str, Any]], None] | None = None
 
-    def set_progress_callback(self, callback: Callable[[Dict[str, Any]], None]) -> None:
+    def set_progress_callback(self, callback: Callable[[dict[str, Any]], None]) -> None:
         """Set callback for progress updates.
 
         Args:
@@ -69,7 +69,7 @@ class InstallationWizardService:
         """
         self.progress_callback = callback
 
-    def _update_progress(self, progress_data: Dict[str, Any]) -> None:
+    def _update_progress(self, progress_data: dict[str, Any]) -> None:
         """Update progress and notify callback if set.
 
         Args:
@@ -92,7 +92,7 @@ class InstallationWizardService:
         """
         try:
             # Check if installation already in progress
-            if self.installation_state and not self.installation_state.current_phase in ["complete", "error"]:
+            if self.installation_state and self.installation_state.current_phase not in ["complete", "error"]:
                 raise InstallationWizardError("Installation already in progress")
 
             # Create installation profile
@@ -341,7 +341,7 @@ class InstallationWizardService:
         await self._persist_installation_state()
         self._update_progress({"phase": "complete", "step": "finished"})
 
-    async def _detect_critical_decisions(self) -> List[CriticalDecisionPoint]:
+    async def _detect_critical_decisions(self) -> list[CriticalDecisionPoint]:
         """Detect situations requiring critical user decisions.
 
         Returns:
@@ -457,7 +457,7 @@ class InstallationWizardService:
 
         return len(found_paths) > 1
 
-    async def _handle_service_decisions(self, service_statuses: Dict[str, ServiceStatus]) -> None:
+    async def _handle_service_decisions(self, service_statuses: dict[str, ServiceStatus]) -> None:
         """Handle service-related critical decisions.
 
         Args:
@@ -553,7 +553,7 @@ class InstallationWizardService:
         except Exception as e:
             logger.error(f"Failed to persist installation state: {e}")
 
-    async def load_installation_state(self) -> Optional[InstallationState]:
+    async def load_installation_state(self) -> InstallationState | None:
         """Load persisted installation state.
 
         Returns:
@@ -564,7 +564,7 @@ class InstallationWizardService:
             if not state_path.exists():
                 return None
 
-            with open(state_path, 'r') as f:
+            with open(state_path) as f:
                 import json
                 data = json.load(f)
                 return InstallationState.model_validate(data)
@@ -573,7 +573,7 @@ class InstallationWizardService:
             logger.error(f"Failed to load installation state: {e}")
             return None
 
-    async def load_installation_profile(self) -> Optional[InstallationProfile]:
+    async def load_installation_profile(self) -> InstallationProfile | None:
         """Load persisted installation profile.
 
         Returns:
@@ -584,7 +584,7 @@ class InstallationWizardService:
             if not profile_path.exists():
                 return None
 
-            with open(profile_path, 'r') as f:
+            with open(profile_path) as f:
                 import json
                 data = json.load(f)
                 return InstallationProfile.model_validate(data)
@@ -643,7 +643,7 @@ class InstallationWizardService:
         except Exception as e:
             logger.error(f"Failed to rollback installation: {e}")
 
-    def get_installation_status(self) -> Dict[str, Any]:
+    def get_installation_status(self) -> dict[str, Any]:
         """Get current installation status.
 
         Returns:
@@ -706,7 +706,7 @@ class InstallationWizardService:
         import sys
         return f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
 
-    def _get_uv_version(self) -> Optional[str]:
+    def _get_uv_version(self) -> str | None:
         """Get UV version if available.
 
         Returns:

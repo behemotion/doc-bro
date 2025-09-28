@@ -1,17 +1,16 @@
 """RAG (Retrieval-Augmented Generation) search service."""
 
-import asyncio
+import hashlib
 import re
 from datetime import datetime
-from typing import Dict, List, Optional, Any, Tuple
-import logging
-import hashlib
+from typing import Any, Callable, Optional
 
-from src.models import QueryResult, QueryResponse
 from src.core.config import DocBroConfig
 from src.core.lib_logger import get_component_logger
-from .vector_store import VectorStoreService, VectorStoreError
-from .embeddings import EmbeddingService, EmbeddingError
+from src.models import QueryResponse, QueryResult
+
+from .embeddings import EmbeddingError, EmbeddingService
+from .vector_store import VectorStoreError, VectorStoreService
 
 
 class RAGError(Exception):
@@ -26,7 +25,7 @@ class RAGSearchService:
         self,
         vector_store: VectorStoreService,
         embedding_service: EmbeddingService,
-        config: Optional[DocBroConfig] = None
+        config: DocBroConfig | None = None
     ):
         """Initialize RAG search service."""
         self.vector_store = vector_store
@@ -41,7 +40,7 @@ class RAGSearchService:
         self.chunk_overlap = self.config.chunk_overlap  # Use config value
 
         # Query cache
-        self._query_cache: Dict[str, QueryResponse] = {}
+        self._query_cache: dict[str, QueryResponse] = {}
         self._cache_ttl = 300  # 5 minutes
 
     async def search(
@@ -49,12 +48,12 @@ class RAGSearchService:
         query: str,
         collection_name: str,
         limit: int = 10,
-        score_threshold: Optional[float] = None,
+        score_threshold: float | None = None,
         strategy: str = "semantic",
         expand_context: bool = False,
         rerank: bool = False,
-        filters: Optional[Dict[str, Any]] = None
-    ) -> List[Dict[str, Any]]:
+        filters: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
         """Search for relevant documents using RAG strategies."""
         if not query.strip():
             self.logger.warning("Empty query provided")
@@ -133,9 +132,9 @@ class RAGSearchService:
         query: str,
         collection_name: str,
         limit: int,
-        score_threshold: Optional[float],
-        filters: Optional[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        score_threshold: float | None,
+        filters: dict[str, Any] | None
+    ) -> list[dict[str, Any]]:
         """Perform semantic vector search."""
         try:
             # Create query embedding
@@ -179,9 +178,9 @@ class RAGSearchService:
         query: str,
         collection_name: str,
         limit: int,
-        score_threshold: Optional[float],
-        filters: Optional[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        score_threshold: float | None,
+        filters: dict[str, Any] | None
+    ) -> list[dict[str, Any]]:
         """Perform hybrid semantic + keyword search."""
         try:
             # Run semantic search
@@ -209,9 +208,9 @@ class RAGSearchService:
         query: str,
         collection_name: str,
         limit: int,
-        score_threshold: Optional[float],
-        filters: Optional[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        score_threshold: float | None,
+        filters: dict[str, Any] | None
+    ) -> list[dict[str, Any]]:
         """Perform advanced search with query decomposition."""
         try:
             # Decompose complex queries
@@ -246,8 +245,8 @@ class RAGSearchService:
         query: str,
         collection_name: str,
         limit: int,
-        filters: Optional[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        filters: dict[str, Any] | None
+    ) -> list[dict[str, Any]]:
         """Simulate keyword search using vector search with keyword matching."""
         # For now, this is a simplified implementation
         # In a full implementation, you might use a separate keyword index
@@ -280,10 +279,10 @@ class RAGSearchService:
 
     def _combine_search_results(
         self,
-        semantic_results: List[Dict[str, Any]],
-        keyword_results: List[Dict[str, Any]],
+        semantic_results: list[dict[str, Any]],
+        keyword_results: list[dict[str, Any]],
         limit: int
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Combine semantic and keyword search results."""
         # Create a map to track unique results by ID
         result_map = {}
@@ -315,7 +314,7 @@ class RAGSearchService:
 
         return combined_results[:limit]
 
-    async def _expand_context(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    async def _expand_context(self, results: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Expand context around search results."""
         # This is a placeholder for context expansion
         # In a full implementation, you would retrieve surrounding content
@@ -336,8 +335,8 @@ class RAGSearchService:
     async def _rerank_results(
         self,
         query: str,
-        results: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        results: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """Rerank results using more sophisticated scoring."""
         try:
             query_embedding = await self.embedding_service.create_embedding(query)
@@ -365,7 +364,7 @@ class RAGSearchService:
             self.logger.warning("Reranking failed", extra={"error": str(e)})
             return results
 
-    async def decompose_query(self, query: str) -> List[str]:
+    async def decompose_query(self, query: str) -> list[str]:
         """Decompose complex queries into simpler sub-queries."""
         # Simple query decomposition logic
         query = query.strip()
@@ -407,9 +406,9 @@ class RAGSearchService:
     def _aggregate_sub_results(
         self,
         original_query: str,
-        all_results: List[Dict[str, Any]],
+        all_results: list[dict[str, Any]],
         limit: int
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Aggregate results from sub-queries."""
         # Group results by ID and aggregate scores
         result_map = {}
@@ -433,7 +432,7 @@ class RAGSearchService:
 
         return aggregated_results[:limit]
 
-    def _extract_query_terms(self, query: str) -> List[str]:
+    def _extract_query_terms(self, query: str) -> list[str]:
         """Extract meaningful terms from query."""
         # Remove common stop words and extract terms
         stop_words = {
@@ -458,7 +457,7 @@ class RAGSearchService:
         strategy: str
     ) -> str:
         """Generate cache key for query."""
-        content = f"{query}:{collection_name}:{limit}:{strategy}".encode('utf-8')
+        content = f"{query}:{collection_name}:{limit}:{strategy}".encode()
         return hashlib.sha256(content).hexdigest()
 
     def _is_cache_valid(self, response: QueryResponse) -> bool:
@@ -469,10 +468,10 @@ class RAGSearchService:
     async def index_documents(
         self,
         collection_name: str,
-        documents: List[Dict[str, Any]],
-        chunk_size: Optional[int] = None,
-        chunk_overlap: Optional[int] = None,
-        progress_callback: Optional[callable] = None
+        documents: list[dict[str, Any]],
+        chunk_size: int | None = None,
+        chunk_overlap: int | None = None,
+        progress_callback: Optional[Callable] = None
     ) -> int:
         """Index documents for search."""
         if not documents:
@@ -586,10 +585,10 @@ class RAGSearchService:
 
     async def chunk_document(
         self,
-        document: Dict[str, Any],
+        document: dict[str, Any],
         chunk_size: int = 1000,
         overlap: int = 50
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Split document into chunks for indexing."""
         content = document.get("content", "")
         if not content:
@@ -638,10 +637,10 @@ class RAGSearchService:
     async def search_multi_project(
         self,
         query: str,
-        project_names: List[str],
+        project_names: list[str],
         limit: int = 15,
         strategy: str = "semantic"
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Search across multiple projects."""
         all_results = []
 

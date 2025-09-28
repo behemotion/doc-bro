@@ -2,12 +2,11 @@
 ServiceConfiguration model with ServiceStatus enum.
 Manages external service settings and health status.
 """
-from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Optional, Any
 from enum import Enum
+from typing import Any
 
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ServiceStatus(Enum):
@@ -29,13 +28,13 @@ class ServiceConfiguration(BaseModel):
     port: int = Field(..., description="Service port number")
     image: str = Field(..., description="Docker image name if applicable")
     status: ServiceStatus = Field(..., description="Current service status")
-    health_check_url: Optional[str] = Field(None, description="URL for health checks")
-    dependencies: List[str] = Field(default_factory=list, description="List of service dependencies")
-    config_params: Dict[str, Any] = Field(default_factory=dict, description="Service-specific configuration")
+    health_check_url: str | None = Field(None, description="URL for health checks")
+    dependencies: list[str] = Field(default_factory=list, description="List of service dependencies")
+    config_params: dict[str, Any] = Field(default_factory=dict, description="Service-specific configuration")
 
     # Status tracking
     last_checked: datetime = Field(default_factory=datetime.now, description="Last status check time")
-    error_message: Optional[str] = Field(None, description="Error message if status is ERROR")
+    error_message: str | None = Field(None, description="Error message if status is ERROR")
 
     @field_validator('service_name')
     @classmethod
@@ -119,7 +118,7 @@ class ServiceConfiguration(BaseModel):
         """Get a configuration parameter value"""
         return self.config_params.get(key, default)
 
-    def get_health_check_info(self) -> Dict[str, Any]:
+    def get_health_check_info(self) -> dict[str, Any]:
         """Get health check information"""
         return {
             "url": self.health_check_url,
@@ -128,7 +127,7 @@ class ServiceConfiguration(BaseModel):
             "error_message": self.error_message
         }
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization"""
         return {
             "service_name": self.service_name,
@@ -204,7 +203,7 @@ class ServiceDependencyValidator:
     }
 
     @classmethod
-    def validate_dependencies(cls, service_configs: List[ServiceConfiguration]) -> List[str]:
+    def validate_dependencies(cls, service_configs: list[ServiceConfiguration]) -> list[str]:
         """Validate all service dependencies are satisfied"""
         errors = []
         service_names = {config.service_name for config in service_configs}
@@ -217,7 +216,7 @@ class ServiceDependencyValidator:
         return errors
 
     @classmethod
-    def get_startup_order(cls, service_configs: List[ServiceConfiguration]) -> List[str]:
+    def get_startup_order(cls, service_configs: list[ServiceConfiguration]) -> list[str]:
         """Get the correct startup order based on dependencies"""
         # Simple topological sort for dependency resolution
         remaining = {config.service_name: set(config.dependencies) for config in service_configs}

@@ -1,9 +1,9 @@
 """BackupManifest model for backup archive metadata."""
 
-from datetime import datetime
-from typing import List, Optional
-from pydantic import BaseModel, Field, computed_field
 import uuid
+from datetime import datetime
+
+from pydantic import BaseModel, Field, computed_field
 
 
 class BackupManifest(BaseModel):
@@ -20,7 +20,7 @@ class BackupManifest(BaseModel):
     docbro_version: str = Field(
         description="Version of DocBro being uninstalled"
     )
-    components_included: List[str] = Field(
+    components_included: list[str] = Field(
         default_factory=list,
         description="What was backed up"
     )
@@ -94,7 +94,7 @@ class BackupManifest(BaseModel):
         else:
             self.compression_ratio = 1.0
 
-    def get_size_display(self, size_bytes: Optional[int] = None) -> str:
+    def get_size_display(self, size_bytes: int | None = None) -> str:
         """Get human-readable size display."""
         if size_bytes is None:
             size_bytes = self.compressed_size_bytes
@@ -135,7 +135,7 @@ class BackupManifest(BaseModel):
         """Create manifest from JSON string."""
         return cls.model_validate_json(json_str)
 
-    def validate_restore(self) -> tuple[bool, Optional[str]]:
+    def validate_restore(self) -> tuple[bool, str | None]:
         """Validate if backup can be restored."""
         if self.backup_age_days > 365:
             return False, "Backup is over 1 year old and may be incompatible"

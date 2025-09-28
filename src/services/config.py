@@ -1,17 +1,15 @@
 """Configuration management service for installation metadata."""
 
 import json
+import logging
 import shutil
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
-import logging
 
 import platformdirs
-from packaging import version
 
-from src.models.installation import InstallationContext, ServiceStatus, PackageMetadata
+from src.models.installation import InstallationContext, PackageMetadata, ServiceStatus
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +35,9 @@ class ConfigService:
     def __init__(self):
         """Initialize configuration service."""
         self.app_name = "docbro"
-        self._config_dir: Optional[Path] = None
-        self._data_dir: Optional[Path] = None
-        self._cache_dir: Optional[Path] = None
+        self._config_dir: Path | None = None
+        self._data_dir: Path | None = None
+        self._cache_dir: Path | None = None
 
     @property
     def config_dir(self) -> Path:
@@ -86,11 +84,11 @@ class ConfigService:
 
     def create_installation_context(
         self,
-        install_method: Optional[str] = None,
+        install_method: str | None = None,
         version: str = "1.0.0",
         python_version: str = "3.13.1",
-        uv_version: Optional[str] = None,
-        install_path: Optional[Path] = None,
+        uv_version: str | None = None,
+        install_path: Path | None = None,
         is_global: bool = True
     ) -> InstallationContext:
         """Create and save installation context."""
@@ -140,7 +138,7 @@ class ConfigService:
         else:
             return "manual"
 
-    def _detect_uv_version(self) -> Optional[str]:
+    def _detect_uv_version(self) -> str | None:
         """Detect UV version if available."""
         try:
             result = subprocess.run(["uv", "--version"], capture_output=True, text=True, timeout=5)
@@ -154,13 +152,13 @@ class ConfigService:
         except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
             return None
 
-    def load_installation_context(self) -> Optional[InstallationContext]:
+    def load_installation_context(self) -> InstallationContext | None:
         """Load installation context from configuration file."""
         if not self.installation_config_path.exists():
             return None
 
         try:
-            with open(self.installation_config_path, 'r') as f:
+            with open(self.installation_config_path) as f:
                 data = json.load(f)
 
             # Convert string paths back to Path objects
@@ -213,13 +211,13 @@ class ConfigService:
                 temp_path.unlink()
             raise ConfigurationError(f"Error saving installation config: {e}")
 
-    def load_services_config(self) -> List[ServiceStatus]:
+    def load_services_config(self) -> list[ServiceStatus]:
         """Load services configuration from file."""
         if not self.services_config_path.exists():
             return []
 
         try:
-            with open(self.services_config_path, 'r') as f:
+            with open(self.services_config_path) as f:
                 data = json.load(f)
 
             services = []
@@ -236,7 +234,7 @@ class ConfigService:
         except Exception as e:
             raise ConfigurationError(f"Error loading services config: {e}")
 
-    def save_services_config(self, services: List[ServiceStatus]) -> None:
+    def save_services_config(self, services: list[ServiceStatus]) -> None:
         """Save services configuration to file."""
         self.ensure_directories()
 
@@ -267,7 +265,7 @@ class ConfigService:
                 temp_path.unlink()
             raise ConfigurationError(f"Error saving services config: {e}")
 
-    def get_installation_paths(self) -> Dict[str, Path]:
+    def get_installation_paths(self) -> dict[str, Path]:
         """Get all installation-related paths."""
         return {
             "config_dir": self.config_dir,
@@ -277,7 +275,7 @@ class ConfigService:
             "services_config": self.services_config_path
         }
 
-    def detect_existing_installation(self) -> Optional[Dict[str, any]]:
+    def detect_existing_installation(self) -> dict[str, any] | None:
         """Detect existing manual installation that could be migrated."""
         possible_paths = [
             Path.home() / ".docbro",
@@ -329,14 +327,14 @@ class ConfigService:
                 version="1.0.0",  # Default version for migrated
             )
 
-            logger.info(f"Migration completed successfully")
+            logger.info("Migration completed successfully")
             return True
 
         except Exception as e:
             logger.error(f"Migration failed: {e}")
             raise MigrationError(f"Failed to migrate from {source_path}: {e}")
 
-    def repair_configuration(self) -> Dict[str, bool]:
+    def repair_configuration(self) -> dict[str, bool]:
         """Attempt to repair corrupted configuration files."""
         results = {"installation": False, "services": False}
 

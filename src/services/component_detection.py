@@ -3,11 +3,13 @@
 import os
 import subprocess
 from pathlib import Path
-from typing import List, Optional, Dict, Any
-import docker
+from typing import Any
+
 import docker.errors
-from src.models.component_status import ComponentStatus, ComponentType, RemovalStatus
+
+import docker
 from src.core.lib_logger import get_logger
+from src.models.component_status import ComponentStatus, ComponentType, RemovalStatus
 
 logger = get_logger(__name__)
 
@@ -15,7 +17,7 @@ logger = get_logger(__name__)
 class ComponentDetectionService:
     """Service for detecting DocBro components on the system."""
 
-    def __init__(self, docker_client: Optional[docker.DockerClient] = None):
+    def __init__(self, docker_client: docker.DockerClient | None = None):
         """Initialize the detection service."""
         self.docker_client = docker_client
         self._init_docker_client()
@@ -43,7 +45,7 @@ class ComponentDetectionService:
                     logger.warning(f"Docker not available: {e}")
                     self.docker_client = None
 
-    async def detect_all_components(self) -> Dict[str, Any]:
+    async def detect_all_components(self) -> dict[str, Any]:
         """Detect all DocBro components on the system."""
         components = {
             'containers': await self.find_docker_containers(),
@@ -54,7 +56,7 @@ class ComponentDetectionService:
         }
         return components
 
-    async def find_docker_containers(self) -> List[ComponentStatus]:
+    async def find_docker_containers(self) -> list[ComponentStatus]:
         """Find DocBro Docker containers."""
         if not self.docker_client:
             return []
@@ -75,7 +77,7 @@ class ComponentDetectionService:
 
         return containers
 
-    async def find_docker_volumes(self) -> List[ComponentStatus]:
+    async def find_docker_volumes(self) -> list[ComponentStatus]:
         """Find DocBro Docker volumes."""
         if not self.docker_client:
             return []
@@ -96,7 +98,7 @@ class ComponentDetectionService:
 
         return volumes
 
-    async def find_data_directories(self) -> List[ComponentStatus]:
+    async def find_data_directories(self) -> list[ComponentStatus]:
         """Find DocBro data directories."""
         directories = []
 
@@ -137,7 +139,7 @@ class ComponentDetectionService:
 
         return directories
 
-    async def find_config_files(self) -> List[ComponentStatus]:
+    async def find_config_files(self) -> list[ComponentStatus]:
         """Find DocBro configuration files."""
         configs = []
 
@@ -159,7 +161,7 @@ class ComponentDetectionService:
 
         return configs
 
-    async def check_package_installation(self) -> Optional[ComponentStatus]:
+    async def check_package_installation(self) -> ComponentStatus | None:
         """Check if DocBro package is installed."""
         try:
             # Check with UV tool
@@ -260,7 +262,7 @@ class ComponentDetectionService:
             'created_at': volume.attrs.get('CreatedAt')
         }
 
-    async def filter_removable_volumes(self, volumes: List) -> List:
+    async def filter_removable_volumes(self, volumes: list) -> list:
         """Filter volumes to get only removable ones."""
         removable = []
         for volume in volumes:

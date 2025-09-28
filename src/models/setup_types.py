@@ -4,13 +4,12 @@ This module defines all the enums, exceptions, and supporting data types
 used by the setup logic data models.
 """
 
-from enum import Enum
-from typing import Optional, Any, Dict, List
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
-from pydantic import BaseModel, Field, field_validator
-from uuid import UUID
+from typing import Any
 
+from pydantic import BaseModel, Field, field_validator
 
 # ============================================================================
 # Enums
@@ -77,7 +76,7 @@ class VectorStorageConfig(BaseModel):
     connection_url: str = Field(description="Connection URL (e.g., 'http://localhost:6333')")
     container_name: str = Field(default="docbro-memory-qdrant", description="Docker container name")
     data_path: Path = Field(description="Local data storage path")
-    configuration: Dict[str, Any] = Field(default_factory=dict, description="Provider-specific configuration")
+    configuration: dict[str, Any] = Field(default_factory=dict, description="Provider-specific configuration")
 
     @field_validator('provider')
     @classmethod
@@ -101,10 +100,10 @@ class EmbeddingModelConfig(BaseModel):
 
     provider: str = Field(default="ollama", description="Embedding provider")
     model_name: str = Field(description="Model identifier (e.g., 'embeddinggemma:300m-qat-q4_0')")
-    model_size_mb: Optional[int] = Field(default=None, description="Model size in megabytes")
+    model_size_mb: int | None = Field(default=None, description="Model size in megabytes")
     download_required: bool = Field(description="Whether model needs to be downloaded")
-    fallback_models: List[str] = Field(default_factory=list, description="Fallback model names in priority order")
-    configuration: Dict[str, Any] = Field(default_factory=dict, description="Provider-specific configuration")
+    fallback_models: list[str] = Field(default_factory=list, description="Fallback model names in priority order")
+    configuration: dict[str, Any] = Field(default_factory=dict, description="Provider-specific configuration")
 
     @field_validator('provider')
     @classmethod
@@ -128,9 +127,9 @@ class MCPClientConfig(BaseModel):
 
     client_name: str = Field(description="Client identifier (e.g., 'claude-code')")
     client_type: str = Field(description="Type of MCP client")
-    executable_path: Optional[Path] = Field(default=None, description="Path to client executable")
-    config_file_path: Optional[Path] = Field(default=None, description="Path to client configuration file")
-    server_config: Dict[str, Any] = Field(default_factory=dict, description="MCP server configuration for this client")
+    executable_path: Path | None = Field(default=None, description="Path to client executable")
+    config_file_path: Path | None = Field(default=None, description="Path to client configuration file")
+    server_config: dict[str, Any] = Field(default_factory=dict, description="MCP server configuration for this client")
     enabled: bool = Field(description="Whether integration is enabled")
 
     @field_validator('client_name')
@@ -148,9 +147,9 @@ class SetupStepFailure(BaseModel):
     step: SetupStep = Field(description="Which step failed")
     error_type: str = Field(description="Category of error (e.g., 'network', 'permission', 'configuration')")
     error_message: str = Field(description="Human-readable error description")
-    technical_details: Optional[str] = Field(default=None, description="Technical error details for debugging")
+    technical_details: str | None = Field(default=None, description="Technical error details for debugging")
     retry_possible: bool = Field(description="Whether this step can be retried")
-    suggested_action: Optional[str] = Field(default=None, description="Suggested user action to resolve")
+    suggested_action: str | None = Field(default=None, description="Suggested user action to resolve")
 
     @field_validator('error_type')
     @classmethod
@@ -167,7 +166,7 @@ class RollbackPoint(BaseModel):
 
     step: SetupStep = Field(description="Step where rollback point was created")
     timestamp: datetime = Field(description="When rollback point was created")
-    state_data: Dict[str, Any] = Field(description="Serialized state for rollback")
+    state_data: dict[str, Any] = Field(description="Serialized state for rollback")
     description: str = Field(description="Human-readable description of rollback point")
 
 
@@ -234,7 +233,7 @@ class TimeoutError(SetupBaseException):
 # Helper Functions
 # ============================================================================
 
-def get_valid_setup_steps() -> List[SetupStep]:
+def get_valid_setup_steps() -> list[SetupStep]:
     """Get all valid setup steps in execution order."""
     return [
         SetupStep.DETECT_COMPONENTS,
@@ -255,7 +254,7 @@ def is_step_before(step1: SetupStep, step2: SetupStep) -> bool:
         return False
 
 
-def get_next_step(current_step: SetupStep) -> Optional[SetupStep]:
+def get_next_step(current_step: SetupStep) -> SetupStep | None:
     """Get the next step after the current step."""
     steps = get_valid_setup_steps()
     try:

@@ -2,8 +2,9 @@
 EmbeddingStatus model for embedding display component
 """
 
-from typing import Optional
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
 from .enums import ProcessingState
 
 
@@ -13,7 +14,7 @@ class EmbeddingStatus(BaseModel):
     model_name: str = Field(..., min_length=1, description="Name of embedding model")
     project_name: str = Field(..., min_length=1, description="Target project identifier")
     processing_state: ProcessingState = Field(default=ProcessingState.INITIALIZING, description="Current embedding phase")
-    error_message: Optional[str] = Field(default=None, description="Error text if processing fails")
+    error_message: str | None = Field(default=None, description="Error text if processing fails")
 
     @field_validator('project_name')
     @classmethod

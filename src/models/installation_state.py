@@ -1,7 +1,8 @@
 """Installation state tracking model for DocBro installation process."""
 
-from typing import List, Optional, Literal
-from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class InstallationState(BaseModel):
@@ -24,7 +25,7 @@ class InstallationState(BaseModel):
     ] = Field(..., description="Current installation phase")
 
     total_phases: int = Field(..., description="Total number of phases in installation", gt=0)
-    completed_phases: List[str] = Field(
+    completed_phases: list[str] = Field(
         default_factory=list,
         description="List of completed phase names"
     )
@@ -45,7 +46,7 @@ class InstallationState(BaseModel):
     status_message: str = Field(..., description="Human-readable status message")
     can_resume: bool = Field(..., description="Whether installation can be resumed if interrupted")
     error_occurred: bool = Field(default=False, description="Whether an error has occurred")
-    error_details: Optional[str] = Field(
+    error_details: str | None = Field(
         default=None,
         description="Detailed error information if error occurred"
     )
@@ -64,7 +65,7 @@ class InstallationState(BaseModel):
 
     @field_validator('completed_phases')
     @classmethod
-    def validate_completed_phases(cls, v: List[str]) -> List[str]:
+    def validate_completed_phases(cls, v: list[str]) -> list[str]:
         """Validate completed phases are valid phase names."""
         valid_phases = {
             "initializing", "system_check", "service_setup",
@@ -174,7 +175,7 @@ class InstallationState(BaseModel):
         else:
             object.__setattr__(self, 'progress_percentage', min(completed_weight, 95.0))  # Cap at 95% until complete
 
-    def mark_error(self, error_message: str, error_details: Optional[str] = None) -> None:
+    def mark_error(self, error_message: str, error_details: str | None = None) -> None:
         """Mark the installation as errored.
 
         Args:

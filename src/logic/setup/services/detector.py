@@ -1,12 +1,14 @@
 """Service detection service."""
 
 import asyncio
-import subprocess
 import shutil
-from typing import Dict, Any, Optional
+import subprocess
+from typing import Any
+
 import httpx
-from src.logic.setup.models.service_info import ServiceInfo, ServiceStatus
+
 from src.core.lib_logger import get_logger
+from src.logic.setup.models.service_info import ServiceInfo
 
 logger = get_logger(__name__)
 
@@ -18,7 +20,7 @@ class ServiceDetector:
         """Initialize the service detector."""
         self.timeout = 5.0  # Timeout for service checks
 
-    async def detect_all_async(self) -> Dict[str, Dict[str, Any]]:
+    async def detect_all_async(self) -> dict[str, dict[str, Any]]:
         """Detect all services asynchronously for performance.
 
         Returns:
@@ -39,7 +41,7 @@ class ServiceDetector:
         services = {}
         service_names = ["docker", "qdrant", "ollama", "sqlite_vec", "python", "uv", "git"]
 
-        for name, result in zip(service_names, results):
+        for name, result in zip(service_names, results, strict=False):
             if isinstance(result, Exception):
                 services[name] = {
                     "status": "unavailable",
@@ -50,7 +52,7 @@ class ServiceDetector:
 
         return services
 
-    def detect_all(self) -> Dict[str, Dict[str, Any]]:
+    def detect_all(self) -> dict[str, dict[str, Any]]:
         """Synchronous wrapper for detect_all_async.
 
         Returns:
@@ -58,7 +60,7 @@ class ServiceDetector:
         """
         return asyncio.run(self.detect_all_async())
 
-    async def check_docker(self) -> Dict[str, Any]:
+    async def check_docker(self) -> dict[str, Any]:
         """Check if Docker is available.
 
         Returns:
@@ -94,7 +96,7 @@ class ServiceDetector:
                 "error": str(e)
             }
 
-    async def check_qdrant(self) -> Dict[str, Any]:
+    async def check_qdrant(self) -> dict[str, Any]:
         """Check if Qdrant is available.
 
         Returns:
@@ -123,7 +125,7 @@ class ServiceDetector:
                 "error": f"Cannot connect to Qdrant: {e}"
             }
 
-    async def check_ollama(self) -> Dict[str, Any]:
+    async def check_ollama(self) -> dict[str, Any]:
         """Check if Ollama is available.
 
         Returns:
@@ -152,7 +154,7 @@ class ServiceDetector:
                 "error": f"Cannot connect to Ollama: {e}"
             }
 
-    async def check_sqlite_vec(self) -> Dict[str, Any]:
+    async def check_sqlite_vec(self) -> dict[str, Any]:
         """Check if sqlite-vec is available.
 
         Returns:
@@ -172,7 +174,7 @@ class ServiceDetector:
                 "error": "sqlite-vec not installed"
             }
 
-    async def check_python(self) -> Dict[str, Any]:
+    async def check_python(self) -> dict[str, Any]:
         """Check Python version.
 
         Returns:
@@ -188,7 +190,7 @@ class ServiceDetector:
             "path": sys.executable
         }
 
-    async def check_uv(self) -> Dict[str, Any]:
+    async def check_uv(self) -> dict[str, Any]:
         """Check if UV is installed.
 
         Returns:
@@ -227,7 +229,7 @@ class ServiceDetector:
                 "error": str(e)
             }
 
-    async def check_git(self) -> Dict[str, Any]:
+    async def check_git(self) -> dict[str, Any]:
         """Check if Git is installed.
 
         Returns:
@@ -267,7 +269,7 @@ class ServiceDetector:
                 "error": str(e)
             }
 
-    def create_service_info(self, name: str, result: Dict[str, Any]) -> ServiceInfo:
+    def create_service_info(self, name: str, result: dict[str, Any]) -> ServiceInfo:
         """Convert detection result to ServiceInfo model.
 
         Args:

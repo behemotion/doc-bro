@@ -3,20 +3,24 @@
 import asyncio
 import logging
 import time
-from typing import Optional, Dict, Any, Callable, List
+from collections.abc import Callable
 from contextlib import contextmanager
 from enum import Enum
+from typing import Any
 
 from rich.console import Console
 from rich.live import Live
-from rich.table import Table
 from rich.panel import Panel
 from rich.progress import (
-    Progress, SpinnerColumn, TextColumn, BarColumn,
-    TimeRemainingColumn, MofNCompleteColumn, TaskID
+    BarColumn,
+    MofNCompleteColumn,
+    Progress,
+    SpinnerColumn,
+    TaskID,
+    TextColumn,
+    TimeRemainingColumn,
 )
 from rich.table import Table
-from rich.live import Live
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +37,7 @@ class CrawlPhase(Enum):
 class ProgressReporter:
     """Service for reporting progress of long-running operations."""
 
-    def __init__(self, console: Optional[Console] = None, refresh_rate: float = 0.5):
+    def __init__(self, console: Console | None = None, refresh_rate: float = 0.5):
         """Initialize progress reporter.
 
         Args:
@@ -42,11 +46,11 @@ class ProgressReporter:
         """
         self.console = console or Console()
         self.refresh_rate = refresh_rate
-        self.progress: Optional[Progress] = None
-        self.live: Optional[Live] = None
-        self.tasks: Dict[str, TaskID] = {}
-        self._phase_stats: Dict[CrawlPhase, Dict[str, Any]] = {}
-        self._start_times: Dict[str, float] = {}
+        self.progress: Progress | None = None
+        self.live: Live | None = None
+        self.tasks: dict[str, TaskID] = {}
+        self._phase_stats: dict[CrawlPhase, dict[str, Any]] = {}
+        self._start_times: dict[str, float] = {}
         self._is_active = False
 
     def create_progress_bar(self, show_percentage: bool = True) -> Progress:
@@ -99,8 +103,8 @@ class ProgressReporter:
         self,
         phase: CrawlPhase,
         total: int = 100,
-        description: Optional[str] = None
-    ) -> Optional[TaskID]:
+        description: str | None = None
+    ) -> TaskID | None:
         """Start a new crawl phase.
 
         Args:
@@ -134,8 +138,8 @@ class ProgressReporter:
         self,
         phase: CrawlPhase,
         advance: int = 1,
-        description: Optional[str] = None,
-        completed: Optional[int] = None
+        description: str | None = None,
+        completed: int | None = None
     ) -> None:
         """Update progress for a phase.
 
@@ -195,7 +199,7 @@ class ProgressReporter:
         logger.debug(f"Completed phase: {phase.value}")
 
     @contextmanager
-    def simple_progress(self, description: str, total: Optional[int] = None):
+    def simple_progress(self, description: str, total: int | None = None):
         """Simple progress context manager for non-crawl operations.
 
         Args:
@@ -220,7 +224,7 @@ class ProgressReporter:
 
             yield lambda advance=1: progress.advance(task_id, advance) if total else None
 
-    def display_summary(self, stats: Dict[str, Any]) -> None:
+    def display_summary(self, stats: dict[str, Any]) -> None:
         """Display a summary table.
 
         Args:
@@ -313,10 +317,10 @@ class ProgressReporter:
 
 
 # Global progress reporter instance
-_progress_reporter: Optional[ProgressReporter] = None
+_progress_reporter: ProgressReporter | None = None
 
 
-def get_progress_reporter(console: Optional[Console] = None) -> ProgressReporter:
+def get_progress_reporter(console: Console | None = None) -> ProgressReporter:
     """Get the global progress reporter instance.
 
     Args:
@@ -334,7 +338,7 @@ def get_progress_reporter(console: Optional[Console] = None) -> ProgressReporter
 class CrawlProgressDisplay:
     """Simple progress display for crawling operations."""
 
-    def __init__(self, project_name: str, max_depth: int, max_pages: Optional[int] = None):
+    def __init__(self, project_name: str, max_depth: int, max_pages: int | None = None):
         """Initialize crawl progress display."""
         self.project_name = project_name
         self.max_depth = max_depth
@@ -349,7 +353,7 @@ class CrawlProgressDisplay:
         self.current_url = ""
         self.current_phase = CrawlPhase.CRAWLING_CONTENT  # Track current phase
 
-        self.live: Optional[Live] = None
+        self.live: Live | None = None
 
     def start(self):
         """Start the live display."""

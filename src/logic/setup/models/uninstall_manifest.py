@@ -1,22 +1,22 @@
 """Uninstall manifest model."""
 
 from pathlib import Path
-from typing import List, Optional
+
 from pydantic import BaseModel, Field, field_validator
 
 
 class UninstallManifest(BaseModel):
     """Items to be removed during uninstallation."""
 
-    directories: List[Path] = Field(
+    directories: list[Path] = Field(
         default_factory=list,
         description="Directories to remove"
     )
-    files: List[Path] = Field(
+    files: list[Path] = Field(
         default_factory=list,
         description="Individual files to remove"
     )
-    config_entries: List[str] = Field(
+    config_entries: list[str] = Field(
         default_factory=list,
         description="Configuration keys to clear"
     )
@@ -24,14 +24,14 @@ class UninstallManifest(BaseModel):
         default=0,
         description="Total disk space to recover in bytes"
     )
-    backup_location: Optional[Path] = Field(
+    backup_location: Path | None = Field(
         default=None,
         description="Where backup will be or was stored"
     )
 
     @field_validator("directories", "files")
     @classmethod
-    def validate_paths_exist(cls, v: List[Path]) -> List[Path]:
+    def validate_paths_exist(cls, v: list[Path]) -> list[Path]:
         """Validate that paths exist (warning only, not error)."""
         existing = []
         for path in v:
@@ -51,7 +51,7 @@ class UninstallManifest(BaseModel):
 
     @field_validator("backup_location")
     @classmethod
-    def validate_backup_location(cls, v: Optional[Path]) -> Optional[Path]:
+    def validate_backup_location(cls, v: Path | None) -> Path | None:
         """Validate backup location is writable if specified."""
         if v is None:
             return v
@@ -137,7 +137,7 @@ class UninstallManifest(BaseModel):
         """Get total number of items to remove."""
         return len(self.directories) + len(self.files) + len(self.config_entries)
 
-    def to_display_list(self) -> List[str]:
+    def to_display_list(self) -> list[str]:
         """Convert to user-friendly display list."""
         items = []
 

@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+
 from pydantic import BaseModel, Field, computed_field
 
 
@@ -33,7 +33,7 @@ class UninstallProgress(BaseModel):
         default_factory=datetime.now,
         description="When uninstall started"
     )
-    end_time: Optional[datetime] = Field(
+    end_time: datetime | None = Field(
         default=None,
         description="When uninstall completed"
     )
@@ -41,7 +41,7 @@ class UninstallProgress(BaseModel):
         default=False,
         description="Whether backup was successfully created"
     )
-    backup_location: Optional[Path] = Field(
+    backup_location: Path | None = Field(
         default=None,
         description="Where backup was saved"
     )
@@ -74,7 +74,7 @@ class UninstallProgress(BaseModel):
 
     @computed_field
     @property
-    def duration_seconds(self) -> Optional[float]:
+    def duration_seconds(self) -> float | None:
         """Calculate operation duration in seconds."""
         if self.end_time is None:
             # If still running, calculate from start to now

@@ -1,9 +1,9 @@
 """Setup initialization service."""
 
-import os
-from pathlib import Path
-from typing import Optional, Dict, Any
 import sqlite3
+from pathlib import Path
+from typing import Any
+
 from src.core.lib_logger import get_logger
 
 logger = get_logger(__name__)
@@ -12,7 +12,7 @@ logger = get_logger(__name__)
 class SetupInitializer:
     """Service for initializing DocBro setup."""
 
-    def __init__(self, home_dir: Optional[Path] = None):
+    def __init__(self, home_dir: Path | None = None):
         """Initialize the setup initializer.
 
         Args:
@@ -23,7 +23,7 @@ class SetupInitializer:
         self.data_dir = self.home_dir / ".local" / "share" / "docbro"
         self.cache_dir = self.home_dir / ".cache" / "docbro"
 
-    def create_directories(self) -> Dict[str, Path]:
+    def create_directories(self) -> dict[str, Path]:
         """Create required directory structure.
 
         Returns:
@@ -92,7 +92,7 @@ class SetupInitializer:
 
         return db_path
 
-    def initialize_qdrant(self) -> Dict[str, Any]:
+    def initialize_qdrant(self) -> dict[str, Any]:
         """Initialize Qdrant vector store configuration.
 
         Returns:
@@ -110,7 +110,7 @@ class SetupInitializer:
         logger.info("Configured Qdrant connection settings")
         return config
 
-    def initialize_embedding_model(self, model: str = "mxbai-embed-large") -> Dict[str, Any]:
+    def initialize_embedding_model(self, model: str = "mxbai-embed-large") -> dict[str, Any]:
         """Initialize embedding model configuration.
 
         Args:
@@ -129,7 +129,7 @@ class SetupInitializer:
         logger.info(f"Configured embedding model: {model}")
         return config
 
-    def create_default_config(self) -> Dict[str, Any]:
+    def create_default_config(self) -> dict[str, Any]:
         """Create default configuration.
 
         Returns:
@@ -153,7 +153,7 @@ class SetupInitializer:
         vector_store: str = "sqlite_vec",
         auto: bool = False,
         **kwargs
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Execute full initialization.
 
         Args:

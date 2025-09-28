@@ -1,8 +1,9 @@
 """WizardState model for interactive CLI wizards."""
 
-from typing import Dict, Any, List, Optional
 from enum import Enum
-from pydantic import ConfigDict, BaseModel, Field, field_validator
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class WizardType(str, Enum):
@@ -19,9 +20,9 @@ class WizardStep(BaseModel):
     prompt: str
     field_name: str
     required: bool = True
-    default: Optional[Any] = None
-    validator: Optional[str] = None  # Name of validation function
-    help_text: Optional[str] = None
+    default: Any | None = None
+    validator: str | None = None  # Name of validation function
+    help_text: str | None = None
 
 
 class WizardState(BaseModel):
@@ -30,13 +31,13 @@ class WizardState(BaseModel):
     wizard_type: WizardType
     current_step: int = Field(default=1, ge=1)
     total_steps: int = Field(ge=1)
-    collected_inputs: Dict[str, Any] = Field(default_factory=dict)
-    validation_errors: List[str] = Field(default_factory=list)
+    collected_inputs: dict[str, Any] = Field(default_factory=dict)
+    validation_errors: list[str] = Field(default_factory=list)
     can_proceed: bool = Field(default=True)
     can_go_back: bool = Field(default=False)
     completed: bool = Field(default=False)
     cancelled: bool = Field(default=False)
-    steps: List[WizardStep] = Field(default_factory=list)
+    steps: list[WizardStep] = Field(default_factory=list)
 
     @field_validator('current_step')
     @classmethod
@@ -55,7 +56,7 @@ class WizardState(BaseModel):
         self.steps.append(step)
         self.total_steps = len(self.steps)
 
-    def get_current_step(self) -> Optional[WizardStep]:
+    def get_current_step(self) -> WizardStep | None:
         """Get the current step.
 
         Returns:

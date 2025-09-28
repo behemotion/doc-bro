@@ -1,13 +1,13 @@
 """Configuration validator service for health checks."""
 
-import json
-import yaml
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import Any
 
+import yaml
+
+from ..models.category import HealthCategory
 from ..models.health_check import HealthCheck
 from ..models.status import HealthStatus
-from ..models.category import HealthCategory
 
 
 class ConfigurationValidator:
@@ -203,7 +203,7 @@ class ConfigurationValidator:
                 execution_time=execution_time
             )
 
-    async def validate_all_configurations(self) -> List[HealthCheck]:
+    async def validate_all_configurations(self) -> list[HealthCheck]:
         """Validate all configuration files."""
         import asyncio
 
@@ -235,7 +235,7 @@ class ConfigurationValidator:
 
         return valid_checks
 
-    def _get_config_paths(self) -> Dict[str, Optional[Path]]:
+    def _get_config_paths(self) -> dict[str, Path | None]:
         """Get configuration file paths."""
         try:
             from src.services.config import ConfigService
@@ -247,8 +247,8 @@ class ConfigurationValidator:
             }
         except Exception:
             # Fallback to standard XDG paths
-            from pathlib import Path
             import os
+            from pathlib import Path
 
             config_dir = Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config')) / 'docbro'
             data_dir = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local' / 'share')) / 'docbro'
@@ -258,13 +258,13 @@ class ConfigurationValidator:
                 'projects': data_dir / 'projects'
             }
 
-    async def _validate_yaml_file(self, file_path: Path) -> Dict[str, Any]:
+    async def _validate_yaml_file(self, file_path: Path) -> dict[str, Any]:
         """Validate a YAML file and return validation result."""
         try:
             if not file_path.exists():
                 return {'valid': False, 'error': 'File does not exist'}
 
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, encoding='utf-8') as f:
                 data = yaml.safe_load(f)
 
             if data is None:
@@ -279,13 +279,13 @@ class ConfigurationValidator:
         except Exception as e:
             return {'valid': False, 'error': f'Unexpected error: {e}'}
 
-    async def _load_yaml_file(self, file_path: Path) -> Optional[Dict[str, Any]]:
+    async def _load_yaml_file(self, file_path: Path) -> dict[str, Any] | None:
         """Load a YAML file and return its contents."""
         try:
             if not file_path.exists():
                 return None
 
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, encoding='utf-8') as f:
                 return yaml.safe_load(f)
 
         except Exception:

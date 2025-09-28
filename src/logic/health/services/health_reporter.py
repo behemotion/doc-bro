@@ -1,10 +1,8 @@
 """Health reporter service for generating health reports."""
 
 import json
-import yaml
-from datetime import datetime
-from typing import List, Dict, Any, Optional
 
+import yaml
 from rich.console import Console
 from rich.table import Table
 
@@ -20,7 +18,7 @@ class HealthReporter:
         """Initialize health reporter."""
         self.console = Console()
 
-    def generate_report(self, checks: List[HealthCheck], execution_time: float,
+    def generate_report(self, checks: list[HealthCheck], execution_time: float,
                        timeout_occurred: bool = False) -> HealthReport:
         """Generate a complete health report from health checks."""
         if not checks:
@@ -32,7 +30,7 @@ class HealthReporter:
             timeout_occurred=timeout_occurred
         )
 
-    def format_table_output(self, report: HealthReport, title: Optional[str] = None) -> str:
+    def format_table_output(self, report: HealthReport, title: str | None = None) -> str:
         """Format health report as a Rich table."""
         console = Console(file=None, force_terminal=False)
 
@@ -116,7 +114,7 @@ class HealthReporter:
 
         with console.capture() as capture:
             # Header
-            console.print(f"[bold cyan]DocBro Health Report[/bold cyan]")
+            console.print("[bold cyan]DocBro Health Report[/bold cyan]")
             console.print(f"Generated: {report.timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
             console.print()
 
@@ -167,7 +165,7 @@ class HealthReporter:
         return capture.get()
 
     def format_output(self, report: HealthReport, format_type: str = "table",
-                     detailed: bool = False, title: Optional[str] = None) -> str:
+                     detailed: bool = False, title: str | None = None) -> str:
         """Format health report based on specified format type."""
         if format_type.lower() == "json":
             return self.format_json_output(report)
@@ -185,7 +183,7 @@ class HealthReporter:
         """Get appropriate CLI exit code for the health report."""
         return report.exit_code
 
-    def get_resolution_suggestions(self, report: HealthReport) -> List[str]:
+    def get_resolution_suggestions(self, report: HealthReport) -> list[str]:
         """Get all resolution suggestions from health checks with issues."""
         suggestions = []
 
@@ -215,8 +213,8 @@ class HealthReporter:
         Returns:
             Formatted table string with command guide
         """
-        from rich.table import Table
         from rich.console import Console
+        from rich.table import Table
 
         console = Console(file=None, force_terminal=False)
 

@@ -1,8 +1,6 @@
 """Project management service."""
 
 import logging
-from typing import List, Optional
-from pathlib import Path
 
 from src.models.project_status import ProjectStatus
 
@@ -44,7 +42,7 @@ class ProjectManager:
         logger.info(f"Created project: {name}")
         return project
 
-    async def get_project(self, name: str) -> Optional[ProjectStatus]:
+    async def get_project(self, name: str) -> ProjectStatus | None:
         """Get a project by name.
 
         Args:
@@ -55,7 +53,7 @@ class ProjectManager:
         """
         return self.projects.get(name)
 
-    async def list_projects(self) -> List[ProjectStatus]:
+    async def list_projects(self) -> list[ProjectStatus]:
         """List all projects.
 
         Returns:

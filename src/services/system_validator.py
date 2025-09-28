@@ -6,14 +6,12 @@ and UV availability. Returns SystemRequirements model instances with validation 
 """
 
 import asyncio
-import os
+import logging
 import platform
 import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
-import logging
 
 from packaging import version
 
@@ -142,7 +140,7 @@ class SystemRequirementsService:
     def _get_linux_memory(self) -> int:
         """Get available memory on Linux from /proc/meminfo."""
         try:
-            with open('/proc/meminfo', 'r') as f:
+            with open('/proc/meminfo') as f:
                 meminfo = f.read()
 
             # Parse MemAvailable (preferred) or calculate from MemFree + Buffers + Cached
@@ -229,7 +227,7 @@ class SystemRequirementsService:
             logger.error(f"Failed to get Windows memory info: {e}")
             return 8  # Default assumption
 
-    def _get_available_disk_gb(self, path: Optional[Path] = None) -> int:
+    def _get_available_disk_gb(self, path: Path | None = None) -> int:
         """Get available disk space in GB.
 
         Args:
@@ -276,7 +274,7 @@ class SystemRequirementsService:
         supported_platforms = {"darwin", "linux", "windows"}
         return platform_name.lower() in supported_platforms
 
-    async def _check_uv_availability(self) -> tuple[bool, Optional[str]]:
+    async def _check_uv_availability(self) -> tuple[bool, str | None]:
         """Check if UV package manager is available and get version.
 
         Returns:
@@ -301,7 +299,7 @@ class SystemRequirementsService:
             logger.error(f"UV availability check failed: {e}")
             return False, None
 
-    def _run_uv_version_command(self) -> Optional[str]:
+    def _run_uv_version_command(self) -> str | None:
         """Run UV version command synchronously.
 
         Returns:
@@ -357,7 +355,7 @@ class SystemRequirementsService:
         is_valid = memory_gb >= 4
         return is_valid, memory_gb
 
-    async def check_disk_requirements(self, path: Optional[Path] = None) -> tuple[bool, int]:
+    async def check_disk_requirements(self, path: Path | None = None) -> tuple[bool, int]:
         """Check only disk space requirements.
 
         Args:
@@ -380,7 +378,7 @@ class SystemRequirementsService:
         is_supported = self._is_platform_supported(platform_name)
         return is_supported, platform_name
 
-    async def check_uv_requirements(self) -> tuple[bool, Optional[str]]:
+    async def check_uv_requirements(self) -> tuple[bool, str | None]:
         """Check only UV availability requirements.
 
         Returns:

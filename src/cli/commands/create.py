@@ -1,10 +1,8 @@
 """Create command for DocBro CLI."""
 
 import asyncio
-from typing import Optional
 
 import click
-from rich.console import Console
 from rich.panel import Panel
 
 # Optional uvloop for better performance
@@ -38,7 +36,7 @@ def get_app():
 @click.option("--depth", "-d", type=int, help="Maximum crawl depth (uses system default if not specified)")
 @click.option("--model", "-m", default="mxbai-embed-large", help="Embedding model")
 @click.pass_context
-def create(ctx: click.Context, name: Optional[str], url: Optional[str], depth: Optional[int], model: str):
+def create(ctx: click.Context, name: str | None, url: str | None, depth: int | None, model: str):
     """Create a new documentation project.
 
     Note: URLs with special characters (?, &, etc.) must be quoted:
@@ -135,13 +133,13 @@ def create(ctx: click.Context, name: Optional[str], url: Optional[str], depth: O
             if project.source_url:
                 success_content += f"URL: {project.source_url}\n"
             else:
-                success_content += f"URL: [yellow]Not set (provide when crawling)[/yellow]\n"
+                success_content += "URL: [yellow]Not set (provide when crawling)[/yellow]\n"
             success_content += f"Depth: {project.crawl_depth}\n\n"
 
             if not url_to_use:
                 success_content += "[cyan]Next steps:[/cyan]\n"
                 success_content += f"  • Crawl documentation: [cyan]docbro crawl {name_to_use} --url \"YOUR_URL\"[/cyan]\n"
-                success_content += f"  • Start MCP server: [cyan]docbro serve[/cyan]"
+                success_content += "  • Start MCP server: [cyan]docbro serve[/cyan]"
             else:
                 success_content += f"[cyan]Next step:[/cyan] Run [cyan]docbro crawl {name_to_use}[/cyan] to start crawling"
 

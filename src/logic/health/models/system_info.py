@@ -1,20 +1,21 @@
 """System info entity model."""
 
-from typing import Optional
-from pydantic import BaseModel, Field, validator
+
+from pydantic import BaseModel, Field, field_validator
 
 
 class SystemInfo(BaseModel):
     """System requirement validation status."""
 
     python_version: str = Field(..., description="Detected Python version")
-    uv_version: Optional[str] = Field(None, description="Detected UV version if available")
+    uv_version: str | None = Field(None, description="Detected UV version if available")
     memory_gb: float = Field(..., gt=0, description="Available system memory in GB")
     disk_space_gb: float = Field(..., gt=0, description="Available disk space in GB")
     platform: str = Field(..., description="Operating system platform")
     requirements_met: bool = Field(..., description="Whether all system requirements are satisfied")
 
-    @validator('python_version')
+    @field_validator('python_version')
+    @classmethod
     def validate_python_version_format(cls, v):
         """Validate Python version follows semantic version format."""
         import re
@@ -24,7 +25,8 @@ class SystemInfo(BaseModel):
             raise ValueError("Python version must follow semantic version format (e.g., '3.13.1')")
         return v
 
-    @validator('platform')
+    @field_validator('platform')
+    @classmethod
     def validate_platform_identifier(cls, v):
         """Validate platform is a valid platform identifier."""
         valid_platforms = ['darwin', 'linux', 'win32', 'cygwin', 'msys']
@@ -68,8 +70,6 @@ class SystemInfo(BaseModel):
             "requirements_met": self.requirements_met
         }
 
-    class Config:
-        """Pydantic configuration."""
-        pass
+    model_config = {}
 
 

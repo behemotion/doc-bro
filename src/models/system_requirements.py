@@ -8,9 +8,8 @@ in installation.py which defines what requirements are needed.
 - system_requirements.py SystemRequirements: Validation of current system against requirements
 """
 
-from typing import Optional
-from packaging import version
 
+from packaging import version
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -31,7 +30,7 @@ class SystemRequirements(BaseModel):
     platform: str = Field(..., description="Operating system platform")
     platform_supported: bool = Field(..., description="Whether platform is supported")
     uv_available: bool = Field(..., description="Whether UV package manager is available")
-    uv_version: Optional[str] = Field(None, description="UV version if available")
+    uv_version: str | None = Field(None, description="UV version if available")
 
     @field_validator('python_version')
     @classmethod
@@ -127,7 +126,7 @@ class SystemRequirements(BaseModel):
 
     @field_validator('uv_version')
     @classmethod
-    def validate_uv_version(cls, v: Optional[str]) -> Optional[str]:
+    def validate_uv_version(cls, v: str | None) -> str | None:
         """Validate UV version format if provided."""
         if v is not None:
             try:

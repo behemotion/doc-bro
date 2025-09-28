@@ -1,6 +1,5 @@
 """Health command router for flag parsing and routing."""
 
-from typing import Optional, Set, Tuple
 from enum import Enum
 
 from ..models.category import HealthCategory
@@ -30,7 +29,7 @@ class HealthCommandRouter:
                    verbose: bool = False,
                    quiet: bool = False,
                    timeout: int = 15,
-                   parallel: int = 4) -> Tuple[Set[HealthCategory], dict]:
+                   parallel: int = 4) -> tuple[set[HealthCategory], dict]:
         """Parse and validate health command flags.
 
         Args:
@@ -83,7 +82,7 @@ class HealthCommandRouter:
         return categories, validated_options
 
     def _determine_categories(self, system: bool, services: bool,
-                            config: bool, projects: bool) -> Set[HealthCategory]:
+                            config: bool, projects: bool) -> set[HealthCategory]:
         """Determine which categories to check based on flags."""
         categories = set()
 
@@ -129,7 +128,7 @@ class HealthCommandRouter:
             # This is allowed but may not be very useful
             pass
 
-    def get_title_for_categories(self, categories: Set[HealthCategory]) -> str:
+    def get_title_for_categories(self, categories: set[HealthCategory]) -> str:
         """Get appropriate title for the selected categories."""
         if len(categories) == 1:
             category = next(iter(categories))
