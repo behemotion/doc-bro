@@ -326,6 +326,7 @@ from src.cli.commands.health import health
 from src.cli.commands.project import project
 from src.cli.commands.serve import serve
 from src.cli.commands.setup import setup
+from src.cli.commands.upload import upload
 
 # Legacy commands removed - functionality moved to unified health command
 
@@ -341,6 +342,7 @@ except ImportError:
 # Add commands to main group
 main.add_command(project)
 main.add_command(crawl)
+main.add_command(upload)
 main.add_command(serve)
 main.add_command(health)
 main.add_command(setup)
