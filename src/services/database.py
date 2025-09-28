@@ -1144,18 +1144,51 @@ class DatabaseManager:
         self._ensure_initialized()
 
         try:
-            # Get counts before deletion
-            pages_cursor = await self._connection.execute(
-                "SELECT COUNT(*) FROM pages WHERE project_id = ?", (project_id,)
-            )
-            pages_count = (await pages_cursor.fetchone())[0]
+            # First get project info to get the project name
+            project = await self.get_project_by_id(project_id)
+            if not project:
+                return {"success": False, "error": "Project not found"}
 
-            sessions_cursor = await self._connection.execute(
-                "SELECT COUNT(*) FROM crawl_sessions WHERE project_id = ?", (project_id,)
-            )
-            sessions_count = (await sessions_cursor.fetchone())[0]
+            pages_count = 0
+            sessions_count = 0
 
-            # Delete project (cascades to sessions and pages)
+            # Try to get counts from project database if it exists
+            try:
+                project_conn = await self._get_project_connection(project.name)
+
+                pages_cursor = await project_conn.execute("SELECT COUNT(*) FROM pages")
+                pages_count = (await pages_cursor.fetchone())[0]
+
+                sessions_cursor = await project_conn.execute("SELECT COUNT(*) FROM crawl_sessions")
+                sessions_count = (await sessions_cursor.fetchone())[0]
+
+                # Close project connection
+                await project_conn.close()
+                if project.name in self._project_connections:
+                    del self._project_connections[project.name]
+
+            except Exception as e:
+                self.logger.warning("Could not get project data counts", extra={
+                    "project_name": project.name,
+                    "error": str(e)
+                })
+
+            # Delete project-specific database file if it exists
+            try:
+                project_db_path = self._get_project_db_path(project.name)
+                if project_db_path.exists():
+                    project_db_path.unlink()
+                    self.logger.info("Deleted project database file", extra={
+                        "project_name": project.name,
+                        "path": str(project_db_path)
+                    })
+            except Exception as e:
+                self.logger.warning("Could not delete project database file", extra={
+                    "project_name": project.name,
+                    "error": str(e)
+                })
+
+            # Delete project from main database
             deleted = await self.delete_project(project_id)
 
             return {
