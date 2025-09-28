@@ -43,13 +43,16 @@ class ReadOnlyMcpService:
             # Convert to response format
             project_data = []
             for project in projects:
+                # Get description from metadata or use empty string
+                description = project.metadata.get('description', '') if hasattr(project, 'metadata') else ''
+
                 project_data.append({
                     "name": project.name,
                     "type": project.type,
                     "status": project.status,
-                    "description": project.description or "",
+                    "description": description,
                     "created_at": project.created_at.isoformat() if project.created_at else None,
-                    "last_updated": project.last_updated.isoformat() if project.last_updated else None,
+                    "last_updated": project.updated_at.isoformat() if hasattr(project, 'updated_at') and project.updated_at else None,
                     "file_count": getattr(project, 'file_count', 0)
                 })
 
