@@ -41,9 +41,11 @@ def get_app():
     return main_get_app()
 
 
-def get_project_manager():
+async def get_project_manager():
     """Get or create ProjectManager instance."""
-    return ProjectManager()
+    manager = ProjectManager()
+    await manager._ensure_db_initialized()
+    return manager
 
 
 # CLI Error Messages from contracts
@@ -160,7 +162,7 @@ async def interactive_project_menu():
     navigator = ArrowNavigator()
 
     try:
-        project_manager = get_project_manager()
+        project_manager = await get_project_manager()
 
         # Get existing projects
         projects = await project_manager.list_projects()
@@ -257,7 +259,7 @@ async def _interactive_list_projects():
     console = Console()
 
     try:
-        project_manager = get_project_manager()
+        project_manager = await get_project_manager()
 
         projects = await project_manager.list_projects()
 
@@ -369,7 +371,7 @@ async def _interactive_project_stats(projects):
     console = Console()
 
     try:
-        project_manager = get_project_manager()
+        project_manager = await get_project_manager()
 
         # Create stats table
         table = Table(title="Project Statistics")
@@ -448,7 +450,7 @@ async def _create_project_impl(name: str, project_type: str, description: str | 
     console = Console()
 
     try:
-        project_manager = get_project_manager()
+        project_manager = await get_project_manager()
 
         # Validate project type
         try:
@@ -506,7 +508,7 @@ async def _list_projects_impl(status: str | None, project_type: str | None,
     console = Console()
 
     try:
-        project_manager = get_project_manager()
+        project_manager = await get_project_manager()
 
         # Convert string parameters to enums
         status_filter = None
@@ -582,7 +584,7 @@ async def _remove_project_impl(name: str, confirm: bool, backup: bool, force: bo
     console = Console()
 
     try:
-        project_manager = get_project_manager()
+        project_manager = await get_project_manager()
 
         # Check if project exists
         project = await project_manager.get_project(name)
@@ -622,7 +624,7 @@ async def _show_project_impl(name: str, detailed: bool):
     console = Console()
 
     try:
-        project_manager = get_project_manager()
+        project_manager = await get_project_manager()
 
         # Get project
         project = await project_manager.get_project(name)
@@ -668,7 +670,7 @@ async def _update_project_impl(name: str, settings: str | None, description: str
     console = Console()
 
     try:
-        project_manager = get_project_manager()
+        project_manager = await get_project_manager()
 
         # Get project
         project = await project_manager.get_project(name)
