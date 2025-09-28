@@ -41,7 +41,7 @@ def initialize_services():
     config = get_config()
 
     # Initialize dependencies
-    vector_store = VectorStoreFactory.create()
+    vector_store = VectorStoreFactory.create_vector_store(config)
     embedding_service = EmbeddingService(config)
 
     # Initialize main services
