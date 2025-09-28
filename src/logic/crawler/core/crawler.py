@@ -203,7 +203,7 @@ class DocumentationCrawler:
                         self._crawl_queue.get(),
                         timeout=timeout_seconds
                     )
-                    self.logger.debug(f"Got URL from queue: {url}, depth: {depth}")
+                    self.logger.info(f"Got URL from queue: {url}, depth: {depth}, visited_urls: {len(self._visited_urls)}")
 
                     # Update progress with current depth and counts
                     if depth != current_depth:
@@ -236,7 +236,7 @@ class DocumentationCrawler:
 
                 # Skip if already visited
                 if url in self._visited_urls:
-                    self.logger.debug(f"Skipping already visited URL: {url}")
+                    self.logger.info(f"Skipping already visited URL: {url} (visited: {self._visited_urls})")
                     continue
 
                 # Skip if depth exceeded
