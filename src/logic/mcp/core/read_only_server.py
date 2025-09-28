@@ -7,8 +7,8 @@ from typing import Dict, Any, Optional, List
 
 from src.logic.mcp.models.response import McpResponse
 from src.logic.mcp.services.read_only import ReadOnlyMcpService
-from src.services.project import ProjectService
-from src.services.search import SearchService
+from src.services.project_manager import ProjectManager
+from src.services.rag import RAGSearchService
 
 logger = logging.getLogger(__name__)
 
@@ -31,11 +31,11 @@ def initialize_services():
     global project_service, search_service, read_only_service
 
     # In production, these would be properly initialized with configuration
-    from src.services.project import ProjectService
-    from src.services.search import SearchService
+    from src.services.project_manager import ProjectManager
+    from src.services.rag import RAGSearchService
 
-    project_service = ProjectService()
-    search_service = SearchService()
+    project_service = ProjectManager()
+    search_service = RAGSearchService()
     read_only_service = ReadOnlyMcpService(project_service, search_service)
 
 

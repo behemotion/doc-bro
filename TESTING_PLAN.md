@@ -41,6 +41,17 @@
 - [ ] Test invalid YAML in config file
 - [ ] Test missing config file handling
 
+### 1.8 Setup Flag Combinations
+- [ ] `docbro setup --init --force` - force reinitialize
+- [ ] `docbro setup --init --auto --force` - auto with force
+- [ ] `docbro setup --init --non-interactive --vector-store sqlite_vec`
+- [ ] `docbro setup --uninstall --backup --dry-run` - preview with backup
+- [ ] `docbro setup --reset --preserve-data --force` - reset keeping data
+- [ ] `docbro setup --uninstall --preserve-data --backup`
+- [ ] Test invalid combinations: `--init --uninstall`
+- [ ] Test invalid combinations: `--init --reset`
+- [ ] Test invalid combinations: `--uninstall --reset`
+
 ### 1.4 Uninstall Testing
 - [ ] `docbro setup --uninstall` - test interactive uninstall
 - [ ] `docbro setup --uninstall --force` - test forced uninstall
@@ -157,9 +168,21 @@
 ### 3.3 Batch Operations
 - [ ] `docbro crawl --update test-crawl`
 - [ ] `docbro crawl --update --all`
+- [ ] `docbro crawl --update --all --parallel 4` - parallel updates
+- [ ] `docbro crawl --update --all --parallel 1` - sequential updates
+- [ ] `docbro crawl --update --all --quiet` - suppress progress
+- [ ] `docbro crawl --update --all --debug` - detailed output
 - [ ] Test batch with mixed project types
 - [ ] Test batch interruption and resume
 - [ ] Test batch with some failures
+
+### 3.5 Crawl Flag Combinations
+- [ ] `docbro crawl test --url https://example.com --max-pages 10 --depth 2 --rate-limit 0.5`
+- [ ] `docbro crawl test --update --debug --quiet` - conflicting flags
+- [ ] `docbro crawl test --url https://example.com --parallel 8 --rate-limit 10` - aggressive crawling
+- [ ] `docbro crawl test --max-pages 1 --depth 0` - single page only
+- [ ] Test crawl without project name (should fail)
+- [ ] Test crawl with both --url and --update (should handle properly)
 
 ### 3.4 Error Handling
 - [ ] Test crawl with 404 errors
@@ -173,35 +196,87 @@
 
 ## 4. Upload Command Testing
 
-### 4.1 File Upload
-- [ ] `docbro upload files --project test1 --source /path/to/file --type document`
-- [ ] `docbro upload files --project test1 --source /path/to/dir --type code`
+### 4.1 Interactive Mode
+- [ ] `docbro upload` - launch interactive menu
+- [ ] Test project selection navigation
+- [ ] Test source type selection (local, http, ftp, sftp, smb)
+- [ ] Test file browser navigation
+- [ ] Test multi-file selection
+- [ ] Test upload cancellation
+
+### 4.2 Local File Upload
+- [ ] `docbro upload files --project test1 --source /path/to/file --type local`
+- [ ] `docbro upload files --project test1 --source /path/to/dir --type local --recursive`
+- [ ] `docbro upload files --project test1 --source /path/to/dir --type local --recursive --exclude "*.tmp"`
+- [ ] `docbro upload files --project test1 --source /path/to/file --type local --dry-run`
+- [ ] `docbro upload files --project test1 --source /path/to/file --type local --overwrite ask`
+- [ ] `docbro upload files --project test1 --source /path/to/file --type local --overwrite skip`
+- [ ] `docbro upload files --project test1 --source /path/to/file --type local --overwrite overwrite`
+- [ ] `docbro upload files --project test1 --source /path/to/file --type local --progress`
+- [ ] Test upload with multiple --exclude patterns
 - [ ] Test upload with non-existent file
 - [ ] Test upload with permission denied
 - [ ] Test upload of large files (>100MB)
 - [ ] Test upload of binary files
 - [ ] Test upload with symlinks
-- [ ] Test recursive directory upload
+- [ ] Test upload with spaces in filename
+- [ ] Test upload with Unicode filenames
 
-### 4.2 URL Upload
-- [ ] `docbro upload files --project test1 --source https://example.com/doc.pdf --type pdf`
+### 4.3 HTTP/HTTPS Upload
+- [ ] `docbro upload files --project test1 --source https://example.com/doc.pdf --type https`
+- [ ] `docbro upload files --project test1 --source http://example.com/data.json --type http`
+- [ ] `docbro upload files --project test1 --source https://example.com/file --type https --username user`
 - [ ] Test URL upload with authentication
 - [ ] Test URL upload with large files
 - [ ] Test URL upload with timeout
+- [ ] Test URL upload with redirects
+- [ ] Test URL upload with SSL errors
 
-### 4.3 Status Monitoring
+### 4.4 FTP Upload
+- [ ] `docbro upload files --project test1 --source ftp://server/path --type ftp`
+- [ ] `docbro upload files --project test1 --source ftp://server/path --type ftp --username user`
+- [ ] `docbro upload files --project test1 --source ftp://server/path --type ftp --recursive`
+- [ ] Test FTP with anonymous access
+- [ ] Test FTP with authentication
+- [ ] Test FTP with passive mode
+- [ ] Test FTP connection failures
+
+### 4.5 SFTP Upload
+- [ ] `docbro upload files --project test1 --source sftp://server/path --type sftp`
+- [ ] `docbro upload files --project test1 --source sftp://server/path --type sftp --username user`
+- [ ] `docbro upload files --project test1 --source sftp://server/path --type sftp --recursive`
+- [ ] Test SFTP with password authentication
+- [ ] Test SFTP with SSH key authentication
+- [ ] Test SFTP with non-standard port
+- [ ] Test SFTP connection failures
+
+### 4.6 SMB Upload
+- [ ] `docbro upload files --project test1 --source smb://server/share/path --type smb`
+- [ ] `docbro upload files --project test1 --source smb://server/share/path --type smb --username user`
+- [ ] `docbro upload files --project test1 --source smb://server/share/path --type smb --recursive`
+- [ ] Test SMB with domain authentication
+- [ ] Test SMB with guest access
+- [ ] Test SMB connection failures
+
+### 4.7 Status Monitoring
 - [ ] `docbro upload status`
 - [ ] `docbro upload status --project test1`
+- [ ] `docbro upload status --operation upload_test1_12345`
 - [ ] `docbro upload status --active`
 - [ ] Test status during active upload
 - [ ] Test status with completed uploads
 - [ ] Test status with failed uploads
+- [ ] Test status with no uploads
 
-### 4.4 Interactive Upload
-- [ ] `docbro upload` - test interactive mode
-- [ ] Test file browser navigation
-- [ ] Test multi-file selection
-- [ ] Test upload cancellation
+### 4.8 Advanced Upload Options
+- [ ] Combination: `--recursive --exclude "*.log" --exclude "*.tmp"`
+- [ ] Combination: `--dry-run --progress`
+- [ ] Combination: `--overwrite skip --recursive`
+- [ ] Test upload with project that doesn't exist
+- [ ] Test upload with invalid source type
+- [ ] Test upload with conflicting flags
+- [ ] Test upload with insufficient disk space
+- [ ] Test upload interruption and resume
 
 ## 5. Serve Command Testing
 
@@ -245,12 +320,23 @@
 
 ## 6. Health Command Testing
 
+### 6.1 Basic Health Checks
 - [ ] `docbro health` - full health check
-- [ ] `docbro health --system` - system checks
-- [ ] `docbro health --services` - service checks
-- [ ] `docbro health --config` - configuration checks
-- [ ] `docbro health --projects` - project checks
-- [ ] `docbro health --format json`
+- [ ] `docbro health --system` - system checks only
+- [ ] `docbro health --services` - external service checks only
+- [ ] `docbro health --config` - configuration validity checks
+- [ ] `docbro health --projects` - project-specific health checks
+- [ ] `docbro health --verbose` - detailed diagnostic information
+- [ ] `docbro health --timeout 5` - quick health check
+- [ ] `docbro health --timeout 60` - thorough health check
+
+### 6.2 Health Flag Combinations
+- [ ] `docbro health --system --services` - multiple checks
+- [ ] `docbro health --config --projects --verbose` - detailed subset
+- [ ] `docbro health --services --timeout 1` - quick service check
+- [ ] `docbro health --format json` - JSON output
+- [ ] Test health with all flags combined
+- [ ] Test health with no vector store configured
 - [ ] Test health with degraded services
 - [ ] Test health with critical failures
 
@@ -405,19 +491,57 @@
 - [ ] Verify error suggestions work
 - [ ] Verify stack traces are meaningful
 
-## 14. MCP Server Local Setup
+## 14. MCP Server Testing Strategy
 
-### 14.1 Configuration
-- [ ] Generate MCP configs in mcp/ directory
-- [ ] Configure read-only server
-- [ ] Configure admin server
-- [ ] Test with Claude Code
+### 14.1 Fix Module Import Issues
+- [ ] Identify missing `src.services.project` module references
+- [ ] Update import paths to new organization structure
+- [ ] Test imports after fixing
+- [ ] Verify all MCP dependencies are available
 
-### 14.2 Testing
-- [ ] Connect Claude Code to servers
-- [ ] Execute read operations
-- [ ] Execute admin operations
-- [ ] Verify security boundaries
+### 14.2 MCP Server Setup
+- [ ] Start read-only server: `docbro serve --host 0.0.0.0 --port 9383`
+- [ ] Start admin server: `docbro serve --admin --host 127.0.0.1 --port 9384`
+- [ ] Verify both servers can run simultaneously
+- [ ] Check server logs for startup errors
+- [ ] Test server shutdown and restart
+
+### 14.3 Local Testing with curl
+- [ ] Test health endpoint: `curl http://localhost:9383/health`
+- [ ] Test project list: `curl http://localhost:9383/projects`
+- [ ] Test specific project: `curl http://localhost:9383/projects/{name}`
+- [ ] Test search endpoint: `curl -X POST http://localhost:9383/search -H "Content-Type: application/json" -d '{"query":"test"}'`
+- [ ] Test admin endpoints on port 9384
+- [ ] Verify localhost-only restriction on admin server
+
+### 14.4 MCP Protocol Testing
+- [ ] Test MCP tool discovery endpoint
+- [ ] Test MCP resource listing
+- [ ] Test MCP prompt generation
+- [ ] Generate MCP client configs in mcp/ directory
+- [ ] Test with MCP test client (if available)
+
+### 14.5 Claude Code Integration
+- [ ] Configure Claude Code with read-only server
+- [ ] Configure Claude Code with admin server
+- [ ] Test project listing via Claude Code
+- [ ] Test search functionality via Claude Code
+- [ ] Test admin commands via Claude Code
+- [ ] Verify blocked operations (uninstall, reset, delete-all)
+
+### 14.6 Playwright MCP Testing
+- [ ] Use Playwright to navigate to server endpoints
+- [ ] Screenshot API responses
+- [ ] Test concurrent requests
+- [ ] Test error handling with invalid requests
+- [ ] Monitor console logs for errors
+
+### 14.7 Security Testing
+- [ ] Verify admin server refuses non-localhost connections
+- [ ] Test path traversal protection
+- [ ] Test command injection protection
+- [ ] Test resource limits and timeouts
+- [ ] Verify operation restrictions work
 
 ## Test Execution Log
 

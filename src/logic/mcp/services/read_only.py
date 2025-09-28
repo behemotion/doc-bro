@@ -6,8 +6,8 @@ from datetime import datetime
 
 from src.logic.mcp.models.response import McpResponse
 from src.logic.mcp.models.file_access import FileAccessRequest, ProjectType, FileAccessType
-from src.services.project import ProjectService
-from src.services.search import SearchService
+from src.services.project_manager import ProjectManager
+from src.services.rag import RAGSearchService
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class ReadOnlyMcpService:
     """Service providing read-only MCP operations for project access."""
 
-    def __init__(self, project_service: ProjectService, search_service: SearchService):
+    def __init__(self, project_service: ProjectManager, search_service: RAGSearchService):
         """Initialize with required services."""
         self.project_service = project_service
         self.search_service = search_service
