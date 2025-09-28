@@ -11,6 +11,14 @@ from src.core.lib_logger import get_logger
 
 logger = get_logger(__name__)
 
+# Platform-specific imports
+try:
+    import termios
+    import tty
+    HAS_TERMIOS = True
+except ImportError:
+    HAS_TERMIOS = False
+
 
 class InteractiveMenu:
     """Interactive menu for setup operations."""
@@ -25,6 +33,7 @@ class InteractiveMenu:
         self.state = MenuState()
         self.options: List[str] = []
         self.current_index = 0
+        self._use_keyboard_navigation = sys.stdin.isatty() and HAS_TERMIOS
 
     def run(self) -> Optional[str]:
         """Run the interactive menu.
@@ -73,14 +82,13 @@ class InteractiveMenu:
         table.add_column("Key", style="yellow")
         table.add_column("Option")
 
-        for key, label, _ in options:
-            if self.current_index == int(key) - 1:
-                table.add_row(f"→ {key}", f"[bold]{label}[/bold]")
+        for i, (key, label, _) in enumerate(options):
+            if self.current_index == i:
+                table.add_row(f"→ {key}", f"[bold bright_white on blue] {label} [/bold bright_white on blue]")
             else:
                 table.add_row(f"  {key}", label)
 
         self.console.print(table)
-        self.options = [opt[2] for opt in options]
 
     def display_configuration_menu(self) -> None:
         """Display configuration modification menu."""
@@ -118,10 +126,64 @@ class InteractiveMenu:
         ]
 
         self.console.print("\n[yellow]Select an option:[/yellow]")
-        for key, label, _ in options:
-            self.console.print(f"  {key}. {label}")
+        options_table = Table(show_header=False, show_edge=False)
+        options_table.add_column("Key", style="yellow")
+        options_table.add_column("Option")
 
-        self.options = [opt[2] for opt in options]
+        for i, (key, label, _) in enumerate(options):
+            if self.current_index == i:
+                options_table.add_row(f"→ {key}", f"[bold bright_white on blue] {label} [/bold bright_white on blue]")
+            else:
+                options_table.add_row(f"  {key}", label)
+
+        self.console.print(options_table)
+
+    def _get_char(self) -> str:
+        """Get a single character from stdin without Enter.
+
+        Returns:
+            Character pressed or special key name
+        """
+        if not self._use_keyboard_navigation or not HAS_TERMIOS:
+            # Fallback for non-TTY environments or platforms without termios
+            return input().strip()
+
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+
+        try:
+            tty.setraw(sys.stdin.fileno())
+            ch = sys.stdin.read(1)
+
+            # Handle escape sequences (arrow keys)
+            if ch == '\x1b':  # ESC
+                ch2 = sys.stdin.read(1)
+                if ch2 == '[':
+                    ch3 = sys.stdin.read(1)
+                    if ch3 == 'A':
+                        return 'up'
+                    elif ch3 == 'B':
+                        return 'down'
+                    elif ch3 == 'C':
+                        return 'right'
+                    elif ch3 == 'D':
+                        return 'left'
+                return 'escape'
+            elif ch == '\r' or ch == '\n':
+                return 'enter'
+            elif ch == '\x03':  # Ctrl+C
+                raise KeyboardInterrupt
+            elif ch == 'q':
+                return 'quit'
+            elif ch == '?':
+                return 'help'
+            elif ch.isdigit():
+                return ch
+            else:
+                return ch
+
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
     def handle_key(self, key: str) -> Optional[str]:
         """Handle keyboard input.
@@ -133,20 +195,21 @@ class InteractiveMenu:
             Selected option or None
         """
         if key == "down":
-            self.state.move_selection(1, len(self.options))
-            self.current_index = self.state.selected_index
+            self.current_index = (self.current_index + 1) % len(self.options)
         elif key == "up":
-            self.state.move_selection(-1, len(self.options))
-            self.current_index = self.state.selected_index
+            self.current_index = (self.current_index - 1) % len(self.options)
         elif key == "enter":
             if self.options:
                 return self.options[self.current_index]
-        elif key == "escape":
-            return "back"
+        elif key == "escape" or key == "quit":
+            return "back" if not self.state.is_at_root() else "exit"
         elif key == "?":
-            self.state.toggle_help()
-            if self.state.help_visible:
-                self.display_help()
+            self.display_help()
+        elif key.isdigit():
+            # Allow direct number selection as fallback
+            idx = int(key) - 1
+            if 0 <= idx < len(self.options):
+                return self.options[idx]
 
         return None
 
@@ -155,16 +218,19 @@ class InteractiveMenu:
         help_text = """
 [bold yellow]Navigation Help[/bold yellow]
 
-• [cyan]↑/↓[/cyan] or [cyan]j/k[/cyan] - Navigate menu options
-• [cyan]Enter[/cyan] - Select current option
-• [cyan]Escape[/cyan] - Go back to previous menu
-• [cyan]?[/cyan] - Toggle this help
-• [cyan]q[/cyan] - Quit
+• [cyan]↑/↓[/cyan] Arrow keys - Navigate menu options
+• [cyan]1-5[/cyan] Numbers - Direct option selection
+• [cyan]Enter[/cyan] - Select highlighted option
+• [cyan]Escape[/cyan] or [cyan]q[/cyan] - Go back/quit
+• [cyan]?[/cyan] - Show this help
 
 [dim]Press any key to continue...[/dim]
 """
         self.console.print(Panel(help_text, title="Help", border_style="cyan"))
-        input()
+        if self._use_keyboard_navigation:
+            self._get_char()
+        else:
+            input()
 
     def render(self) -> None:
         """Render the current menu state."""
@@ -286,23 +352,36 @@ class InteractiveMenu:
         Returns:
             Selected option
         """
-        self.display_main_menu()
+        # Setup menu options
+        self.options = ["initialize", "configuration", "uninstall", "reset", "exit"]
+        self.current_index = 0
 
-        choice = Prompt.ask(
-            "\n[yellow]Select an option[/yellow]",
-            choices=["1", "2", "3", "4", "5"],
-            default="5"
-        )
+        while True:
+            self.clear_screen()
+            self.display_main_menu()
 
-        option_map = {
-            "1": "initialize",
-            "2": "configuration",
-            "3": "uninstall",
-            "4": "reset",
-            "5": "exit"
-        }
+            if self._use_keyboard_navigation:
+                self.console.print("\n[dim]Use ↑/↓ arrows or numbers to navigate, Enter to select, ? for help, q to quit[/dim]")
+                key = self._get_char()
+            else:
+                # Fallback to numbered input for non-TTY environments
+                choice = Prompt.ask(
+                    "\n[yellow]Select an option[/yellow]",
+                    choices=["1", "2", "3", "4", "5"],
+                    default="5"
+                )
+                option_map = {
+                    "1": "initialize",
+                    "2": "configuration",
+                    "3": "uninstall",
+                    "4": "reset",
+                    "5": "exit"
+                }
+                return option_map.get(choice)
 
-        return option_map.get(choice)
+            result = self.handle_key(key)
+            if result:
+                return result
 
     def _show_configuration_menu(self) -> Optional[str]:
         """Show configuration menu and get selection.
@@ -310,29 +389,44 @@ class InteractiveMenu:
         Returns:
             Selected option
         """
-        self.display_configuration_menu()
+        # Setup menu options
+        self.options = ["vector_store", "ollama_url", "embedding_model", "back"]
+        self.current_index = 0
 
-        choice = Prompt.ask(
-            "\n[yellow]Select an option[/yellow]",
-            choices=["1", "2", "3", "4"],
-            default="4"
-        )
+        while True:
+            self.clear_screen()
+            self.display_configuration_menu()
 
-        if choice == "4":
-            return "back"
+            if self._use_keyboard_navigation:
+                self.console.print("\n[dim]Use ↑/↓ arrows or numbers to navigate, Enter to select, ? for help, q to quit[/dim]")
+                key = self._get_char()
+            else:
+                # Fallback to numbered input for non-TTY environments
+                choice = Prompt.ask(
+                    "\n[yellow]Select an option[/yellow]",
+                    choices=["1", "2", "3", "4"],
+                    default="4"
+                )
+                if choice == "4":
+                    return "back"
 
-        # Handle configuration changes
-        option_map = {
-            "1": "vector_store",
-            "2": "ollama_url",
-            "3": "embedding_model"
-        }
+                option_map = {
+                    "1": "vector_store",
+                    "2": "ollama_url",
+                    "3": "embedding_model"
+                }
+                config_key = option_map.get(choice)
+                if config_key:
+                    self._modify_config_value(config_key)
+                continue
 
-        config_key = option_map.get(choice)
-        if config_key:
-            self._modify_config_value(config_key)
-
-        return None
+            result = self.handle_key(key)
+            if result == "back":
+                return "back"
+            elif result in ["vector_store", "ollama_url", "embedding_model"]:
+                self._modify_config_value(result)
+                # Stay in menu after modification
+                continue
 
     def _handle_configuration(self) -> None:
         """Handle configuration menu navigation."""
