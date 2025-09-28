@@ -108,6 +108,35 @@ class DocumentationCrawler:
 
         self.logger.debug("Crawler cleaned up")
 
+    def _is_documentation_url(self, url: str) -> bool:
+        """Check if URL likely contains documentation content."""
+        # Skip common asset file extensions
+        asset_extensions = {
+            '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.webp',  # Images
+            '.css', '.js', '.map',                                      # Stylesheets/Scripts
+            '.pdf', '.zip', '.tar', '.gz',                             # Downloads
+            '.woff', '.woff2', '.ttf', '.eot',                         # Fonts
+            '.xml', '.json', '.yaml', '.yml'                           # Data files
+        }
+
+        # Check if URL ends with asset extension
+        url_lower = url.lower()
+        for ext in asset_extensions:
+            if url_lower.endswith(ext):
+                return False
+
+        # Skip common asset directory patterns
+        asset_patterns = [
+            '/assets/', '/static/', '/css/', '/js/', '/images/', '/img/',
+            '/fonts/', '/downloads/', '/_static/', '/stylesheets/'
+        ]
+
+        for pattern in asset_patterns:
+            if pattern in url_lower:
+                return False
+
+        return True
+
     async def start_crawl(
         self,
         project_id: str,
@@ -244,6 +273,11 @@ class DocumentationCrawler:
                     self.logger.info(f"Skipping URL due to depth {depth} > {project.crawl_depth}: {url}")
                     continue
 
+                # Skip asset files - focus on documentation content
+                if not self._is_documentation_url(url):
+                    self.logger.debug(f"Skipping asset URL during processing: {url}")
+                    continue
+
                 # Check robots.txt
                 self.logger.debug(f"Checking robots.txt for URL: {url}")
                 robots_allowed = await self.check_robots_allowed(url, session.user_agent)
@@ -312,6 +346,11 @@ class DocumentationCrawler:
                         queued_count = 0
                         for link in page.internal_links:
                             if link not in self._visited_urls:
+                                # Skip asset files - focus on documentation content
+                                if not self._is_documentation_url(link):
+                                    self.logger.debug(f"Skipping asset URL: {link}")
+                                    continue
+
                                 new_depth = depth + 1
                                 if new_depth <= project.crawl_depth:
                                     self.logger.debug(f"Queueing link: {link} at depth {new_depth}")
