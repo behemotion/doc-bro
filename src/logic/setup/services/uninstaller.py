@@ -1,6 +1,8 @@
 """Setup uninstaller service."""
 
 import shutil
+import os
+import stat
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from datetime import datetime
@@ -55,15 +57,18 @@ class SetupUninstaller:
             else:
                 manifest.add_directory(self.data_dir)
 
-        # Add specific files if they exist
-        potential_files = [
-            self.home_dir / ".docbro",  # Legacy config file
+        # Add specific files and directories if they exist
+        potential_items = [
+            self.home_dir / ".docbro",  # Legacy directory or config file
             Path("/usr/local/bin/docbro"),  # Symlink if exists
         ]
 
-        for file_path in potential_files:
-            if file_path.exists():
-                manifest.add_file(file_path)
+        for item_path in potential_items:
+            if item_path.exists():
+                if item_path.is_dir():
+                    manifest.add_directory(item_path)
+                else:
+                    manifest.add_file(item_path)
 
         # Add config entries to clear
         manifest.add_config_entry("DOCBRO_HOME")
@@ -99,6 +104,63 @@ class SetupUninstaller:
         manifest.backup_location = backup_path
         return backup_path
 
+    def _remove_directory_robust(self, directory: Path) -> bool:
+        """Robustly remove a directory, handling permissions and attributes.
+
+        Args:
+            directory: Directory to remove
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # First try standard removal
+            shutil.rmtree(directory)
+            return True
+        except PermissionError:
+            try:
+                # Handle permission issues by changing permissions recursively
+                def handle_remove_readonly(func, path, exc):
+                    """Error handler for shutil.rmtree to handle readonly files."""
+                    if os.path.exists(path):
+                        # Make the file/directory writable and try again
+                        os.chmod(path, stat.S_IWRITE | stat.S_IREAD | stat.S_IEXEC)
+                        func(path)
+
+                shutil.rmtree(directory, onerror=handle_remove_readonly)
+                return True
+            except Exception as e:
+                logger.error(f"Failed to remove directory {directory} with permission fix: {e}")
+                return False
+        except Exception as e:
+            logger.error(f"Failed to remove directory {directory}: {e}")
+            return False
+
+    def _remove_file_robust(self, file_path: Path) -> bool:
+        """Robustly remove a file, handling permissions.
+
+        Args:
+            file_path: File to remove
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            file_path.unlink()
+            return True
+        except PermissionError:
+            try:
+                # Change permissions and try again
+                os.chmod(file_path, stat.S_IWRITE | stat.S_IREAD)
+                file_path.unlink()
+                return True
+            except Exception as e:
+                logger.error(f"Failed to remove file {file_path} with permission fix: {e}")
+                return False
+        except Exception as e:
+            logger.error(f"Failed to remove file {file_path}: {e}")
+            return False
+
     def execute(
         self,
         manifest: Optional[UninstallManifest] = None,
@@ -125,12 +187,10 @@ class SetupUninstaller:
         # Remove directories
         for directory in manifest.directories:
             if directory.exists():
-                try:
-                    shutil.rmtree(directory)
+                if self._remove_directory_robust(directory):
                     results["removed"].append(str(directory))
                     logger.debug(f"Removed directory: {directory}")
-                except Exception as e:
-                    logger.error(f"Failed to remove {directory}: {e}")
+                else:
                     results["failed"].append(str(directory))
                     if not force:
                         results["status"] = "partial"
@@ -138,12 +198,10 @@ class SetupUninstaller:
         # Remove files
         for file_path in manifest.files:
             if file_path.exists():
-                try:
-                    file_path.unlink()
+                if self._remove_file_robust(file_path):
                     results["removed"].append(str(file_path))
                     logger.debug(f"Removed file: {file_path}")
-                except Exception as e:
-                    logger.error(f"Failed to remove {file_path}: {e}")
+                else:
                     results["failed"].append(str(file_path))
                     if not force:
                         results["status"] = "partial"
