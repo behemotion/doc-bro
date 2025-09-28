@@ -51,6 +51,9 @@ def remove(ctx: click.Context, name: Optional[str], confirm: bool, all: bool):
         app = get_app()
         await app.initialize()
 
+        # Capture the name parameter in the nested function scope
+        project_name = name
+
         try:
             # Handle --all flag
             if all:
@@ -102,7 +105,7 @@ def remove(ctx: click.Context, name: Optional[str], confirm: bool, all: bool):
 
             else:
                 # Handle single project removal
-                if not name:
+                if not project_name:
                     # Interactive project selection
                     projects = await app.db_manager.list_projects()
                     if not projects:
@@ -122,18 +125,18 @@ def remove(ctx: click.Context, name: Optional[str], confirm: bool, all: bool):
                         if choice < 1 or choice > len(projects):
                             raise ValueError("Invalid choice")
                         selected_project = projects[choice - 1]
-                        name = selected_project.name
+                        project_name = selected_project.name
                     except (ValueError, EOFError):
                         app.console.print("[red]Invalid selection. Operation cancelled.[/red]")
                         return
 
-                project = await app.db_manager.get_project_by_name(name)
+                project = await app.db_manager.get_project_by_name(project_name)
                 if not project:
-                    raise click.ClickException(f"Project '{name}' not found")
+                    raise click.ClickException(f"Project '{project_name}' not found")
 
                 if not confirm:
-                    app.console.print(f"\n[yellow]This will permanently delete project '{name}' and all its data.[/yellow]")
-                    if not Confirm.ask(f"Are you sure you want to remove project '{name}'?", default=False):
+                    app.console.print(f"\n[yellow]This will permanently delete project '{project_name}' and all its data.[/yellow]")
+                    if not Confirm.ask(f"Are you sure you want to remove project '{project_name}'?", default=False):
                         app.console.print("[yellow]Operation cancelled.[/yellow]")
                         return
 
@@ -141,7 +144,7 @@ def remove(ctx: click.Context, name: Optional[str], confirm: bool, all: bool):
                 cleanup_result = await app.db_manager.cleanup_project(project.id)
 
                 if cleanup_result["success"]:
-                    app.console.print(f"[green]✓[/green] Project '{name}' removed successfully")
+                    app.console.print(f"[green]✓[/green] Project '{project_name}' removed successfully")
                     app.console.print("[dim]All associated data has been deleted.[/dim]")
                 else:
                     error = cleanup_result.get("error", "Unknown error")
