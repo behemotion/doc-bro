@@ -44,16 +44,17 @@ Usage: docbro [OPTIONS] COMMAND [ARGS]...
 
   QUICK START:
     docbro setup                                  # Interactive setup wizard
-    docbro project create myproject --type crawling
+    docbro project --create myproject --type crawling
     docbro crawl myproject
     docbro serve                                  # Start MCP server for AI assistants
 
   PROJECT MANAGEMENT:
     docbro project                                # Interactive project menu
-    docbro project list                           # List all projects
-    docbro project create <name> --type <type>    # Create project
-    docbro project remove myproject               # Remove project
-    docbro project show myproject                 # Show project details
+    docbro project --list                         # List all projects
+    docbro project --create <name> --type <type>  # Create project
+    docbro project --remove myproject             # Remove project
+    docbro project --show myproject               # Show project details
+    docbro upload                                 # Upload files to projects
     docbro health                                 # Check system health
 
   VECTOR STORE OPTIONS:
@@ -81,197 +82,62 @@ Commands:
   project  Manage documentation projects.
   serve    Start the MCP server for AI assistant integration.
   setup    Unified setup command for DocBro configuration.
+  upload   Upload files to documentation projects.
 ```
 
 ### Command Details
 
 #### project
 ```
-Usage: docbro project [OPTIONS] COMMAND [ARGS]...
+Usage: docbro project [OPTIONS] [NAME]
 
   Manage documentation projects.
 
-  Run without arguments to launch interactive menu: docbro project
+  USAGE:
+    docbro project                    # Interactive menu
+    docbro project <name>             # Show project details (same as --show)
+    docbro project <flags> [options]  # Execute specific action
 
-  Or use subcommands directly: docbro project create my-docs --type data
-  docbro project list --status active docbro project remove old-project
-  --confirm docbro project show my-docs --detailed docbro project update my-
-  docs --settings '{"key": "value"}'
+  FLAGS (mutually exclusive):
+    --create, -c      Create a new project
+    --list, -l, -ls   List projects
+    --remove, -r, -rm Remove a project
+    --show, -s        Show project details
+    --update, -u      Update project settings
 
-Options:
-  --help  Show this message and exit.
-
-Commands:
-  create  Create a new project with specified type and settings.
-  list    List projects with optional filtering.
-  remove  Remove a project and handle type-specific cleanup.
-  show    Show project information and status.
-  update  Update project settings and metadata.
-```
-
-##### project create
-```
-Usage: docbro project create [OPTIONS] NAME
-
-  Create a new project with specified type and settings.
+  EXAMPLES:
+    docbro project                                    # Interactive menu
+    docbro project myproject                          # Show project details (implicit)
+    docbro project --create myproject --type data    # Create project
+    docbro project --list --status active            # List active projects
+    docbro project --remove myproject --confirm      # Remove project
+    docbro project --show myproject --detailed       # Show project details (explicit)
+    docbro project --update myproject --settings '{...}'  # Update settings
 
   PROJECT TYPES:
     crawling    Web documentation crawler projects
     data        Document upload and vector search projects
     storage     File storage with inventory management
 
-  EXAMPLES:
-    docbro project create django --type crawling --description "Django docs"
-    docbro project create mydata --type data --settings '{"chunk_size": 1000}'
-    docbro project create files --type storage --force
-
-  ARGUMENTS:
-    NAME        Project name (must be unique)
-
-  OPTIONS:
-    --type      Project type (required): crawling, data, or storage
-    --description Optional project description
-    --settings  JSON settings override for project configuration
-    --force     Overwrite existing project if it exists
-
 Options:
+  -c, --create                    Create a new project
+  -l, -ls, --list                 List projects
+  -r, -rm, --remove               Remove a project
+  -s, --show                      Show project details
+  -u, --update                    Update project settings
   -t, --type [crawling|data|storage]
-                                  Project type  [required]
-  -d, --description TEXT          Optional project description
-  -s, --settings TEXT             JSON settings override
-  -f, --force                     Overwrite existing project
-  --help                          Show this message and exit.
-```
-
-##### project list
-```
-Usage: docbro project list [OPTIONS]
-
-  List projects with optional filtering.
-
-  FILTERING OPTIONS:
-    --status    Filter by project status (active, inactive, error, processing)
-    --type      Filter by project type (crawling, data, storage)
-    --limit     Limit number of results returned
-    --verbose   Show detailed information for each project
-
-  EXAMPLES:
-    docbro project list                           # List all projects
-    docbro project list --status active          # List only active projects
-    docbro project list --type crawling --limit 5  # List first 5 crawling projects
-    docbro project list --verbose                # Show detailed information
-
-  OUTPUT FORMATS:
-    Default     Table view with basic information
-    --verbose   Detailed view with statistics and settings
-
-Options:
+                                  Project type (for create)
+  -d, --description TEXT          Project description
+  --settings TEXT                 JSON settings
+  -f, --force                     Force operation
   -st, --status [active|inactive|error|processing]
-                                  Filter by status
-  -t, --type [crawling|data|storage]
-                                  Filter by project type
-  -l, --limit INTEGER             Limit number of results
-  -v, --verbose                   Show detailed information
+                                  Filter by status (for list)
+  --limit INTEGER                 Limit results (for list)
+  -v, --verbose                   Verbose output
+  --confirm                       Skip confirmation (for remove)
+  -b, --backup                    Create backup (for remove)
+  -dt, --detailed                 Detailed view (for show)
   --help                          Show this message and exit.
-```
-
-##### project remove
-```
-Usage: docbro project remove [OPTIONS] NAME
-
-  Remove a project and handle type-specific cleanup.
-
-  SAFETY FEATURES:
-    - Confirmation prompt by default (use --confirm to skip)
-    - Automatic backup creation before removal (disable with --no-backup)
-    - Comprehensive cleanup of all project data and files
-
-  WHAT GETS REMOVED:
-    - Project configuration and metadata
-    - All uploaded files and crawled content
-    - Vector embeddings and search indices
-    - Associated database entries
-    - Project directories and cached data
-
-  EXAMPLES:
-    docbro project remove myproject                    # Remove with confirmation
-    docbro project remove myproject --confirm          # Remove without confirmation
-    docbro project remove myproject --no-backup        # Remove without backup
-    docbro project remove myproject --force            # Force removal even if errors
-
-  ARGUMENTS:
-    NAME        Name of the project to remove
-
-  OPTIONS:
-    --confirm   Skip confirmation prompt
-    --backup    Create backup before removal (default: enabled)
-    --force     Force removal even if errors occur
-
-  WARNING:
-    This permanently deletes all project data. Use backups to recover if needed.
-
-Options:
-  -c, --confirm  Skip confirmation prompt
-  -b, --backup   Create backup before removal
-  -f, --force    Force removal even if errors
-  --help         Show this message and exit.
-```
-
-##### project show
-```
-Usage: docbro project show [OPTIONS] NAME
-
-  Show project information and status.
-
-  INFORMATION DISPLAYED:
-    Basic       Name, type, status, creation/update dates
-    --detailed  Statistics, settings, file counts, sizes, and more
-
-  EXAMPLES:
-    docbro project show django                    # Basic project information
-    docbro project show django --detailed        # Detailed project information
-
-  ARGUMENTS:
-    NAME        Name of the project to display
-
-  OPTIONS:
-    --detailed  Show comprehensive project information and statistics
-
-Options:
-  -dt, --detailed  Show detailed information
-  --help           Show this message and exit.
-```
-
-##### project update
-```
-Usage: docbro project update [OPTIONS] NAME
-
-  Update project settings and metadata.
-
-  UPDATE OPTIONS:
-    --settings    JSON string with new settings to merge with existing
-    --description Update or set project description
-
-  EXAMPLES:
-    docbro project update django --description "Django documentation project"
-    docbro project update mydata --settings '{"chunk_size": 1000, "overlap": 100}'
-    docbro project update myproject --settings '{}' --description "Updated description"
-
-  ARGUMENTS:
-    NAME        Name of the project to update
-
-  OPTIONS:
-    --settings    JSON settings to merge with existing project configuration
-    --description New description for the project
-
-  SETTINGS FORMAT:
-    Settings must be valid JSON. Existing settings will be merged with new ones.
-    Example: '{"chunk_size": 1000, "embedding_model": "custom-model"}'
-
-Options:
-  -s, --settings TEXT     JSON settings update
-  -d, --description TEXT  Update project description
-  --help                  Show this message and exit.
 ```
 
 #### crawl
@@ -280,14 +146,40 @@ Usage: docbro crawl [OPTIONS] [NAME]
 
   Start crawling a documentation project.
 
-  Enhanced flexible crawl modes: - docbro crawl myproject                  #
-  Use existing URL - docbro crawl myproject --url "URL"      # Provide/update
-  URL - docbro crawl myproject --depth 3        # Override depth
+  Crawl documentation websites to build a local searchable knowledge base. The
+  crawler follows links, extracts content, and creates vector embeddings.
 
-  Examples:   docbro crawl my-project                  # Crawl a specific
-  project   docbro crawl my-project --url "URL"     # Set URL and crawl
-  docbro crawl --update my-project        # Update an existing project
-  docbro crawl --update --all             # Update all projects
+  CRAWL MODES:
+    docbro crawl myproject                  # Crawl using project's configured URL
+    docbro crawl myproject -u "URL"         # Set/update URL and crawl
+    docbro crawl --update myproject         # Re-crawl to update content
+    docbro crawl --update --all             # Update all projects
+
+  PERFORMANCE OPTIONS:
+    -m, --max-pages N    Limit crawl to N pages (useful for testing)
+    -r, --rate-limit F   Requests per second (default: 1.0, be respectful!)
+    -d, --depth N        Override default crawl depth for this session
+
+  UPDATE MODES:
+    --update             Re-crawl existing projects to get latest content
+    --all                Process all projects (use with --update)
+
+  EXAMPLES:
+    docbro crawl django                     # Crawl Django project
+    docbro crawl fastapi -d 2 -m 50         # Crawl FastAPI, depth 2, max 50 pages
+    docbro crawl docs -u "https://new-url.com/"  # Update URL and crawl
+    docbro crawl --update --all             # Update all projects
+    docbro crawl myproject --debug          # Show detailed crawl progress
+
+  WORKFLOW:
+    1. Ensure project exists: docbro project --list
+    2. Start crawling: docbro crawl myproject
+    3. Check progress: look for completion message
+    4. Use content: docbro serve (starts MCP server for AI assistants)
+
+  RATE LIMITING:
+    Please be respectful of target websites. Default rate limit is 1 req/sec.
+    Increase only if you own the target site or have explicit permission.
 
 Options:
   -u, --url TEXT           Set or update the project URL before crawling
@@ -306,13 +198,41 @@ Usage: docbro serve [OPTIONS]
 
   Start the MCP server for AI assistant integration.
 
-  The MCP (Model Context Protocol) server provides documentation access to AI
-  assistants like Claude.
+  The MCP (Model Context Protocol) server exposes your documentation to AI
+  assistants like Claude, enabling context-aware responses.
 
-  Examples:   docbro serve                   # Start server in background
-  docbro serve --foreground      # Run in foreground (for debugging)   docbro
-  serve --port 8080       # Use custom port   docbro serve --status          #
-  Check if server is running
+  SERVER MODES:
+    docbro serve                   # Start in background (recommended)
+    docbro serve --foreground      # Run in foreground (for debugging)
+    docbro serve --status          # Check if server is running
+
+  CONFIGURATION:
+    --host HOST      Server bind address (default: 0.0.0.0, all interfaces)
+    --port PORT      Server port (default: 9382)
+    -f, --foreground Run in foreground instead of background
+
+  MCP INTEGRATION:
+    Once running, the server provides documentation access to AI assistants:
+    - Real-time search across all your crawled projects
+    - Semantic similarity matching for relevant content
+    - Automatic context injection for better AI responses
+
+  EXAMPLES:
+    docbro serve                   # Start server (background)
+    docbro serve -f                # Run in foreground for debugging
+    docbro serve --port 8080       # Use custom port
+    docbro serve --status          # Check if server is running
+
+  CLIENT SETUP:
+    Configure your AI assistant to connect to:
+    - URL: http://localhost:9382 (or your custom host:port)
+    - Protocol: MCP (Model Context Protocol)
+
+  TROUBLESHOOTING:
+    - Use --foreground to see real-time server logs
+    - Check --status to verify server is responding
+    - Ensure no other service is using the port
+    - Run 'docbro health' to verify system components
 
 Options:
   --host TEXT       Server host
@@ -328,15 +248,37 @@ Usage: docbro setup [OPTIONS]
 
   Unified setup command for DocBro configuration.
 
-  This command consolidates all setup operations: - Initialize configuration
-  (--init) - Uninstall DocBro (--uninstall) - Reset installation (--reset) -
-  Interactive menu (no flags)
+  The one-stop command for all DocBro setup operations. Choose between
+  interactive menu (no flags) or specific operations with flags.
 
-  Examples:     docbro setup                           # Interactive menu
-  docbro setup --init --auto             # Quick setup with defaults
-  docbro setup --init --vector-store sqlite_vec     docbro setup --uninstall
-  --force       # Uninstall without confirmation     docbro setup --reset
-  --preserve-data   # Reset but keep projects
+  OPERATIONS:
+    --init         Initialize configuration and vector store
+    --uninstall    Remove DocBro completely from your system
+    --reset        Reset to fresh state (keeps or removes data)
+    (no flags)     Interactive menu with guided setup
+
+  QUICK SETUPS:
+    docbro setup                           # Interactive menu with help
+    docbro setup --init --auto             # Quick setup with defaults
+    docbro setup --init --vector-store sqlite_vec  # Choose vector store
+
+  VECTOR STORE OPTIONS:
+    sqlite_vec     Local SQLite with vector extension (recommended)
+    qdrant         Scalable vector database (requires Docker)
+
+  UNINSTALL & RESET:
+    docbro setup --uninstall --force       # Uninstall without confirmation
+    docbro setup --uninstall --backup      # Create backup first
+    docbro setup --reset --preserve-data   # Reset but keep projects
+    docbro setup --uninstall --dry-run     # Preview what would be removed
+
+  FLAGS:
+    --force            Skip confirmation prompts
+    --auto             Use default values (with --init)
+    --non-interactive  Disable all interactive prompts
+    --backup           Create backup before destructive operations
+    --dry-run          Preview changes without applying them
+    --preserve-data    Keep user projects during reset/uninstall
 
 Options:
   --init                          Initialize DocBro configuration
@@ -363,28 +305,44 @@ Usage: docbro health [OPTIONS]
 
   Check health status of DocBro components with comprehensive validation.
 
-  This unified health command provides comprehensive validation of: - System
-  requirements (Python version, memory, disk space) - External services
-  (Docker, Qdrant, Ollama, Git) - Configuration files (settings, projects,
-  vector store) - Project-specific health (when projects exist)
+  Verify that your DocBro installation is working correctly by checking system
+  requirements, external services, configuration, and projects.
 
-  Category Options:
-    --system      System requirements only
-    --services    External services only
-    --config      Configuration files only
-    --projects    Project health only
-    (default)     All categories except projects
+  WHAT IS CHECKED:
+    System       Python version, memory, disk space, permissions
+    Services     Docker, Qdrant, Ollama, Git availability
+    Config       Settings files, vector store configuration
+    Projects     Individual project health and integrity
 
-  Output Formats:
-    table         Formatted table with status indicators (default)
-    json          Machine-readable JSON for automation
-    yaml          YAML format for configuration tools
+  CATEGORY OPTIONS:
+    --system     System requirements only (Python, memory, disk)
+    --services   External services only (Docker, Qdrant, Ollama, Git)
+    --config     Configuration files only (settings, vector store)
+    --projects   Project health only (requires existing projects)
+    (default)    System + Services + Config (recommended)
 
-  Examples:
-    docbro health                    # Complete health check
+  OUTPUT FORMATS:
+    table        Human-readable table with status indicators (default)
+    json         Machine-readable JSON for automation/scripts
+    yaml         YAML format for configuration management tools
+
+  PERFORMANCE OPTIONS:
+    -v, --verbose       Include detailed diagnostic information
+    -q, --quiet         Suppress progress indicators
+    -t, --timeout N     Maximum check timeout (1-60 seconds, default: 15)
+    -P, --parallel N    Parallel checks (1-8 workers, default: 4)
+
+  EXAMPLES:
+    docbro health                    # Complete health check (recommended)
     docbro health --system           # System requirements only
+    docbro health --services         # External services only
     docbro health --format json     # JSON output for scripts
-    docbro health --timeout 30      # Extended timeout
+    docbro health --verbose          # Detailed diagnostic information
+    docbro health --timeout 30      # Extended timeout for slow systems
+
+  TROUBLESHOOTING:
+    Run this command after installation or when experiencing issues.
+    Use --verbose for detailed error information and suggested fixes.
 
 Options:
   -s, --system                    Check only system requirements
@@ -399,4 +357,81 @@ Options:
                                   [1<=x<=60]
   -P, --parallel INTEGER RANGE    Maximum parallel health checks  [1<=x<=8]
   --help                          Show this message and exit.
+```
+
+#### upload
+```
+Usage: docbro upload [OPTIONS] COMMAND [ARGS]...
+
+  Upload files to documentation projects.
+
+  Run without arguments to launch interactive menu: docbro upload
+
+  Or use the command directly: docbro upload files --project my-docs --source
+  /path/to/files --type local
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  files   Upload files to a project from various sources.
+  status  Show upload operation status.
+```
+
+##### upload files
+```
+Usage: docbro upload files [OPTIONS]
+
+  Upload files to a project from various sources.
+
+  SOURCE TYPES:
+    local      Local filesystem files and directories
+    http       Download files from HTTP URLs
+    https      Download files from HTTPS URLs
+    ftp        Upload from FTP server
+    sftp       Upload from SFTP/SSH server
+    smb        Upload from SMB/CIFS network shares
+
+  EXAMPLES:
+    docbro upload files --project docs --source /path/to/files --type local
+    docbro upload files --project docs --source https://example.com/file.pdf --type https
+    docbro upload files --project docs --source ftp://server.com/docs --type ftp --username user
+
+  CONFLICT RESOLUTION:
+    ask        Prompt for each conflict (default)
+    skip       Skip conflicting files
+    overwrite  Overwrite existing files
+
+Options:
+  -p, --project TEXT              Target project name  [required]
+  -sr, --source TEXT              Source path/URL  [required]
+  -t, --type [local|ftp|sftp|smb|http|https]
+                                  Source type  [required]
+  -u, --username TEXT             Authentication username
+  -r, --recursive                 Recursive directory upload
+  -e, --exclude TEXT              Exclude patterns
+  -dr, --dry-run                  Show what would be uploaded
+  -o, --overwrite [ask|skip|overwrite]
+                                  Conflict resolution strategy
+  -pr, --progress                 Show progress bar
+  --help                          Show this message and exit.
+```
+
+##### upload status
+```
+Usage: docbro upload status [OPTIONS]
+
+  Show upload operation status.
+
+  EXAMPLES:
+    docbro upload status                    # Show all upload operations
+    docbro upload status --project docs    # Show uploads for specific project
+    docbro upload status --active          # Show only active uploads
+    docbro upload status --operation id123 # Show specific operation
+
+Options:
+  -p, --project TEXT     Filter by project
+  -op, --operation TEXT  Specific operation ID
+  -a, --active           Show only active uploads
+  --help                 Show this message and exit.
 ```

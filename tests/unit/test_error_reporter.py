@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from datetime import datetime
 from unittest.mock import patch, mock_open, MagicMock
-from logic.crawler.analytics.reporter import ErrorReporter
+from src.logic.crawler.analytics.reporter import ErrorReporter
 
 
 class TestErrorReporter:

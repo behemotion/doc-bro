@@ -2,8 +2,9 @@
 
 import hashlib
 import re
+from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Callable, Optional
+from typing import Any
 
 from src.core.config import DocBroConfig
 from src.core.lib_logger import get_component_logger
@@ -471,7 +472,7 @@ class RAGSearchService:
         documents: list[dict[str, Any]],
         chunk_size: int | None = None,
         chunk_overlap: int | None = None,
-        progress_callback: Optional[Callable] = None
+        progress_callback: Callable | None = None
     ) -> int:
         """Index documents for search."""
         if not documents:

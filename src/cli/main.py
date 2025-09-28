@@ -24,8 +24,6 @@ from src.services.vector_store import VectorStoreService
 from src.version import __version__
 
 
-
-
 class DocBroApp:
     """Main DocBro application."""
 

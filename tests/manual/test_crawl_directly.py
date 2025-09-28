@@ -4,7 +4,7 @@
 import asyncio
 import logging
 from src.services.database import DatabaseManager
-from logic.crawler.core.crawler import DocumentationCrawler
+from src.logic.crawler.core.crawler import DocumentationCrawler
 from src.core.config import DocBroConfig
 
 # Configure logging

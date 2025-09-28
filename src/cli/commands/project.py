@@ -18,8 +18,8 @@ except ImportError:
 import logging
 
 from src.cli.utils.navigation import ArrowNavigator, NavigationChoice
-from src.logic.projects.models.project import ProjectStatus, ProjectType
 from src.logic.projects.core.project_manager import ProjectManager
+from src.logic.projects.models.project import ProjectStatus, ProjectType
 
 logger = logging.getLogger(__name__)
 

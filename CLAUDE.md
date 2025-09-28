@@ -66,9 +66,10 @@ uv tool install git+https://github.com/behemotion/doc-bro
 
 # Commands available after installation
 docbro setup              # Unified setup command (interactive or flag-based)
-docbro system-check       # Validate system requirements
-docbro services list      # Check service status
-docbro services setup     # Configure external services
+docbro project            # Project management (interactive or flag-based)
+docbro crawl              # Documentation crawling
+docbro serve              # MCP server for AI assistants
+docbro health             # System health checks
 ```
 
 **Key Features:**
@@ -85,10 +86,21 @@ docbro services setup     # Configure external services
 ### Core Commands
 ```bash
 # Project Management
-docbro create <name> --url <docs-url> [--depth 3] [--model mxbai-embed-large]
-docbro crawl <name> [--max-pages 100] [--rate-limit 1.0] [--update]
-docbro list [--status ready] [--limit 10]
-docbro remove <name> [--confirm]
+docbro project --create <name> --type <type> [--description "text"]
+docbro project --list [--status active] [--limit 10] [--verbose]
+docbro project --show <name> [--detailed]
+docbro project --remove <name> [--confirm] [--backup]
+docbro project --update <name> [--settings '{}'] [--description "text"]
+
+# Documentation Crawling
+docbro crawl <name> [--url "url"] [--max-pages 100] [--rate-limit 1.0] [--depth 3]
+docbro crawl --update <name>           # Re-crawl existing project
+docbro crawl --update --all            # Update all projects
+
+# File Upload
+docbro upload                          # Interactive upload menu
+docbro upload files --project <name> --source <path/url> --type <type>
+docbro upload status [--project <name>] [--active]     # Check upload status
 
 # Unified Setup & Configuration
 docbro setup                           # Interactive menu
@@ -99,7 +111,7 @@ docbro setup --reset --preserve-data   # Reset keeping projects
 
 # Server Operations
 docbro serve [--host 0.0.0.0] [--port 9382] [--foreground]
-docbro health
+docbro health [--system] [--services] [--config] [--projects]
 ```
 
 ### Testing

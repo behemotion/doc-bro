@@ -10,9 +10,10 @@ import httpx
 
 # Optional Docker imports - only needed when Docker features are used
 try:
-    import docker
     from docker.errors import DockerException
     from docker.models.containers import Container
+
+    import docker
     DOCKER_AVAILABLE = True
     ContainerType = Container
 except ImportError:
