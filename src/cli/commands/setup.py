@@ -159,6 +159,10 @@ def setup(
         console.print("\n[dim]Run 'docbro setup --help' for usage information[/dim]")
         ctx.exit(1)
 
+    except click.exceptions.Exit:
+        # Allow clean exits from nested code
+        raise
+
     except Exception as e:
         logger.exception("Setup command failed")
         console.print(f"[red]Setup failed: {e}[/red]")
