@@ -478,9 +478,15 @@ async def _create_project_impl(name: str, project_type: str, description: str | 
         parsed_settings = None
         if settings:
             try:
-                parsed_settings = json.loads(settings)
+                settings_dict = json.loads(settings)
+                # Import ProjectConfig to properly convert settings
+                from src.logic.projects.models.config import ProjectConfig
+                parsed_settings = ProjectConfig.from_dict(settings_dict)
             except json.JSONDecodeError as e:
                 console.print(f"[red]Error: Invalid JSON in settings: {str(e)}[/red]")
+                return
+            except Exception as e:
+                console.print(f"[red]Error: Invalid settings configuration: {str(e)}[/red]")
                 return
 
         # Check if project exists
@@ -499,6 +505,12 @@ async def _create_project_impl(name: str, project_type: str, description: str | 
             )
 
         console.print(f"[green]✓[/green] Project '{name}' created successfully!")
+
+        # Debug logging to understand what we received
+        logger.debug(f"Project type: {type(project)}, Is dict: {isinstance(project, dict)}")
+        if hasattr(project, '__dict__'):
+            logger.debug(f"Project attributes: {project.__dict__}")
+
         # Check if project is a dict or object and handle accordingly
         if isinstance(project, dict):
             console.print(f"  Type: {project.get('type', 'unknown')}")
@@ -511,9 +523,25 @@ async def _create_project_impl(name: str, project_type: str, description: str | 
                     console.print(f"  Created: {created_at.strftime('%Y-%m-%d %H:%M:%S')}")
         else:
             # Assume it's a Project object
-            console.print(f"  Type: {project.type.value if hasattr(project.type, 'value') else project.type}")
-            console.print(f"  Status: {project.status.value if hasattr(project.status, 'value') else project.status}")
-            console.print(f"  Created: {project.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
+            # Safely access attributes
+            project_type = getattr(project, 'type', 'unknown')
+            if hasattr(project_type, 'value'):
+                console.print(f"  Type: {project_type.value}")
+            else:
+                console.print(f"  Type: {project_type}")
+
+            project_status = getattr(project, 'status', 'unknown')
+            if hasattr(project_status, 'value'):
+                console.print(f"  Status: {project_status.value}")
+            else:
+                console.print(f"  Status: {project_status}")
+
+            created_at = getattr(project, 'created_at', None)
+            if created_at:
+                if hasattr(created_at, 'strftime'):
+                    console.print(f"  Created: {created_at.strftime('%Y-%m-%d %H:%M:%S')}")
+                else:
+                    console.print(f"  Created: {created_at}")
 
         if description:
             # Update project with description (if supported by project manager)
