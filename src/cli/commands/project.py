@@ -595,10 +595,31 @@ async def _list_projects_impl(status: str | None, project_type: str | None,
             # Detailed view
             for project in projects:
                 console.print(f"\n[bold cyan]{project.name}[/bold cyan]")
-                console.print(f"  Type: {project.type.value}")
-                console.print(f"  Status: {project.status.value}")
-                console.print(f"  Created: {project.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
-                console.print(f"  Updated: {project.updated_at.strftime('%Y-%m-%d %H:%M:%S')}")
+
+                # Handle both enum and string types for type
+                project_type = project.type
+                if hasattr(project_type, 'value'):
+                    console.print(f"  Type: {project_type.value}")
+                else:
+                    console.print(f"  Type: {project_type}")
+
+                # Handle both enum and string types for status
+                project_status = project.status
+                if hasattr(project_status, 'value'):
+                    console.print(f"  Status: {project_status.value}")
+                else:
+                    console.print(f"  Status: {project_status}")
+
+                # Handle date formatting safely
+                if hasattr(project.created_at, 'strftime'):
+                    console.print(f"  Created: {project.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
+                else:
+                    console.print(f"  Created: {project.created_at}")
+
+                if hasattr(project.updated_at, 'strftime'):
+                    console.print(f"  Updated: {project.updated_at.strftime('%Y-%m-%d %H:%M:%S')}")
+                else:
+                    console.print(f"  Updated: {project.updated_at}")
 
                 # Get additional stats
                 try:
@@ -618,11 +639,26 @@ async def _list_projects_impl(status: str | None, project_type: str | None,
             table.add_column("Created", style="blue")
 
             for project in projects:
+                # Handle both enum and string types
+                project_type = project.type
+                if hasattr(project_type, 'value'):
+                    type_str = project_type.value.title()
+                else:
+                    type_str = str(project_type).title()
+
+                project_status = project.status
+                if hasattr(project_status, 'value'):
+                    status_str = project_status.value.title()
+                else:
+                    status_str = str(project_status).title()
+
+                created_str = project.created_at.strftime("%Y-%m-%d") if hasattr(project.created_at, 'strftime') else str(project.created_at)
+
                 table.add_row(
                     project.name,
-                    project.type.value.title(),
-                    project.status.value.title(),
-                    project.created_at.strftime("%Y-%m-%d")
+                    type_str,
+                    status_str,
+                    created_str
                 )
 
             console.print(table)
