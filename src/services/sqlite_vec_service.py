@@ -39,7 +39,7 @@ def detect_sqlite_vec() -> Tuple[bool, str]:
             return False, (
                 "SQLite was compiled without extension support. "
                 "For full SQLite-vec functionality, consider using Qdrant instead. "
-                "Run 'docbro init --vector-store qdrant' to use Qdrant."
+                "Run 'docbro setup --init --vector-store qdrant' to use Qdrant."
             )
 
         try:
@@ -120,7 +120,7 @@ class SQLiteVecService:
                 "  • Your Python's SQLite3 was compiled without extension support\n"
                 "  • This is common on macOS with certain Python installations\n\n"
                 "Solutions:\n"
-                "  1. Use Qdrant instead: docbro init --vector-store qdrant --force\n"
+                "  1. Use Qdrant instead: docbro setup --init --vector-store qdrant --force\n"
                 "  2. Or install Python with Homebrew: brew install python@3.13\n"
                 "  3. Or use UV's managed Python: uv python install 3.12 (requires updating project)\n\n"
                 "Qdrant provides better performance for large document collections."
