@@ -163,6 +163,7 @@ class DatabaseManager:
             status TEXT NOT NULL DEFAULT 'created',
             crawl_depth INTEGER NOT NULL,
             current_depth INTEGER NOT NULL DEFAULT 0,
+            current_url TEXT,
             user_agent TEXT NOT NULL DEFAULT 'DocBro/1.0',
             rate_limit REAL NOT NULL DEFAULT 1.0,
             timeout INTEGER NOT NULL DEFAULT 30,
@@ -703,7 +704,7 @@ class DatabaseManager:
 
     def _session_from_row(self, row: Tuple) -> CrawlSession:
         """Create CrawlSession from database row."""
-        (id, project_id, status, crawl_depth, current_depth, user_agent, rate_limit,
+        (id, project_id, status, crawl_depth, current_depth, current_url, user_agent, rate_limit,
          timeout, created_at, started_at, completed_at, updated_at,
          pages_discovered, pages_crawled, pages_failed, pages_skipped,
          total_size_bytes, queue_size, error_message, error_count, max_errors,
@@ -715,6 +716,7 @@ class DatabaseManager:
             status=CrawlStatus(status),
             crawl_depth=crawl_depth,
             current_depth=current_depth,
+            current_url=current_url,
             user_agent=user_agent,
             rate_limit=rate_limit,
             timeout=timeout,
@@ -748,13 +750,13 @@ class DatabaseManager:
         project_conn = await self._get_project_connection(project.name)
         await project_conn.execute("""
             UPDATE crawl_sessions SET
-                status = ?, current_depth = ?, started_at = ?, completed_at = ?, updated_at = ?,
+                status = ?, current_depth = ?, current_url = ?, started_at = ?, completed_at = ?, updated_at = ?,
                 pages_discovered = ?, pages_crawled = ?, pages_failed = ?,
                 pages_skipped = ?, total_size_bytes = ?, queue_size = ?, error_message = ?,
                 error_count = ?, metadata = ?
             WHERE id = ?
         """, (
-            session.status.value, session.current_depth,
+            session.status.value, session.current_depth, session.current_url,
             session.started_at.isoformat() if session.started_at else None,
             session.completed_at.isoformat() if session.completed_at else None,
             session.updated_at.isoformat(),
