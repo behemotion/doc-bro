@@ -70,14 +70,14 @@ class VectorStoreFactory:
             return (
                 "SQLite-vec is not available. Suggestions:\n"
                 "  1. Install sqlite-vec: uv pip install --system sqlite-vec\n"
-                "  2. Use Qdrant instead: docbro init --vector-store qdrant --force\n"
+                "  2. Use Qdrant instead: docbro setup --init --vector-store qdrant --force\n"
                 "  3. Check Python installation (macOS may need Homebrew Python)"
             )
         elif provider == VectorStoreProvider.QDRANT:
             return (
                 "Qdrant is not available. Suggestions:\n"
                 "  1. Start Qdrant: docker run -p 6333:6333 qdrant/qdrant\n"
-                "  2. Use SQLite-vec instead: docbro init --vector-store sqlite_vec --force\n"
+                "  2. Use SQLite-vec instead: docbro setup --init --vector-store sqlite_vec --force\n"
                 "  3. Check Qdrant service status: docbro services list"
             )
         else:

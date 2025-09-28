@@ -111,7 +111,7 @@ docbro --help
 
 # With specific Python version (install then run)
 uv tool install --python 3.13 git+https://github.com/behemotion/doc-bro
-docbro init
+docbro setup --init
 ```
 
 ### Development Setup
@@ -144,7 +144,7 @@ uv run pytest tests/ -v
 ### SQLite Extension Issues
 If you encounter SQLite extension loading errors:
 1. Use UV-managed Python 3.13.6+ which has extension support
-2. Or switch to Qdrant: `docbro init --vector-store qdrant`
+2. Or switch to Qdrant: `docbro setup --init --vector-store qdrant`
 
 ### Missing Dependencies
 ```bash

@@ -37,9 +37,7 @@ class AliasedGroup(click.Group):
             'delete': 'remove',
             'erase': 'remove',
             'rm': 'remove',
-            'ls': 'list',
-            # Note: init, uninstall, and reset are separate legacy commands,
-            # not aliases, so they can show deprecation warnings
+            'ls': 'list'
         }
 
         # Resolve alias to actual command name
@@ -342,9 +340,6 @@ from src.cli.commands.remove import remove
 from src.cli.commands.serve import serve
 from src.cli.commands.health import health
 from src.cli.commands.setup import setup
-from src.cli.commands.legacy_init import init as legacy_init_command
-from src.cli.commands.legacy_uninstall import uninstall as legacy_uninstall_command
-from src.cli.commands.legacy_reset import reset as legacy_reset_command
 from src.cli.commands.system_check import system_check
 from src.cli.commands.services import services_group
 
@@ -356,9 +351,6 @@ main.add_command(remove)
 main.add_command(serve)
 main.add_command(health)
 main.add_command(setup)
-main.add_command(legacy_init_command, name="init")
-main.add_command(legacy_uninstall_command, name="uninstall")
-main.add_command(legacy_reset_command, name="reset")
 main.add_command(system_check, name="system-check")
 main.add_command(services_group, name="services")
 
