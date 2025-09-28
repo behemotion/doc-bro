@@ -141,8 +141,8 @@ class SetupInitializer:
             "embedding_model": "mxbai-embed-large",
             "chunk_size": 500,
             "chunk_overlap": 50,
-            "default_crawl_depth": 3,
-            "default_rate_limit": 1.0,
+            "crawl_depth": 2,
+            "rate_limit": 2.0,
             "mcp_host": "localhost",
             "mcp_port": 9382,
             "log_level": "INFO"

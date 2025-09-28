@@ -347,6 +347,7 @@ class CrawlProgressDisplay:
         self.pages_errors = 0
         self.queue_size = 0
         self.current_url = ""
+        self.current_phase = CrawlPhase.CRAWLING_CONTENT  # Track current phase
 
         self.live: Optional[Live] = None
 
@@ -369,6 +370,12 @@ class CrawlProgressDisplay:
         if url:
             self.current_url = url
 
+        if self.live:
+            self.live.update(self._get_display())
+
+    def set_phase(self, phase: CrawlPhase):
+        """Update the current phase."""
+        self.current_phase = phase
         if self.live:
             self.live.update(self._get_display())
 
@@ -396,9 +403,15 @@ class CrawlProgressDisplay:
                 url_display = url_display[:57] + "..."
             table.add_row("Current:", url_display)
 
+        # Determine title based on current phase
+        if self.current_phase == CrawlPhase.GENERATING_EMBEDDINGS:
+            title = f"[bold cyan]Embedding is running - {self.project_name}[/bold cyan]"
+        else:
+            title = f"[bold cyan]Crawling {self.project_name}[/bold cyan]"
+
         return Panel(
             table,
-            title=f"[bold cyan]Crawling {self.project_name}[/bold cyan]",
+            title=title,
             border_style="cyan"
         )
 

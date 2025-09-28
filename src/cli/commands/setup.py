@@ -5,10 +5,44 @@ from typing import Optional
 from src.logic.setup.core.orchestrator import SetupOrchestrator
 from src.logic.setup.core.router import CommandRouter
 from src.core.lib_logger import get_logger
+from src.core.config import get_config
+from src.logic.health.services.health_reporter import HealthReporter
 from rich.console import Console
+from rich.table import Table
 
 logger = get_logger(__name__)
 console = Console()
+
+
+def display_global_settings():
+    """Display global settings in a table format."""
+    config = get_config()
+
+    table = Table(title="[bold cyan]Global Settings[/bold cyan]", show_header=True, header_style="bold magenta")
+    table.add_column("Setting", style="yellow", width=25)
+    table.add_column("Value", style="green", width=40)
+    table.add_column("Description", style="dim", width=30)
+
+    # Core settings
+    table.add_row("Vector Store", str(config.vector_store_provider.value), "Vector database provider")
+    table.add_row("Embedding Model", config.embedding_model, "AI model for embeddings")
+    table.add_row("Data Directory", str(config.data_dir), "Local data storage path")
+    table.add_row("Log Level", config.log_level, "Logging verbosity level")
+
+    # Crawling settings
+    table.add_row("Default Crawl Depth", str(config.crawl_depth), "Maximum link depth")
+    table.add_row("Rate Limit", f"{config.rate_limit} req/s", "Request throttling")
+    table.add_row("Chunk Size", str(config.chunk_size), "Text processing chunk size")
+    table.add_row("Chunk Overlap", str(config.chunk_overlap), "Text chunk overlap")
+
+    # Service URLs
+    table.add_row("Qdrant URL", config.qdrant_url, "Vector database endpoint")
+    table.add_row("Ollama URL", config.ollama_url, "Embedding service endpoint")
+    table.add_row("MCP Port", str(config.mcp_port), "MCP server port")
+
+    console.print(table)
+
+
 
 
 @click.command()
@@ -145,6 +179,16 @@ def setup(
         # Display result
         if result.status == "completed":
             console.print(f"[green]✓ {operation.type.title()} completed successfully[/green]")
+
+            # Display settings and help tables after successful init
+            if operation.type == "init":
+                console.print("\n")
+                display_global_settings()
+                console.print("\n")
+                health_reporter = HealthReporter()
+                help_output = health_reporter.display_command_guide()
+                console.print(help_output)
+
         elif result.status == "cancelled":
             console.print("[yellow]Operation cancelled[/yellow]")
         elif result.status == "dry_run":

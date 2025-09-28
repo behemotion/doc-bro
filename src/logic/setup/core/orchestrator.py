@@ -12,7 +12,7 @@ from src.logic.setup.services.validator import SetupValidator
 from src.logic.setup.services.detector import ServiceDetector
 from src.logic.setup.services.reset_handler import ResetHandler
 from src.logic.setup.core.menu import InteractiveMenu
-from src.logic.setup.utils.prompts import confirm_action
+from src.logic.setup.utils.prompts import confirm_action, confirm_dangerous_action
 from src.core.lib_logger import get_logger
 
 logger = get_logger(__name__)
@@ -175,12 +175,17 @@ class SetupOrchestrator:
                 operation.transition_to(OperationStatus.COMPLETED)
                 return operation
 
-            # Confirm unless forced
+            # Double confirmation unless forced
             if not force:
-                if not confirm_action(
+                first_prompt = (
                     f"This will remove {manifest.get_item_count()} items "
                     f"and free {manifest.get_size_display()}. Continue?"
-                ):
+                )
+                second_prompt = (
+                    "⚠️  WARNING: This will permanently delete all DocBro data and configuration files!"
+                )
+
+                if not confirm_dangerous_action(first_prompt, second_prompt):
                     operation.transition_to(OperationStatus.CANCELLED)
                     return operation
 
