@@ -164,15 +164,22 @@ class TestFlagDefinitionModel:
     @pytest.mark.skipif(not MODEL_EXISTS, reason="FlagDefinition model not yet implemented")
     def test_flag_definition_flag_type_validation(self):
         """Test flag_type validation."""
-        # Valid flag types
-        for flag_type in ["boolean", "string", "integer", "choice"]:
+        # Valid flag types with matching default values
+        test_cases = [
+            ("boolean", False),
+            ("string", "default"),
+            ("integer", 42),
+            ("choice", "a")
+        ]
+
+        for flag_type, default_val in test_cases:
             flag_def = FlagDefinition(
                 long_form="--test",
                 short_form="-t",
                 flag_type=flag_type,
                 description="Test flag",
                 choices=["a", "b"] if flag_type == "choice" else None,
-                default_value=False if flag_type == "boolean" else "default",
+                default_value=default_val,
                 is_global=True
             )
             assert flag_def.flag_type == flag_type
@@ -217,14 +224,20 @@ class TestFlagDefinitionModel:
             )
 
         # Non-choice types should not have choices
-        for flag_type in ["boolean", "string", "integer"]:
+        test_cases = [
+            ("boolean", False),
+            ("string", "default"),
+            ("integer", 42)
+        ]
+
+        for flag_type, default_val in test_cases:
             flag_def = FlagDefinition(
                 long_form="--test",
                 short_form="-t",
                 flag_type=flag_type,
                 description="Test flag",
                 choices=None,
-                default_value=False if flag_type == "boolean" else "default",
+                default_value=default_val,
                 is_global=True
             )
             assert flag_def.choices is None
