@@ -1,0 +1,312 @@
+"""CLI commands for box management in the Shelf-Box Rhyme System."""
+
+import asyncio
+import logging
+from typing import Optional
+
+import click
+from rich.console import Console
+from rich.table import Table
+
+from src.models.box import BoxExistsError, BoxValidationError, BoxNotFoundError
+from src.models.box_type import BoxType
+from src.services.box_service import BoxService
+from src.services.shelf_service import ShelfService
+from src.services.database import DatabaseError
+from src.core.lib_logger import get_component_logger
+
+logger = get_component_logger("box_cli")
+console = Console()
+
+
+@click.group()
+def box():
+    """Manage documentation boxes (projects)."""
+    pass
+
+
+@box.command()
+@click.argument('name', type=str)
+@click.option('--type', 'box_type', type=click.Choice(['drag', 'rag', 'bag']), required=True, help='Box type')
+@click.option('--shelf', '-s', type=str, help='Add to shelf')
+@click.option('--description', '-d', type=str, help='Box description')
+def create(name: str, box_type: str, shelf: Optional[str] = None, description: Optional[str] = None):
+    """Create a new box."""
+
+    async def _create():
+        try:
+            box_service = BoxService()
+            shelf_service = ShelfService()
+
+            # Ensure we have a current shelf if none specified
+            target_shelf = shelf
+            if not target_shelf:
+                current = await shelf_service.get_current_shelf()
+                if current:
+                    target_shelf = current.name
+                else:
+                    console.print("[red]No current shelf set. Please specify --shelf or set current shelf[/red]")
+                    raise click.Abort()
+
+            # Create the box
+            box = await box_service.create_box(
+                name=name,
+                box_type=box_type,
+                shelf_name=target_shelf,
+                description=description
+            )
+
+            console.print(f"[green]Created {box_type} box '{name}'[/green]")
+            if target_shelf:
+                console.print(f"  Added to shelf: [cyan]{target_shelf}[/cyan]")
+
+            # Show box type description
+            console.print(f"  Purpose: {box.get_type_description()}")
+
+        except BoxExistsError as e:
+            console.print(f"[red]Error: {e}[/red]")
+            raise click.Abort()
+        except BoxValidationError as e:
+            console.print(f"[red]Invalid box: {e}[/red]")
+            raise click.Abort()
+        except DatabaseError as e:
+            if "not found" in str(e):
+                console.print(f"[red]Shelf '{shelf}' not found[/red]")
+            else:
+                console.print(f"[red]Failed to create box: {e}[/red]")
+            raise click.Abort()
+        except Exception as e:
+            console.print(f"[red]Failed to create box: {e}[/red]")
+            raise click.Abort()
+
+    asyncio.run(_create())
+
+
+@box.command()
+@click.option('--shelf', '-s', type=str, help='Filter by shelf')
+@click.option('--type', 'box_type', type=click.Choice(['drag', 'rag', 'bag']), help='Filter by type')
+@click.option('--verbose', '-v', is_flag=True, help='Show detailed information')
+@click.option('--limit', type=int, default=10, help='Maximum boxes to display')
+def list(shelf: Optional[str] = None, box_type: Optional[str] = None, verbose: bool = False, limit: int = 10):
+    """List boxes."""
+
+    async def _list():
+        try:
+            box_service = BoxService()
+            shelf_service = ShelfService()
+
+            # If no shelf specified, try current shelf
+            filter_shelf = shelf
+            if not filter_shelf:
+                current = await shelf_service.get_current_shelf()
+                if current:
+                    filter_shelf = current.name
+
+            boxes = await box_service.list_boxes(
+                shelf_name=filter_shelf,
+                box_type=box_type
+            )
+
+            if not boxes:
+                filter_desc = ""
+                if filter_shelf:
+                    filter_desc += f" in shelf '{filter_shelf}'"
+                if box_type:
+                    filter_desc += f" of type '{box_type}'"
+                console.print(f"[yellow]No boxes found{filter_desc}[/yellow]")
+                return
+
+            # Apply limit
+            if len(boxes) > limit:
+                boxes = boxes[:limit]
+                console.print(f"[dim]Showing first {limit} boxes[/dim]")
+
+            # Create table
+            table = Table(show_header=True, header_style="bold blue")
+            table.add_column("Name", style="cyan")
+            table.add_column("Type", justify="center")
+            table.add_column("Shelves", style="dim")
+            table.add_column("Created", style="dim")
+
+            if verbose:
+                table.add_column("ID", style="dim")
+                table.add_column("URL", style="green")
+
+            for box in boxes:
+                # Get shelf info for this box
+                box_stats = await box_service.get_box_stats(box.name)
+                shelves_str = ", ".join(box_stats['containing_shelves'][:2])  # Show first 2
+                if len(box_stats['containing_shelves']) > 2:
+                    shelves_str += f" +{len(box_stats['containing_shelves']) - 2}"
+
+                # Format created date
+                created_date = box.created_at.strftime("%Y-%m-%d")
+
+                row = [
+                    box.name,
+                    box.type.value,
+                    shelves_str,
+                    created_date
+                ]
+
+                if verbose:
+                    row.extend([
+                        box.id[:12] + "...",
+                        box.url or ""
+                    ])
+
+                table.add_row(*row)
+
+            console.print(table)
+
+        except Exception as e:
+            console.print(f"[red]Failed to list boxes: {e}[/red]")
+            raise click.Abort()
+
+    asyncio.run(_list())
+
+
+@box.command()
+@click.argument('box', type=str)
+@click.option('--to-shelf', type=str, required=True, help='Target shelf')
+def add(box: str, to_shelf: str):
+    """Add box to shelf."""
+
+    async def _add():
+        try:
+            box_service = BoxService()
+
+            success = await box_service.add_box_to_shelf(box, to_shelf)
+            if success:
+                console.print(f"[green]Added box '{box}' to shelf '{to_shelf}'[/green]")
+            else:
+                console.print(f"[yellow]Box '{box}' already in shelf '{to_shelf}'[/yellow]")
+
+        except BoxNotFoundError as e:
+            console.print(f"[red]Error: {e}[/red]")
+            raise click.Abort()
+        except DatabaseError as e:
+            if "not found" in str(e):
+                console.print(f"[red]Shelf '{to_shelf}' not found[/red]")
+            else:
+                console.print(f"[red]Failed to add box: {e}[/red]")
+            raise click.Abort()
+        except Exception as e:
+            console.print(f"[red]Failed to add box: {e}[/red]")
+            raise click.Abort()
+
+    asyncio.run(_add())
+
+
+@box.command()
+@click.argument('box', type=str)
+@click.option('--from-shelf', type=str, required=True, help='Source shelf')
+def remove(box: str, from_shelf: str):
+    """Remove box from shelf."""
+
+    async def _remove():
+        try:
+            box_service = BoxService()
+
+            success = await box_service.remove_box_from_shelf(box, from_shelf)
+            if success:
+                console.print(f"[green]Removed box '{box}' from shelf '{from_shelf}'[/green]")
+
+        except BoxNotFoundError as e:
+            console.print(f"[red]Error: {e}[/red]")
+            raise click.Abort()
+        except DatabaseError as e:
+            if "last box" in str(e):
+                console.print(f"[red]Cannot remove last box from shelf[/red]")
+            elif "not found" in str(e):
+                console.print(f"[red]Shelf '{from_shelf}' not found[/red]")
+            else:
+                console.print(f"[red]Failed to remove box: {e}[/red]")
+            raise click.Abort()
+        except Exception as e:
+            console.print(f"[red]Failed to remove box: {e}[/red]")
+            raise click.Abort()
+
+    asyncio.run(_remove())
+
+
+@box.command()
+@click.argument('old_name', type=str)
+@click.argument('new_name', type=str)
+def rename(old_name: str, new_name: str):
+    """Rename a box."""
+
+    async def _rename():
+        try:
+            box_service = BoxService()
+
+            box = await box_service.rename_box(old_name, new_name)
+            console.print(f"[green]Renamed box '{old_name}' to '{new_name}'[/green]")
+
+        except BoxNotFoundError as e:
+            console.print(f"[red]Error: {e}[/red]")
+            raise click.Abort()
+        except BoxExistsError as e:
+            console.print(f"[red]Error: {e}[/red]")
+            raise click.Abort()
+        except BoxValidationError as e:
+            console.print(f"[red]Invalid name: {e}[/red]")
+            raise click.Abort()
+        except Exception as e:
+            console.print(f"[red]Failed to rename box: {e}[/red]")
+            raise click.Abort()
+
+    asyncio.run(_rename())
+
+
+@box.command()
+@click.argument('name', type=str)
+@click.option('--force', '-f', is_flag=True, help='Skip confirmation')
+def delete(name: str, force: bool = False):
+    """Delete a box."""
+
+    async def _delete():
+        try:
+            box_service = BoxService()
+
+            # Get box info first
+            box = await box_service.get_box_by_name(name)
+            if not box:
+                console.print(f"[red]Box '{name}' not found[/red]")
+                raise click.Abort()
+
+            # Check protection
+            if not box.is_deletable:
+                console.print(f"[red]Cannot delete protected box[/red]")
+                raise click.Abort()
+
+            # Get shelves containing this box for warning
+            box_stats = await box_service.get_box_stats(name)
+            shelf_count = box_stats['shelf_count']
+
+            # Confirmation
+            if not force:
+                shelf_warning = f" (in {shelf_count} shelves)" if shelf_count > 0 else ""
+                confirm = click.confirm(
+                    f"Delete {box.type.value} box '{name}'{shelf_warning}?",
+                    default=False
+                )
+                if not confirm:
+                    console.print("[yellow]Cancelled[/yellow]")
+                    return
+
+            # Delete box
+            await box_service.delete_box(name)
+            console.print(f"[green]Deleted box '{name}'[/green]")
+
+        except DatabaseError as e:
+            if "protected" in str(e):
+                console.print(f"[red]Cannot delete protected box[/red]")
+            else:
+                console.print(f"[red]Failed to delete box: {e}[/red]")
+            raise click.Abort()
+        except Exception as e:
+            console.print(f"[red]Failed to delete box: {e}[/red]")
+            raise click.Abort()
+
+    asyncio.run(_delete())

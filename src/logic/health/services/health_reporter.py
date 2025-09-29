@@ -224,9 +224,11 @@ class HealthReporter:
         table.add_column("Example", style="dim", width=25)
 
         # Core commands
-        table.add_row("docbro project create <name> --type <type>", "Create a new documentation project", "docbro project create myapi --type crawling")
-        table.add_row("docbro crawl <name>", "Crawl and index documentation", "docbro crawl myapi")
-        table.add_row("docbro project list", "List all projects", "docbro project list --status active")
+        table.add_row("docbro shelf create <name>", "Create a documentation shelf", "docbro shelf create 'my docs'")
+        table.add_row("docbro box create <name> --type <type>", "Create a documentation box", "docbro box create 'python-docs' --type drag")
+        table.add_row("docbro fill <box> --source <url>", "Fill box with content", "docbro fill 'python-docs' --source 'https://docs.python.org'")
+        table.add_row("docbro shelf list", "List all shelves", "docbro shelf list --verbose")
+        table.add_row("docbro box list", "List all boxes", "docbro box list --type drag")
         table.add_row("docbro serve", "Start MCP server", "docbro serve --port 9382")
 
         # Setup commands
@@ -235,8 +237,8 @@ class HealthReporter:
         table.add_row("docbro health", "Check system health", "docbro health")
 
         # Advanced usage
-        table.add_row("docbro project remove <name>", "Remove a project", "docbro project remove myapi")
-        table.add_row("docbro crawl <name> --update", "Update existing project", "docbro crawl myapi --update")
+        table.add_row("docbro box delete <name>", "Remove a box", "docbro box delete 'python-docs'")
+        table.add_row("docbro shelf delete <name>", "Remove a shelf", "docbro shelf delete 'my docs'")
 
         with console.capture() as capture:
             console.print(table)

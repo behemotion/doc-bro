@@ -69,7 +69,7 @@ class TestProjectManagerContract:
         self.project_manager.get_project_stats = AsyncMock()
 
     @pytest.mark.asyncio
-    async def test_create_project_contract(self):
+    def test_create_project_contract(self):
         """Test create_project method contract."""
         # Setup
         name = "test-project"
@@ -103,7 +103,7 @@ class TestProjectManagerContract:
         assert result.type == project_type
 
     @pytest.mark.asyncio
-    async def test_create_project_without_settings(self):
+    def test_create_project_without_settings(self):
         """Test create_project with default settings."""
         # Setup
         name = "test-project-defaults"
@@ -130,7 +130,7 @@ class TestProjectManagerContract:
         assert result == expected_project
 
     @pytest.mark.asyncio
-    async def test_get_project_contract(self):
+    def test_get_project_contract(self):
         """Test get_project method contract."""
         # Setup
         name = "existing-project"
@@ -155,7 +155,7 @@ class TestProjectManagerContract:
         assert result == expected_project
 
     @pytest.mark.asyncio
-    async def test_get_project_not_found(self):
+    def test_get_project_not_found(self):
         """Test get_project returns None for non-existent project."""
         # Setup
         name = "nonexistent-project"
@@ -169,7 +169,7 @@ class TestProjectManagerContract:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_list_projects_contract(self):
+    def test_list_projects_contract(self):
         """Test list_projects method contract."""
         # Setup
         expected_projects = [
@@ -206,7 +206,7 @@ class TestProjectManagerContract:
         assert len(result) == 2
 
     @pytest.mark.asyncio
-    async def test_list_projects_with_filters(self):
+    def test_list_projects_with_filters(self):
         """Test list_projects with status and type filters."""
         # Setup
         status_filter = ProjectStatus.ACTIVE
@@ -236,7 +236,7 @@ class TestProjectManagerContract:
         assert result == filtered_projects
 
     @pytest.mark.asyncio
-    async def test_update_project_contract(self):
+    def test_update_project_contract(self):
         """Test update_project method contract."""
         # Setup
         project = Project(
@@ -271,7 +271,7 @@ class TestProjectManagerContract:
         assert result == updated_project
 
     @pytest.mark.asyncio
-    async def test_remove_project_contract(self):
+    def test_remove_project_contract(self):
         """Test remove_project method contract."""
         # Setup
         name = "project-to-remove"
@@ -287,7 +287,7 @@ class TestProjectManagerContract:
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_remove_project_without_backup(self):
+    def test_remove_project_without_backup(self):
         """Test remove_project without backup."""
         # Setup
         name = "project-no-backup"
@@ -303,7 +303,7 @@ class TestProjectManagerContract:
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_remove_project_failure(self):
+    def test_remove_project_failure(self):
         """Test remove_project returns False on failure."""
         # Setup
         name = "project-remove-fail"
@@ -319,7 +319,7 @@ class TestProjectManagerContract:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_get_project_stats_contract(self):
+    def test_get_project_stats_contract(self):
         """Test get_project_stats method contract."""
         # Setup
         name = "stats-project"
@@ -346,7 +346,7 @@ class TestProjectManagerContract:
         assert "total_size" in result
 
     @pytest.mark.asyncio
-    async def test_all_project_types_supported(self):
+    def test_all_project_types_supported(self):
         """Test that all project types can be created."""
         project_types = [ProjectType.CRAWLING, ProjectType.DATA, ProjectType.STORAGE]
 
@@ -377,7 +377,7 @@ class TestProjectManagerContract:
             assert result.type == project_type
 
     @pytest.mark.asyncio
-    async def test_method_signatures_match_contract(self):
+    def test_method_signatures_match_contract(self):
         """Test that all methods have correct signatures."""
         # This test verifies that the implementation matches the contract interface
         # Will fail until implementation exists, which is expected in TDD

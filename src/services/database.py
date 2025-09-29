@@ -19,6 +19,8 @@ from src.models import (
     Project,
     ProjectStatus,
 )
+from src.models.schema_version import SchemaVersion
+from src.lib.exceptions import DatabaseSchemaError
 
 
 class DatabaseError(Exception):
@@ -48,6 +50,11 @@ class DatabaseManager:
         try:
             # Ensure database directory exists
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Run synchronous migrations first
+            from src.services.database_migrator import DatabaseMigrator
+            migrator = DatabaseMigrator(self.config)
+            migrator.run_migrations()
 
             # Create connection
             self._connection = await aiosqlite.connect(str(self.db_path))
@@ -87,7 +94,7 @@ class DatabaseManager:
         self.logger.info("Database connections closed")
 
     async def _create_schema(self) -> None:
-        """Create main database schema (projects only)."""
+        """Create main database schema with unified project structure."""
         schema_sql = """
         -- Schema version tracking
         CREATE TABLE IF NOT EXISTS schema_version (
@@ -95,32 +102,87 @@ class DatabaseManager:
             applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
-        -- Projects table (main database only stores project metadata)
+        -- Unified projects table supporting all project types
         CREATE TABLE IF NOT EXISTS projects (
             id TEXT PRIMARY KEY,
             name TEXT UNIQUE NOT NULL,
+            schema_version INTEGER NOT NULL DEFAULT 3,
+            type TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'active',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            last_crawl_at TEXT,
             source_url TEXT,
-            status TEXT NOT NULL DEFAULT 'created',
-            crawl_depth INTEGER NOT NULL DEFAULT 2,
-            embedding_model TEXT NOT NULL DEFAULT 'mxbai-embed-large',
-            chunk_size INTEGER NOT NULL DEFAULT 1000,
-            chunk_overlap INTEGER NOT NULL DEFAULT 100,
-            created_at TIMESTAMP NOT NULL,
-            updated_at TIMESTAMP NOT NULL,
-            last_crawl_at TIMESTAMP,
-            total_pages INTEGER NOT NULL DEFAULT 0,
-            total_size_bytes INTEGER NOT NULL DEFAULT 0,
-            successful_pages INTEGER NOT NULL DEFAULT 0,
-            failed_pages INTEGER NOT NULL DEFAULT 0,
-            metadata TEXT
+            settings_json TEXT NOT NULL DEFAULT '{}',
+            statistics_json TEXT NOT NULL DEFAULT '{}',
+            metadata_json TEXT NOT NULL DEFAULT '{}'
         );
 
+        -- Shelfs table for organizing projects into collections
+        CREATE TABLE IF NOT EXISTS shelfs (
+            id TEXT PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            is_current BOOLEAN DEFAULT FALSE,
+            metadata_json TEXT DEFAULT '{}'
+        );
+
+        -- Baskets table (projects within shelfs)
+        CREATE TABLE IF NOT EXISTS baskets (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            shelf_id TEXT NOT NULL,
+            type TEXT NOT NULL DEFAULT 'data',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            last_operation_at TEXT,
+
+            -- Preserve all existing project fields
+            status TEXT NOT NULL DEFAULT 'created',
+            source_url TEXT,
+            crawl_depth INTEGER DEFAULT 2,
+            embedding_model TEXT DEFAULT 'mxbai-embed-large',
+            chunk_size INTEGER DEFAULT 1000,
+            chunk_overlap INTEGER DEFAULT 100,
+
+            -- Statistics
+            total_pages INTEGER DEFAULT 0,
+            total_size_bytes INTEGER DEFAULT 0,
+            successful_pages INTEGER DEFAULT 0,
+            failed_pages INTEGER DEFAULT 0,
+
+            -- Configuration
+            settings_json TEXT NOT NULL DEFAULT '{}',
+            metadata_json TEXT NOT NULL DEFAULT '{}',
+
+            -- Schema compatibility
+            schema_version INTEGER DEFAULT 4,
+
+            FOREIGN KEY (shelf_id) REFERENCES shelfs (id) ON DELETE CASCADE,
+            UNIQUE(shelf_id, name)
+        );
+
+
         -- Indexes for performance
-        CREATE INDEX IF NOT EXISTS idx_projects_name ON projects (name);
-        CREATE INDEX IF NOT EXISTS idx_projects_status ON projects (status);
+        CREATE INDEX IF NOT EXISTS idx_projects_name ON projects(name);
+        CREATE INDEX IF NOT EXISTS idx_projects_type ON projects(type);
+        CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
+        CREATE INDEX IF NOT EXISTS idx_projects_schema_version ON projects(schema_version);
+
+        -- Shelf indexes
+        CREATE INDEX IF NOT EXISTS idx_shelfs_name ON shelfs(name);
+        CREATE INDEX IF NOT EXISTS idx_shelfs_is_current ON shelfs(is_current);
+
+        -- Basket indexes
+        CREATE INDEX IF NOT EXISTS idx_baskets_shelf_id ON baskets(shelf_id);
+        CREATE INDEX IF NOT EXISTS idx_baskets_name ON baskets(name);
+        CREATE INDEX IF NOT EXISTS idx_baskets_type ON baskets(type);
+        CREATE INDEX IF NOT EXISTS idx_baskets_status ON baskets(status);
+
 
         -- Insert current schema version
-        INSERT OR REPLACE INTO schema_version (version) VALUES (3);
+        INSERT OR REPLACE INTO schema_version (version) VALUES (4);
         """
 
         await self._connection.executescript(schema_sql)
@@ -249,60 +311,6 @@ class DatabaseManager:
 
         return conn
 
-    async def _apply_migrations(self) -> None:
-        """Apply database migrations."""
-        current_version = await self._get_schema_version()
-
-        # Migration to version 2: Make source_url nullable
-        if current_version < 2:
-            self.logger.info("Applying migration to version 2: Making source_url nullable")
-            try:
-                # Create new table with nullable source_url
-                await self._connection.execute("""
-                    CREATE TABLE projects_new (
-                        id TEXT PRIMARY KEY,
-                        name TEXT UNIQUE NOT NULL,
-                        source_url TEXT,
-                        status TEXT NOT NULL DEFAULT 'created',
-                        crawl_depth INTEGER NOT NULL DEFAULT 2,
-                        embedding_model TEXT NOT NULL DEFAULT 'mxbai-embed-large',
-                        chunk_size INTEGER NOT NULL DEFAULT 1000,
-                        chunk_overlap INTEGER NOT NULL DEFAULT 100,
-                        created_at TIMESTAMP NOT NULL,
-                        updated_at TIMESTAMP NOT NULL,
-                        last_crawl_at TIMESTAMP,
-                        total_pages INTEGER NOT NULL DEFAULT 0,
-                        total_size_bytes INTEGER NOT NULL DEFAULT 0,
-                        successful_pages INTEGER NOT NULL DEFAULT 0,
-                        failed_pages INTEGER NOT NULL DEFAULT 0,
-                        metadata TEXT
-                    )
-                """)
-
-                # Copy data from old table
-                await self._connection.execute("""
-                    INSERT INTO projects_new
-                    SELECT * FROM projects
-                """)
-
-                # Drop old table and rename new one
-                await self._connection.execute("DROP TABLE projects")
-                await self._connection.execute("ALTER TABLE projects_new RENAME TO projects")
-
-                # Recreate indexes
-                await self._connection.execute("CREATE INDEX IF NOT EXISTS idx_projects_name ON projects (name)")
-                await self._connection.execute("CREATE INDEX IF NOT EXISTS idx_projects_status ON projects (status)")
-
-                # Update schema version
-                await self._connection.execute("INSERT OR REPLACE INTO schema_version (version) VALUES (2)")
-                await self._connection.commit()
-
-                self.logger.info("Migration to version 2 completed successfully")
-
-            except Exception as e:
-                await self._connection.rollback()
-                self.logger.error(f"Migration to version 2 failed: {e}")
-                raise DatabaseError(f"Migration failed: {e}")
 
     def _ensure_initialized(self) -> None:
         """Ensure database is initialized."""
@@ -310,6 +318,7 @@ class DatabaseManager:
             raise DatabaseError("Database not initialized. Call initialize() first.")
 
     # Project operations
+
 
     async def create_project(
         self,
@@ -341,19 +350,31 @@ class DatabaseManager:
         )
 
         try:
+            # Convert project-specific settings to JSON for unified schema
+            settings = {
+                "crawl_depth": project.crawl_depth,
+                "embedding_model": project.embedding_model,
+                "chunk_size": project.chunk_size,
+                "chunk_overlap": project.chunk_overlap
+            }
+
+            statistics = {
+                "total_pages": project.total_pages,
+                "total_size_bytes": project.total_size_bytes,
+                "successful_pages": project.successful_pages,
+                "failed_pages": project.failed_pages
+            }
+
             await self._connection.execute("""
                 INSERT INTO projects (
-                    id, name, source_url, status, crawl_depth, embedding_model,
-                    chunk_size, chunk_overlap, created_at, updated_at,
-                    total_pages, total_size_bytes, successful_pages, failed_pages, metadata
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    id, name, source_url, status, type, created_at, updated_at,
+                    settings_json, statistics_json, metadata_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 project.id, project.name, project.source_url, project.status.value,
-                project.crawl_depth, project.embedding_model, project.chunk_size,
-                project.chunk_overlap, project.created_at.isoformat(),
-                project.updated_at.isoformat(), project.total_pages,
-                project.total_size_bytes, project.successful_pages,
-                project.failed_pages, json.dumps(project.metadata)
+                "crawling",  # Default type for legacy projects
+                project.created_at.isoformat(), project.updated_at.isoformat(),
+                json.dumps(settings), json.dumps(statistics), json.dumps(project.metadata)
             ))
             await self._connection.commit()
 
@@ -375,9 +396,8 @@ class DatabaseManager:
         self._ensure_initialized()
 
         cursor = await self._connection.execute("""
-            SELECT id, name, source_url, status, crawl_depth, embedding_model,
-                   chunk_size, chunk_overlap, created_at, updated_at, last_crawl_at,
-                   total_pages, total_size_bytes, successful_pages, failed_pages, metadata
+            SELECT id, name, source_url, status, type, created_at, updated_at, last_crawl_at,
+                   settings_json, statistics_json, metadata_json
             FROM projects WHERE id = ?
         """, (project_id,))
 
@@ -392,9 +412,8 @@ class DatabaseManager:
         self._ensure_initialized()
 
         cursor = await self._connection.execute("""
-            SELECT id, name, source_url, status, crawl_depth, embedding_model,
-                   chunk_size, chunk_overlap, created_at, updated_at, last_crawl_at,
-                   total_pages, total_size_bytes, successful_pages, failed_pages, metadata
+            SELECT id, name, source_url, status, type, created_at, updated_at, last_crawl_at,
+                   settings_json, statistics_json, metadata_json
             FROM projects WHERE name = ?
         """, (name,))
 
@@ -414,9 +433,8 @@ class DatabaseManager:
         self._ensure_initialized()
 
         sql = """
-            SELECT id, name, source_url, status, crawl_depth, embedding_model,
-                   chunk_size, chunk_overlap, created_at, updated_at, last_crawl_at,
-                   total_pages, total_size_bytes, successful_pages, failed_pages, metadata
+            SELECT id, name, source_url, status, type, created_at, updated_at, last_crawl_at,
+                   settings_json, statistics_json, metadata_json
             FROM projects
         """
         params = []
@@ -684,28 +702,32 @@ class DatabaseManager:
         return None
 
     def _project_from_row(self, row: tuple) -> Project:
-        """Create Project from database row."""
-        (id, name, source_url, status, crawl_depth, embedding_model,
-         chunk_size, chunk_overlap, created_at, updated_at, last_crawl_at,
-         total_pages, total_size_bytes, successful_pages, failed_pages, metadata) = row
+        """Create Project from database row (unified schema)."""
+        (id, name, source_url, status, project_type, created_at, updated_at, last_crawl_at,
+         settings_json, statistics_json, metadata_json) = row
+
+        # Parse JSON fields
+        settings = json.loads(settings_json) if settings_json else {}
+        statistics = json.loads(statistics_json) if statistics_json else {}
+        metadata = json.loads(metadata_json) if metadata_json else {}
 
         return Project(
             id=id,
             name=name,
             source_url=source_url,
             status=ProjectStatus(status),
-            crawl_depth=crawl_depth,
-            embedding_model=embedding_model,
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
+            crawl_depth=settings.get("crawl_depth", 3),
+            embedding_model=settings.get("embedding_model", "mxbai-embed-large"),
+            chunk_size=settings.get("chunk_size", 500),
+            chunk_overlap=settings.get("chunk_overlap", 50),
             created_at=datetime.fromisoformat(created_at),
             updated_at=datetime.fromisoformat(updated_at),
             last_crawl_at=datetime.fromisoformat(last_crawl_at) if last_crawl_at else None,
-            total_pages=total_pages,
-            total_size_bytes=total_size_bytes,
-            successful_pages=successful_pages,
-            failed_pages=failed_pages,
-            metadata=json.loads(metadata) if metadata else {}
+            total_pages=statistics.get("total_pages", 0),
+            total_size_bytes=statistics.get("total_size_bytes", 0),
+            successful_pages=statistics.get("successful_pages", 0),
+            failed_pages=statistics.get("failed_pages", 0),
+            metadata=metadata
         )
 
     def _session_from_row(self, row: tuple) -> CrawlSession:
@@ -1217,6 +1239,7 @@ class DatabaseManager:
             metadata=metadata
         )
 
+
     async def cleanup_project(self, project_id: str) -> dict[str, Any]:
         """Clean up all project data."""
         self._ensure_initialized()
@@ -1281,3 +1304,252 @@ class DatabaseManager:
                 "error": str(e)
             })
             return {"success": False, "error": str(e)}
+
+    # Shelf operations
+
+    async def create_shelf(self, name: str, is_default: bool = False, is_deletable: bool = True) -> str:
+        """Create a new shelf."""
+        self._ensure_initialized()
+
+        shelf_id = str(uuid.uuid4())
+        now = datetime.utcnow().isoformat()
+
+        try:
+            await self._connection.execute("""
+                INSERT INTO shelves (id, name, is_default, is_deletable, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (shelf_id, name, is_default, is_deletable, now, now))
+            await self._connection.commit()
+
+            self.logger.info("Created shelf", extra={"shelf_id": shelf_id, "name": name})
+            return shelf_id
+
+        except sqlite3.IntegrityError:
+            raise DatabaseError(f"Shelf with name '{name}' already exists")
+
+    async def get_shelf(self, shelf_id: str = None, name: str = None) -> dict | None:
+        """Get shelf by ID or name."""
+        self._ensure_initialized()
+
+        if shelf_id:
+            cursor = await self._connection.execute(
+                "SELECT * FROM shelves WHERE id = ?", (shelf_id,)
+            )
+        elif name:
+            cursor = await self._connection.execute(
+                "SELECT * FROM shelves WHERE name = ?", (name,)
+            )
+        else:
+            return None
+
+        row = await cursor.fetchone()
+        if row:
+            return dict(zip([col[0] for col in cursor.description], row))
+        return None
+
+    async def list_shelves(self) -> list[dict]:
+        """List all shelves."""
+        self._ensure_initialized()
+
+        cursor = await self._connection.execute("""
+            SELECT s.*, COUNT(sb.box_id) as box_count
+            FROM shelves s
+            LEFT JOIN shelf_boxes sb ON s.id = sb.shelf_id
+            GROUP BY s.id
+            ORDER BY s.created_at DESC
+        """)
+
+        rows = await cursor.fetchall()
+        return [dict(zip([col[0] for col in cursor.description], row)) for row in rows]
+
+    async def delete_shelf(self, shelf_id: str) -> bool:
+        """Delete a shelf."""
+        self._ensure_initialized()
+
+        # Check if shelf is deletable
+        shelf = await self.get_shelf(shelf_id=shelf_id)
+        if not shelf:
+            return False
+        if not shelf['is_deletable']:
+            raise DatabaseError("Cannot delete protected shelf")
+
+        await self._connection.execute("DELETE FROM shelves WHERE id = ?", (shelf_id,))
+        await self._connection.commit()
+
+        self.logger.info("Deleted shelf", extra={"shelf_id": shelf_id})
+        return True
+
+    # Box operations
+
+    async def create_box(self, name: str, box_type: str, is_deletable: bool = True, **kwargs) -> str:
+        """Create a new box."""
+        self._ensure_initialized()
+
+        box_id = str(uuid.uuid4())
+        now = datetime.utcnow().isoformat()
+
+        try:
+            await self._connection.execute("""
+                INSERT INTO boxes (
+                    id, name, type, is_deletable, url, max_pages,
+                    rate_limit, crawl_depth, settings, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                box_id, name, box_type, is_deletable,
+                kwargs.get('url'), kwargs.get('max_pages'),
+                kwargs.get('rate_limit'), kwargs.get('crawl_depth'),
+                json.dumps(kwargs.get('settings', {})) if kwargs.get('settings') else None,
+                now, now
+            ))
+            await self._connection.commit()
+
+            self.logger.info("Created box", extra={"box_id": box_id, "name": name, "type": box_type})
+            return box_id
+
+        except sqlite3.IntegrityError:
+            raise DatabaseError(f"Box with name '{name}' already exists")
+
+    async def get_box(self, box_id: str = None, name: str = None) -> dict | None:
+        """Get box by ID or name."""
+        self._ensure_initialized()
+
+        if box_id:
+            cursor = await self._connection.execute(
+                "SELECT * FROM boxes WHERE id = ?", (box_id,)
+            )
+        elif name:
+            cursor = await self._connection.execute(
+                "SELECT * FROM boxes WHERE name = ?", (name,)
+            )
+        else:
+            return None
+
+        row = await cursor.fetchone()
+        if row:
+            return dict(zip([col[0] for col in cursor.description], row))
+        return None
+
+    async def list_boxes(self, shelf_id: str = None, box_type: str = None) -> list[dict]:
+        """List boxes, optionally filtered by shelf or type."""
+        self._ensure_initialized()
+
+        if shelf_id:
+            cursor = await self._connection.execute("""
+                SELECT b.*, sb.position, sb.added_at
+                FROM boxes b
+                JOIN shelf_boxes sb ON b.id = sb.box_id
+                WHERE sb.shelf_id = ?
+                ORDER BY sb.position, b.created_at DESC
+            """, (shelf_id,))
+        elif box_type:
+            cursor = await self._connection.execute("""
+                SELECT * FROM boxes WHERE type = ? ORDER BY created_at DESC
+            """, (box_type,))
+        else:
+            cursor = await self._connection.execute("""
+                SELECT * FROM boxes ORDER BY created_at DESC
+            """)
+
+        rows = await cursor.fetchall()
+        return [dict(zip([col[0] for col in cursor.description], row)) for row in rows]
+
+    async def delete_box(self, box_id: str) -> bool:
+        """Delete a box."""
+        self._ensure_initialized()
+
+        # Check if box is deletable
+        box = await self.get_box(box_id=box_id)
+        if not box:
+            return False
+        if not box['is_deletable']:
+            raise DatabaseError("Cannot delete protected box")
+
+        await self._connection.execute("DELETE FROM boxes WHERE id = ?", (box_id,))
+        await self._connection.commit()
+
+        self.logger.info("Deleted box", extra={"box_id": box_id})
+        return True
+
+    # Shelf-Box relationship operations
+
+    async def add_box_to_shelf(self, shelf_id: str, box_id: str, position: int = None) -> bool:
+        """Add a box to a shelf."""
+        self._ensure_initialized()
+
+        now = datetime.utcnow().isoformat()
+
+        try:
+            await self._connection.execute("""
+                INSERT INTO shelf_boxes (shelf_id, box_id, position, added_at)
+                VALUES (?, ?, ?, ?)
+            """, (shelf_id, box_id, position, now))
+            await self._connection.commit()
+
+            self.logger.info("Added box to shelf", extra={"shelf_id": shelf_id, "box_id": box_id})
+            return True
+
+        except sqlite3.IntegrityError:
+            self.logger.warning("Box already in shelf", extra={"shelf_id": shelf_id, "box_id": box_id})
+            return False
+
+    async def remove_box_from_shelf(self, shelf_id: str, box_id: str) -> bool:
+        """Remove a box from a shelf."""
+        self._ensure_initialized()
+
+        # Check if this is the last box in the shelf
+        cursor = await self._connection.execute("""
+            SELECT COUNT(*) FROM shelf_boxes WHERE shelf_id = ?
+        """, (shelf_id,))
+        count = (await cursor.fetchone())[0]
+
+        if count <= 1:
+            raise DatabaseError("Cannot remove last box from shelf")
+
+        cursor = await self._connection.execute("""
+            DELETE FROM shelf_boxes WHERE shelf_id = ? AND box_id = ?
+        """, (shelf_id, box_id))
+        await self._connection.commit()
+
+        if cursor.rowcount > 0:
+            self.logger.info("Removed box from shelf", extra={"shelf_id": shelf_id, "box_id": box_id})
+            return True
+        return False
+
+    async def get_current_shelf_id(self) -> str | None:
+        """Get the current shelf ID from global settings."""
+        self._ensure_initialized()
+
+        try:
+            cursor = await self._connection.execute(
+                "SELECT current_shelf FROM global_settings LIMIT 1"
+            )
+            row = await cursor.fetchone()
+            return row[0] if row else None
+        except sqlite3.OperationalError:
+            # Table or column might not exist
+            return None
+
+    async def set_current_shelf(self, shelf_id: str) -> bool:
+        """Set the current shelf in global settings."""
+        self._ensure_initialized()
+
+        try:
+            # First ensure global_settings exists
+            await self._connection.execute("""
+                INSERT OR IGNORE INTO global_settings (id, current_shelf)
+                VALUES (1, ?)
+            """, (shelf_id,))
+
+            # Update current shelf
+            await self._connection.execute("""
+                UPDATE global_settings SET current_shelf = ? WHERE id = 1
+            """, (shelf_id,))
+            await self._connection.commit()
+
+            self.logger.info("Set current shelf", extra={"shelf_id": shelf_id})
+            return True
+
+        except Exception as e:
+            self.logger.error("Failed to set current shelf", extra={"error": str(e)})
+            return False

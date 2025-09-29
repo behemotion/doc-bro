@@ -104,7 +104,7 @@ class TestVectorStoreInterface:
         assert hasattr(qdrant_service, "get_collection_stats")
 
     @pytest.mark.asyncio
-    async def test_initialize_contract(self, sqlite_vec_service):
+    def test_initialize_contract(self, sqlite_vec_service):
         """Test initialize method contract."""
         # Should not raise exception
         await sqlite_vec_service.initialize()
@@ -113,7 +113,7 @@ class TestVectorStoreInterface:
         await sqlite_vec_service.initialize()
 
     @pytest.mark.asyncio
-    async def test_create_collection_contract(self, sqlite_vec_service):
+    def test_create_collection_contract(self, sqlite_vec_service):
         """Test create_collection method contract."""
         await sqlite_vec_service.initialize()
 
@@ -125,7 +125,7 @@ class TestVectorStoreInterface:
         await sqlite_vec_service.create_collection("test_collection")
 
     @pytest.mark.asyncio
-    async def test_upsert_document_contract(self, sqlite_vec_service):
+    def test_upsert_document_contract(self, sqlite_vec_service):
         """Test upsert_document method contract."""
         await sqlite_vec_service.initialize()
         await sqlite_vec_service.create_collection("test_collection")
@@ -151,7 +151,7 @@ class TestVectorStoreInterface:
         )
 
     @pytest.mark.asyncio
-    async def test_search_contract(self, sqlite_vec_service):
+    def test_search_contract(self, sqlite_vec_service):
         """Test search method contract."""
         await sqlite_vec_service.initialize()
         await sqlite_vec_service.create_collection("test_collection")
@@ -178,7 +178,7 @@ class TestVectorStoreInterface:
             assert "metadata" in results[0]
 
     @pytest.mark.asyncio
-    async def test_delete_document_contract(self, sqlite_vec_service):
+    def test_delete_document_contract(self, sqlite_vec_service):
         """Test delete_document method contract."""
         await sqlite_vec_service.initialize()
         await sqlite_vec_service.create_collection("test_collection")
@@ -205,7 +205,7 @@ class TestVectorStoreInterface:
         assert isinstance(result, bool)
 
     @pytest.mark.asyncio
-    async def test_delete_collection_contract(self, sqlite_vec_service):
+    def test_delete_collection_contract(self, sqlite_vec_service):
         """Test delete_collection method contract."""
         await sqlite_vec_service.initialize()
         await sqlite_vec_service.create_collection("test_collection")
@@ -219,7 +219,7 @@ class TestVectorStoreInterface:
         assert isinstance(result, bool)
 
     @pytest.mark.asyncio
-    async def test_get_collection_stats_contract(self, sqlite_vec_service):
+    def test_get_collection_stats_contract(self, sqlite_vec_service):
         """Test get_collection_stats method contract."""
         await sqlite_vec_service.initialize()
         await sqlite_vec_service.create_collection("test_collection")

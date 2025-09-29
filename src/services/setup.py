@@ -402,13 +402,14 @@ DocBro has been successfully configured:
 [dim]Data Directory:[/dim] {context.user_data_dir}
 
 [bold]Next Steps:[/bold]
-1. Create your first project: [cyan]docbro project create myproject --type crawling[/cyan]
-2. Crawl documentation: [cyan]docbro crawl myproject[/cyan]
-3. Search your docs: [cyan]docbro search "query" --project myproject[/cyan]
+1. Create a shelf: [cyan]docbro shelf create 'my docs'[/cyan]
+2. Create a box: [cyan]docbro box create 'python-docs' --type drag[/cyan]
+3. Fill with content: [cyan]docbro fill 'python-docs' --source 'https://docs.python.org'[/cyan]
+4. Start MCP server: [cyan]docbro serve[/cyan]
 
 [bold]Need help?[/bold]
-• Check status: [cyan]docbro status[/cyan]
-• List projects: [cyan]docbro project list[/cyan]
+• Check status: [cyan]docbro health[/cyan]
+• List shelves: [cyan]docbro shelf list[/cyan]
 • Get help: [cyan]docbro --help[/cyan]
 
 [dim]If you skipped service installation, you can set them up later.

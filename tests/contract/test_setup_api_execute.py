@@ -25,7 +25,7 @@ def mock_setup_service():
 class TestSetupExecuteApiContract:
     """Contract tests for POST /setup/session/{session_id}/execute endpoint."""
 
-    async def test_execute_endpoint_exists(self, mock_setup_service):
+    def test_execute_endpoint_exists(self, mock_setup_service):
         """Test that the execute endpoint is registered."""
         from src.api.setup_endpoints import setup_router
 
@@ -34,7 +34,7 @@ class TestSetupExecuteApiContract:
         execute_route_exists = any("/setup/session/{session_id}/execute" in route for route in routes)
         assert execute_route_exists
 
-    async def test_execute_setup_success_202(self, mock_setup_service):
+    def test_execute_setup_success_202(self, mock_setup_service):
         """Test successful setup execution returns 202 (async operation started)."""
         session_id = "550e8400-e29b-41d4-a716-446655440000"
         mock_response = {
@@ -56,7 +56,7 @@ class TestSetupExecuteApiContract:
         uuid_obj = UUID(session_id)
         assert str(uuid_obj) == session_id
 
-    async def test_execute_invalid_uuid_400(self, mock_setup_service):
+    def test_execute_invalid_uuid_400(self, mock_setup_service):
         """Test invalid UUID format returns 400 error."""
         invalid_session_id = "not-a-uuid"
 
@@ -64,7 +64,7 @@ class TestSetupExecuteApiContract:
         with pytest.raises(ValueError):
             UUID(invalid_session_id)
 
-    async def test_execute_session_not_found_404(self, mock_setup_service):
+    def test_execute_session_not_found_404(self, mock_setup_service):
         """Test non-existent session returns 404 error."""
         from src.models.setup_types import SessionNotFoundError
 
@@ -79,7 +79,7 @@ class TestSetupExecuteApiContract:
         except SessionNotFoundError:
             pass  # Expected exception
 
-    async def test_execute_already_in_progress_409(self, mock_setup_service):
+    def test_execute_already_in_progress_409(self, mock_setup_service):
         """Test execution already in progress returns 409 conflict."""
         from src.models.setup_types import SetupInProgressError
 
@@ -94,7 +94,7 @@ class TestSetupExecuteApiContract:
         except SetupInProgressError:
             pass  # Expected exception
 
-    async def test_execute_already_completed_409(self, mock_setup_service):
+    def test_execute_already_completed_409(self, mock_setup_service):
         """Test execution of completed session returns 409 conflict."""
         from src.models.setup_types import SetupAlreadyCompletedError
 
@@ -109,7 +109,7 @@ class TestSetupExecuteApiContract:
         except SetupAlreadyCompletedError:
             pass  # Expected exception
 
-    async def test_execute_response_schema_valid(self, mock_setup_service):
+    def test_execute_response_schema_valid(self, mock_setup_service):
         """Test response follows ExecutionResponse schema."""
         response = {
             'execution_started': True,
@@ -131,7 +131,7 @@ class TestSetupExecuteApiContract:
         assert isinstance(response['estimated_duration'], int)
         assert response['estimated_duration'] > 0
 
-    async def test_execute_steps_to_execute_valid(self, mock_setup_service):
+    def test_execute_steps_to_execute_valid(self, mock_setup_service):
         """Test steps_to_execute contains valid step names."""
         valid_steps = [
             'detect_components',
@@ -152,7 +152,7 @@ class TestSetupExecuteApiContract:
         for step in response['steps_to_execute']:
             assert step in valid_steps
 
-    async def test_execute_partial_steps_execution(self, mock_setup_service):
+    def test_execute_partial_steps_execution(self, mock_setup_service):
         """Test execution with partial steps (resume scenario)."""
         # Scenario: some steps already completed, only remaining steps to execute
         remaining_steps = [
@@ -172,7 +172,7 @@ class TestSetupExecuteApiContract:
         assert len(response['steps_to_execute']) < 6  # Not all 6 steps
         assert response['estimated_duration'] < 180  # Less time than full execution
 
-    async def test_execute_estimated_duration_reasonable(self, mock_setup_service):
+    def test_execute_estimated_duration_reasonable(self, mock_setup_service):
         """Test estimated duration is within reasonable bounds."""
         test_cases = [
             {'steps': 6, 'min_duration': 60, 'max_duration': 600},  # Full setup: 1-10 minutes
@@ -185,7 +185,7 @@ class TestSetupExecuteApiContract:
             estimated = case['steps'] * 30  # 30 seconds per step average
             assert case['min_duration'] <= estimated <= case['max_duration']
 
-    async def test_execute_async_operation(self, mock_setup_service):
+    def test_execute_async_operation(self, mock_setup_service):
         """Test that execution is asynchronous operation."""
         session_id = "550e8400-e29b-41d4-a716-446655440003"
 
@@ -200,7 +200,7 @@ class TestSetupExecuteApiContract:
         response = await mock_setup_service.execute_setup(session_id)
         assert response['execution_started'] is True
 
-    async def test_execute_no_steps_to_execute(self, mock_setup_service):
+    def test_execute_no_steps_to_execute(self, mock_setup_service):
         """Test execution when no steps need to be executed."""
         # Scenario: all steps already completed or no configuration provided
         response = {
@@ -214,7 +214,7 @@ class TestSetupExecuteApiContract:
         assert response['estimated_duration'] == 0
         assert len(response['steps_to_execute']) == 0
 
-    async def test_execute_step_dependencies(self, mock_setup_service):
+    def test_execute_step_dependencies(self, mock_setup_service):
         """Test that steps are ordered according to dependencies."""
         expected_order = [
             'detect_components',         # Must be first

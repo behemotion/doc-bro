@@ -68,9 +68,10 @@ CLI_ERROR_MESSAGES = {
 # Suggested actions for common errors
 ERROR_SUGGESTIONS = {
     "project_not_found": [
-        "Run 'docbro project list' to see available projects",
-        "Check the project name spelling",
-        "Create the project first with 'docbro project create'"
+        "Run 'docbro shelf list' to see available shelves",
+        "Run 'docbro box list' to see available boxes",
+        "Check the name spelling",
+        "Create a shelf and box first: 'docbro shelf create <name>' then 'docbro box create <name> --type <type>'"
     ],
     "authentication_failed": [
         "Verify your username and password",

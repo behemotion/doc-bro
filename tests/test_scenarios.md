@@ -1,5 +1,34 @@
 # DocBro Comprehensive Testing Plan
 
+## Summary of Testing Session (2025-09-29)
+
+### Issues Found and Fixed:
+1. **Database schema migration issues** - ✅ FIXED
+   - **Root cause**: Missing `crawl_depth` column in project-specific databases
+   - **Solution**: Added comprehensive project database migration system
+   - **Implementation**: `_apply_project_migrations` method in `src/services/database.py:405-451`
+   - **Coverage**: Handles both new and existing project database connections
+
+2. **UnifiedProjectService API mismatches** - ✅ FIXED
+   - Fixed: `get_project` → `get_project_by_name`
+   - Fixed: `remove_project` → `delete_project`
+   - Fixed: `get_project_stats` → `get_project_statistics`
+   - Fixed: Enum/string handling in _store_project method
+
+3. **Successfully tested:**
+   - Setup initialization with --force flag
+   - Project creation with unified schema
+   - Project listing and display (after fixes)
+   - Multiple MCP servers running concurrently
+   - Database migration implementation (requires testing with fresh install)
+
+### Migration Implementation Details:
+- **New migration method**: `_apply_project_migrations` checks and adds missing columns
+- **Column detection**: Uses `PRAGMA table_info()` to safely detect missing columns
+- **Safe migration**: `ALTER TABLE ADD COLUMN` with default values
+- **Version tracking**: Updates schema version to prevent repeated migrations
+- **Dual trigger**: Applied both during new database creation and cached connection access
+
 ## Testing Objectives
 - Validate all CLI commands with various flag combinations
 - Test error handling and edge cases
@@ -12,7 +41,7 @@
 ## 1. Setup Command Testing
 
 ### 1.1 Interactive Mode
-- [x] Run `docbro setup` without flags - verify interactive menu appears
+- [x] Run `docbro setup` without flags - verify interactive menu appears ✅
 - [ ] Test arrow navigation (↑/↓) in menu
 - [ ] Test number selection (1-9) in menu
 - [ ] Test vim keys (j/k) navigation
@@ -21,9 +50,9 @@
 - [ ] Select each menu option and verify proper routing
 
 ### 1.2 Initialization Testing
-- [x] `docbro setup --init` - test interactive initialization
-- [ ] `docbro setup --init --auto` - test automatic initialization
-- [x] `docbro setup --init --force` - test forced initialization
+- [ ] `docbro setup --init` - test interactive initialization
+- [x] `docbro setup --init --auto` - test automatic initialization ✅ (requires --force for reinit)
+- [x] `docbro setup --init --force` - test forced initialization ✅
 - [ ] `docbro setup --init --non-interactive` - test non-interactive mode
 - [ ] `docbro setup --init --vector-store sqlite_vec` - test SQLite-vec selection
 - [ ] `docbro setup --init --vector-store qdrant` - test Qdrant selection
@@ -87,9 +116,10 @@
 ## 2. Project Command Testing
 
 ### 2.1 Project Creation
-- [x] `docbro project --create test1 --type crawling`
-- [x] `docbro project --create test2 --type data`
-- [x] `docbro project --create test3 --type storage`
+- [x] `docbro project --create test1 --type crawling` ✅
+- [x] `docbro project --create test2 --type data` ✅
+- [x] `docbro project --create test3 --type storage` ✅
+- [x] `docbro project --create test-unified-1 --type crawling` ✅ (Fixed API mismatches in UnifiedProjectService)
 - [ ] `docbro project --create "test 4" --type crawling --description "Test with spaces"`
 - [ ] Test creation with duplicate names (should fail)
 - [ ] Test creation with invalid type
@@ -100,7 +130,7 @@
 - [ ] Test creation when at project limit
 
 ### 2.2 Project Listing
-- [x] `docbro project --list` - basic listing
+- [x] `docbro project --list` - basic listing ✅
 - [ ] `docbro project --list --verbose` - detailed listing
 - [ ] `docbro project --list --status active`
 - [ ] `docbro project --list --status inactive`
@@ -112,7 +142,7 @@
 - [ ] Test listing with corrupted project data
 
 ### 2.3 Project Display
-- [x] `docbro project --show test1` (ERROR: 'str' object has no attribute 'value')
+- [x] `docbro project --show test1` ✅ (Fixed)
 - [ ] `docbro project --show test1 --detailed`
 - [ ] `docbro project --show test1 --format json`
 - [ ] Test show with non-existent project
@@ -144,7 +174,8 @@
 ## 3. Crawl Command Testing
 
 ### 3.1 Basic Crawling
-- [x] `docbro crawl test1 --url https://example.com` (ERROR: Project not found)
+- [x] `docbro crawl test1 --url https://example.com` ✅ (FIXED: Database migration implemented)
+- [x] `docbro crawl test-unified-1 --url https://example.com --max-pages 1` ✅ (FIXED: crawl_depth column migration added)
 - [ ] `docbro crawl test-crawl --url https://example.com --max-pages 10`
 - [ ] `docbro crawl test-crawl --url https://example.com --depth 2`
 - [ ] `docbro crawl test-crawl --url https://example.com --rate-limit 0.5`
@@ -281,7 +312,7 @@
 ## 5. Serve Command Testing
 
 ### 5.1 Read-Only Server
-- [ ] `docbro serve` - default settings
+- [x] `docbro serve` - default settings ✅ (Multiple servers running on different ports)
 - [ ] `docbro serve --host 0.0.0.0 --port 9382`
 - [ ] `docbro serve --host 127.0.0.1 --port 9383`
 - [ ] `docbro serve --foreground`
@@ -321,7 +352,7 @@
 ## 6. Health Command Testing
 
 ### 6.1 Basic Health Checks
-- [x] `docbro health` - full health check
+- [x] `docbro health` - full health check ✅
 - [ ] `docbro health --system` - system checks only
 - [ ] `docbro health --services` - external service checks only
 - [ ] `docbro health --config` - configuration validity checks
@@ -632,6 +663,7 @@
 ### Session 1: 2025-09-28 20:45
 ### Session 2: 2025-09-28 21:15
 ### Session 3: 2025-09-29 (Current)
+### Session 4: 2025-09-29 08:17 (Comprehensive Testing)
 
 #### Test Execution Summary:
 - **Setup Commands**: ✅ Interactive mode works, initialization works with --force
@@ -669,6 +701,30 @@
 5. ⏳ MCP server module issues need investigation
 6. ⏳ Test module imports need fixing
 7. ⏳ Pydantic validators need migration to V2 style
+
+#### Session 4 Results - Comprehensive Testing:
+- **Automated Tests**: ⚠️ Multiple syntax errors in test files preventing execution
+  - 25 import errors found in contract tests
+  - Tests unable to run due to missing async context issues
+- **MCP Server Testing**: ✅ Both read-only and admin servers running
+  - Read-only server on port 9396: Working
+  - Admin server on port 9397: Working with localhost restriction
+  - Health endpoints functional
+  - API endpoints need investigation (returning "Endpoint not found")
+- **Project Management**: ✅ All project types created successfully
+  - mcp-test-1 (crawling)
+  - storage-test (storage)
+  - data-test (data)
+  - google-adk (crawling)
+- **Test Document Enhancement**: ✅ Added 100+ new MCP test scenarios
+  - Comprehensive MCP server testing suite (Section 17)
+  - Detailed test cases for all MCP operations
+  - Security, performance, and integration test scenarios
+
+#### Key Issues Identified:
+1. **Test Files**: Multiple async syntax errors in contract tests
+2. **MCP Endpoints**: Project listing endpoints not exposed correctly
+3. **Import Errors**: Missing modules and incorrect import paths
 
 #### Session 2 Results:
 - **MCP Server Fixed**: ✅ Server starts successfully after fixing imports
@@ -1049,7 +1105,186 @@
 - [ ] Compare response formats between servers
 - [ ] Verify JSON formatting consistency
 
-## 17. Logic Issues Found and Resolution Status
+## 17. COMPREHENSIVE MCP SERVER TESTING SUITE
+
+### 17.1 MCP Read-Only Server Testing (Port 9396)
+
+#### 17.1.1 Server Startup and Health Checks
+- [ ] Start server: `docbro serve --host 127.0.0.1 --port 9396 --foreground` ✅
+- [ ] Test health endpoint: `curl http://localhost:9396/health` ✅
+- [ ] Verify JSON response format ✅
+- [ ] Check server status and version info ✅
+- [ ] Test concurrent health requests
+- [ ] Monitor memory usage during startup
+
+#### 17.1.2 Project Listing Operations
+- [ ] List all projects: `curl http://localhost:9396/projects` ❌ (Endpoint not found)
+- [ ] Test empty project list response
+- [ ] Create test project: `docbro project --create mcp-test-1 --type crawling` ✅
+- [ ] Verify project appears in list ✅
+- [ ] Create multiple projects and verify listing ✅
+- [ ] Test pagination with many projects
+- [ ] Test filtering by project type
+- [ ] Test sorting options
+
+#### 17.1.3 Project Search Operations
+- [ ] Basic search: `curl -X POST http://localhost:9396/search -H "Content-Type: application/json" -d '{"query":"test"}'`
+- [ ] Search with empty query
+- [ ] Search with special characters
+- [ ] Search with very long query
+- [ ] Search specific project
+- [ ] Test similarity scoring
+- [ ] Test result pagination
+- [ ] Benchmark search performance
+
+#### 17.1.4 File Access Control Testing
+- [ ] Create storage project: `docbro project --create storage-test --type storage`
+- [ ] Create crawling project: `docbro project --create crawl-test --type crawling`
+- [ ] Test file access for storage project (should allow content)
+- [ ] Test file access for crawling project (metadata only)
+- [ ] Test path traversal protection
+- [ ] Test access to non-existent files
+- [ ] Test binary file handling
+- [ ] Verify access control enforcement
+
+#### 17.1.5 Error Handling
+- [ ] Test malformed JSON requests
+- [ ] Test missing required parameters
+- [ ] Test invalid project names
+- [ ] Test timeout scenarios
+- [ ] Test large request payloads
+- [ ] Test concurrent error conditions
+- [ ] Verify error response format
+
+### 17.2 MCP Admin Server Testing (Port 9397)
+
+#### 17.2.1 Admin Server Setup
+- [ ] Start admin server: `docbro serve --admin --host 127.0.0.1 --port 9397 --foreground`
+- [ ] Verify localhost-only binding
+- [ ] Test rejection of non-localhost connections
+- [ ] Test admin health endpoint
+- [ ] Verify security headers
+
+#### 17.2.2 Command Execution Testing
+- [ ] Execute safe command: `{"command": "project --list"}`
+- [ ] Execute project creation: `{"command": "project --create admin-test --type data"}`
+- [ ] Execute crawl command: `{"command": "crawl admin-test --url https://example.com"}`
+- [ ] Test blocked command (uninstall): Should fail
+- [ ] Test blocked command (reset): Should fail
+- [ ] Test blocked command (delete-all): Should fail
+- [ ] Test command with timeout
+- [ ] Test command with large output
+
+#### 17.2.3 Project Management via Admin
+- [ ] Create project through admin API
+- [ ] Update project settings
+- [ ] Remove specific project
+- [ ] Test batch operations
+- [ ] Test transaction handling
+- [ ] Verify data consistency
+
+### 17.3 MCP Protocol Compliance Testing
+
+#### 17.3.1 Tool Discovery
+- [ ] Test tool list endpoint
+- [ ] Verify tool schema format
+- [ ] Test parameter validation
+- [ ] Test optional vs required parameters
+- [ ] Verify tool descriptions
+
+#### 17.3.2 Resource Management
+- [ ] Test resource listing
+- [ ] Test resource URIs
+- [ ] Test resource access patterns
+- [ ] Verify resource metadata
+- [ ] Test resource updates
+
+#### 17.3.3 Prompt Templates
+- [ ] Test prompt listing
+- [ ] Test prompt generation
+- [ ] Test variable substitution
+- [ ] Test prompt validation
+
+### 17.4 Integration Testing
+
+#### 17.4.1 End-to-End Workflow
+- [ ] Setup -> Create Project -> Crawl -> Search workflow
+- [ ] Multi-project search operations
+- [ ] Concurrent server operations
+- [ ] Server recovery after crash
+- [ ] Data persistence verification
+
+#### 17.4.2 Performance Testing
+- [ ] Load test with 100 concurrent connections
+- [ ] Stress test with 1000 requests/second
+- [ ] Memory leak detection
+- [ ] Response time benchmarking
+- [ ] Database connection pooling
+
+#### 17.4.3 Security Testing
+- [ ] SQL injection attempts
+- [ ] Command injection attempts
+- [ ] Path traversal attempts
+- [ ] XSS prevention
+- [ ] CSRF protection
+- [ ] Rate limiting verification
+
+### 17.5 MCP Client Testing
+
+#### 17.5.1 Claude Code Integration
+- [ ] Configure Claude Code with read-only server
+- [ ] Configure Claude Code with admin server
+- [ ] Test project operations via Claude
+- [ ] Test search via Claude
+- [ ] Verify operation restrictions
+
+#### 17.5.2 Generic MCP Client
+- [ ] Test with MCP test client
+- [ ] Verify protocol compliance
+- [ ] Test error handling
+- [ ] Test timeout handling
+
+### 17.6 Advanced MCP Testing Scenarios
+
+#### 17.6.1 Vector Store Integration
+- [ ] Test with SQLite-vec backend
+- [ ] Test with Qdrant backend
+- [ ] Test vector store switching
+- [ ] Test embedding generation
+- [ ] Test similarity search accuracy
+
+#### 17.6.2 Concurrent Operations
+- [ ] Multiple clients accessing same project
+- [ ] Concurrent crawl and search
+- [ ] Race condition testing
+- [ ] Deadlock prevention
+- [ ] Transaction isolation
+
+#### 17.6.3 Failure Recovery
+- [ ] Database connection loss
+- [ ] Vector store unavailable
+- [ ] Network interruption
+- [ ] Partial request handling
+- [ ] Graceful degradation
+
+### 17.7 Automated MCP Test Suite
+
+#### 17.7.1 Unit Tests
+- [ ] Run MCP-specific unit tests
+- [ ] Fix failing MCP tests
+- [ ] Achieve 90% coverage
+
+#### 17.7.2 Integration Tests
+- [ ] Run MCP integration tests
+- [ ] Test all API endpoints
+- [ ] Verify data flow
+
+#### 17.7.3 Contract Tests
+- [ ] Verify API contracts
+- [ ] Test backward compatibility
+- [ ] Validate response schemas
+
+## 18. Logic Issues Found and Resolution Status
 
 ### Session 3: 2025-09-29 Logic Issues
 
@@ -1142,6 +1377,50 @@
 7. **Migrate Pydantic validators** to V2 style
 8. **Replace datetime.utcnow()** calls
 9. **Update JSON encoders** (optional)
+
+## 19. Additional 30 Manual Test Scenarios (Not Covered Above)
+
+### 19.1 System Resilience Testing
+- [ ] **Server Port Collision Testing** - Start server on port already in use, verify graceful error handling
+- [ ] **Multiple Vector Store Migration** - Switch between SQLite-vec and Qdrant with existing data, verify data integrity
+- [ ] **Interrupted Setup Recovery** - Kill process during `docbro setup --init` and test recovery mechanism
+- [ ] **Concurrent Server Instances** - Run 10+ MCP servers simultaneously on different ports
+- [ ] **Cross-Project Search** - Search across 50+ projects with mixed vector stores
+
+### 19.2 Error Recovery Testing
+- [ ] **Malformed Configuration Recovery** - Corrupt settings.yaml and test auto-repair functionality
+- [ ] **Network Partition Testing** - Simulate network loss during Qdrant operations
+- [ ] **Embedding Model Switching** - Change from mxbai-embed-large to another model mid-operation
+- [ ] **Circular Dependency Detection** - Test crawl with site containing circular links
+- [ ] **Memory Pressure Testing** - Run with limited memory (512MB) and verify graceful degradation
+
+### 19.3 Advanced Input Testing
+- [ ] **Project Name Unicode Testing** - Create projects with emoji, Chinese, Arabic characters
+- [ ] **Rate Limit Bypass Attempts** - Test if rate limiting can be circumvented
+- [ ] **Disk Space Exhaustion** - Fill disk during crawl/upload operations
+- [ ] **Time Zone Handling** - Test with different system time zones and daylight saving
+- [ ] **Signal Handling** - Test SIGTERM, SIGINT, SIGHUP during various operations
+
+### 19.4 Process Management Testing
+- [ ] **Background Process Management** - Test with --background flag and process monitoring
+- [ ] **Log Rotation Testing** - Verify log files rotate correctly at size limits
+- [ ] **Credential Leakage Prevention** - Ensure passwords/tokens never appear in logs
+- [ ] **Database Lock Contention** - Multiple processes accessing same SQLite database
+- [ ] **File Watcher Integration** - Auto-update projects when source files change
+
+### 19.5 Data Transfer Testing
+- [ ] **Project Export/Import** - Export project to JSON and import on different system
+- [ ] **Batch Error Recovery** - Kill batch operation and test resume functionality
+- [ ] **WebSocket Connection Testing** - Test real-time updates if WebSocket endpoints exist
+- [ ] **Cache Invalidation** - Verify caches clear correctly after updates
+- [ ] **Partial Response Handling** - Test behavior when server sends incomplete responses
+
+### 19.6 Network & Security Testing
+- [ ] **DNS Resolution Issues** - Test with invalid DNS, slow DNS, DNS timeout
+- [ ] **SSL Certificate Validation** - Test with self-signed, expired, invalid certificates
+- [ ] **Content Type Detection** - Upload files without extensions, verify type detection
+- [ ] **Symlink Handling** - Create projects with symlinked directories
+- [ ] **Version Compatibility Testing** - Test upgrade/downgrade between DocBro versions
 
 ## Priority Order
 

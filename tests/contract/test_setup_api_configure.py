@@ -26,7 +26,7 @@ def mock_setup_service():
 class TestSetupConfigureApiContract:
     """Contract tests for PUT /setup/session/{session_id}/configure endpoint."""
 
-    async def test_configure_endpoint_exists(self, mock_setup_service):
+    def test_configure_endpoint_exists(self, mock_setup_service):
         """Test that the configure endpoint is registered."""
         from src.api.setup_endpoints import setup_router
 
@@ -35,7 +35,7 @@ class TestSetupConfigureApiContract:
         configure_route_exists = any("/setup/session/{session_id}/configure" in route for route in routes)
         assert configure_route_exists
 
-    async def test_configure_components_success(self, mock_setup_service):
+    def test_configure_components_success(self, mock_setup_service):
         """Test successful component configuration."""
         session_id = "550e8400-e29b-41d4-a716-446655440000"
         request_data = {
@@ -81,7 +81,7 @@ class TestSetupConfigureApiContract:
         uuid_obj = UUID(session_id)
         assert str(uuid_obj) == session_id
 
-    async def test_configure_vector_storage_schema(self, mock_setup_service):
+    def test_configure_vector_storage_schema(self, mock_setup_service):
         """Test vector storage configuration schema."""
         vector_storage_config = {
             'provider': 'qdrant',
@@ -97,7 +97,7 @@ class TestSetupConfigureApiContract:
         assert vector_storage_config['provider'] == 'qdrant'  # Only supported provider
         assert vector_storage_config['connection_url'].startswith('http')
 
-    async def test_configure_embedding_model_schema(self, mock_setup_service):
+    def test_configure_embedding_model_schema(self, mock_setup_service):
         """Test embedding model configuration schema."""
         embedding_model_config = {
             'provider': 'ollama',
@@ -115,7 +115,7 @@ class TestSetupConfigureApiContract:
         assert isinstance(embedding_model_config['download_required'], bool)
         assert isinstance(embedding_model_config['fallback_models'], list)
 
-    async def test_configure_mcp_clients_schema(self, mock_setup_service):
+    def test_configure_mcp_clients_schema(self, mock_setup_service):
         """Test MCP clients configuration schema."""
         mcp_client_config = {
             'client_name': 'claude-code',
@@ -135,7 +135,7 @@ class TestSetupConfigureApiContract:
         assert isinstance(mcp_client_config['enabled'], bool)
         assert isinstance(mcp_client_config['server_config'], dict)
 
-    async def test_configure_partial_configuration(self, mock_setup_service):
+    def test_configure_partial_configuration(self, mock_setup_service):
         """Test configuration with only some components."""
         # Only vector storage, no embedding model or MCP clients
         partial_config = {
@@ -153,7 +153,7 @@ class TestSetupConfigureApiContract:
         assert 'embedding_model' not in partial_config
         assert 'mcp_clients' not in partial_config
 
-    async def test_configure_invalid_vector_storage_provider_400(self, mock_setup_service):
+    def test_configure_invalid_vector_storage_provider_400(self, mock_setup_service):
         """Test invalid vector storage provider returns 400."""
         invalid_config = {
             'vector_storage': {
@@ -166,7 +166,7 @@ class TestSetupConfigureApiContract:
         valid_providers = ['qdrant']
         assert invalid_config['vector_storage']['provider'] not in valid_providers
 
-    async def test_configure_invalid_embedding_provider_400(self, mock_setup_service):
+    def test_configure_invalid_embedding_provider_400(self, mock_setup_service):
         """Test invalid embedding provider returns 400."""
         invalid_config = {
             'embedding_model': {
@@ -179,7 +179,7 @@ class TestSetupConfigureApiContract:
         valid_providers = ['ollama']
         assert invalid_config['embedding_model']['provider'] not in valid_providers
 
-    async def test_configure_missing_required_fields_400(self, mock_setup_service):
+    def test_configure_missing_required_fields_400(self, mock_setup_service):
         """Test missing required fields returns 400."""
         incomplete_configs = [
             # Missing provider
@@ -199,7 +199,7 @@ class TestSetupConfigureApiContract:
                 missing_fields = [field for field in required_fields if field not in vs_config]
                 assert len(missing_fields) > 0
 
-    async def test_configure_response_schema_success(self, mock_setup_service):
+    def test_configure_response_schema_success(self, mock_setup_service):
         """Test successful response follows ConfigurationResponse schema."""
         response = {
             'success': True,
@@ -216,7 +216,7 @@ class TestSetupConfigureApiContract:
         assert isinstance(response['validation_errors'], list)
         assert isinstance(response['warnings'], list)
 
-    async def test_configure_response_schema_with_errors(self, mock_setup_service):
+    def test_configure_response_schema_with_errors(self, mock_setup_service):
         """Test response with validation errors."""
         response = {
             'success': False,
@@ -233,7 +233,7 @@ class TestSetupConfigureApiContract:
         assert len(response['validation_errors']) > 0
         assert all(isinstance(error, str) for error in response['validation_errors'])
 
-    async def test_configure_url_validation(self, mock_setup_service):
+    def test_configure_url_validation(self, mock_setup_service):
         """Test URL validation in configuration."""
         test_urls = [
             {'url': 'http://localhost:6333', 'valid': True},
@@ -249,7 +249,7 @@ class TestSetupConfigureApiContract:
             else:
                 assert not (url.startswith('http://') or url.startswith('https://'))
 
-    async def test_configure_empty_request_400(self, mock_setup_service):
+    def test_configure_empty_request_400(self, mock_setup_service):
         """Test empty configuration request returns 400."""
         empty_config = {}
 
