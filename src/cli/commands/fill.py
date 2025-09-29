@@ -12,6 +12,7 @@ from src.models.box import BoxNotFoundError
 from src.services.fill_service import FillService
 from src.services.box_service import BoxService
 from src.services.shelf_service import ShelfService
+from src.services.context_service import ContextService
 from src.services.database import DatabaseError
 from src.core.lib_logger import get_component_logger
 
@@ -52,20 +53,43 @@ def fill(
             fill_service = FillService()
             box_service = BoxService()
             shelf_service = ShelfService()
+            context_service = ContextService()
 
             # Ensure current shelf context if not specified
-            if not shelf:
+            target_shelf = shelf
+            if not target_shelf:
                 current = await shelf_service.get_current_shelf()
                 if not current:
                     console.print("[red]No current shelf set. Use 'docbro shelf current <name>' to set one.[/red]")
                     raise click.Abort()
-                shelf = current.name
+                target_shelf = current.name
 
-            # Get box info to show what we're doing
+            # Use context service to check box existence and get context
+            context = await context_service.check_box_exists(box, target_shelf)
+
+            if not context.entity_exists:
+                console.print(f"[red]Box '{box}' not found.[/red]")
+                if click.confirm(f"Create box '{box}'?"):
+                    box_type = click.prompt("Box type", type=click.Choice(['drag', 'rag', 'bag']))
+
+                    # Create the box
+                    box_obj = await box_service.create_box(
+                        name=box,
+                        box_type=box_type,
+                        shelf_name=target_shelf
+                    )
+                    console.print(f"[green]Created {box_type} box '{box}'[/green]")
+
+                    # Update context after creation
+                    context = await context_service.check_box_exists(box, target_shelf)
+                else:
+                    raise click.Abort()
+
+            # Get box object for type information
             box_obj = await box_service.get_box_by_name(box)
-            if not box_obj:
-                console.print(f"[red]Box '{box}' not found[/red]")
-                raise click.Abort()
+
+            # Validate source matches box type
+            _validate_source_for_box_type(source, box_obj.type.value)
 
             # Prepare type-specific options
             options = {}
@@ -112,7 +136,7 @@ def fill(
                 result = await fill_service.fill(
                     box_name=box,
                     source=source,
-                    shelf_name=shelf,
+                    shelf_name=target_shelf,
                     **options
                 )
 
@@ -151,3 +175,51 @@ def fill(
             raise click.Abort()
 
     asyncio.run(_fill())
+
+
+def _validate_source_for_box_type(source: str, box_type: str):
+    """Validate that source parameter matches box type requirements."""
+    import re
+    import os
+
+    if box_type == 'drag':
+        # Must be valid URL for drag boxes
+        url_pattern = re.compile(
+            r'^https?://'  # http:// or https://
+            r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|'  # domain...
+            r'localhost|'  # localhost...
+            r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ip
+            r'(?::\d+)?'  # optional port
+            r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+
+        if not url_pattern.match(source):
+            console.print(f"[red]Error: Drag boxes require a valid URL, got: {source}[/red]")
+            console.print("[dim]Example: https://docs.example.com[/dim]")
+            raise click.Abort()
+
+    elif box_type == 'rag':
+        # Must be valid file path for rag boxes
+        if not os.path.exists(source) and not source.startswith(('http://', 'https://')):
+            console.print(f"[red]Error: Rag boxes require a valid file path or URL, got: {source}[/red]")
+            console.print("[dim]Example: /path/to/documents or https://docs.example.com/file.pdf[/dim]")
+            raise click.Abort()
+
+    elif box_type == 'bag':
+        # Must be valid content path or data for bag boxes
+        if not source:
+            console.print("[red]Error: Bag boxes require content source[/red]")
+            console.print("[dim]Example: /path/to/files or 'data content'[/dim]")
+            raise click.Abort()
+
+    # Validation passed
+    console.print(f"[green]✓[/green] Source validated for {box_type} box")
+
+
+def _get_box_type_help(box_type: str) -> str:
+    """Get help text for box type requirements."""
+    help_messages = {
+        'drag': "Drag boxes crawl websites. Provide a URL like: https://docs.example.com",
+        'rag': "Rag boxes import documents. Provide a file path like: /path/to/docs",
+        'bag': "Bag boxes store files. Provide a content path like: /path/to/files"
+    }
+    return help_messages.get(box_type, "Unknown box type")

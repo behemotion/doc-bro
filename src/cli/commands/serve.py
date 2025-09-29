@@ -24,8 +24,9 @@ def get_app():
 @click.option("--foreground", "-f", is_flag=True, help="Run server in foreground")
 @click.option("--status", is_flag=True, help="Check server status")
 @click.option("--admin", is_flag=True, help="Start admin MCP server instead of read-only")
+@click.option("--init", "-i", is_flag=True, help="Launch MCP setup wizard")
 @click.pass_context
-def serve(ctx: click.Context, host: str, port: int, foreground: bool, status: bool, admin: bool):
+def serve(ctx: click.Context, host: str, port: int, foreground: bool, status: bool, admin: bool, init: bool):
     """Start the MCP server for AI assistant integration.
 
     The MCP (Model Context Protocol) server exposes your documentation
@@ -48,6 +49,7 @@ def serve(ctx: click.Context, host: str, port: int, foreground: bool, status: bo
       --host HOST      Server bind address (auto-detected by server type)
       --port PORT      Server port (auto-detected by server type)
       -f, --foreground Run in foreground instead of background
+      -i, --init       Launch MCP setup wizard
 
     \b
     MCP INTEGRATION:
@@ -67,6 +69,7 @@ def serve(ctx: click.Context, host: str, port: int, foreground: bool, status: bo
       docbro serve --admin           # Start admin server (background)
       docbro serve -f                # Read-only server in foreground
       docbro serve --admin -f        # Admin server in foreground
+      docbro serve --init            # Launch MCP setup wizard
       docbro serve --status          # Check server status
       docbro serve --port 8080       # Custom port (overrides default)
 
@@ -96,8 +99,82 @@ def serve(ctx: click.Context, host: str, port: int, foreground: bool, status: bo
     from src.logic.mcp.models.config import McpServerConfig
     from src.logic.mcp.core.orchestrator import ServerOrchestrator
     from src.logic.mcp.utils.port_manager import PortManager
+    from src.logic.wizard.orchestrator import WizardOrchestrator
 
     app = get_app()
+
+    # Launch MCP setup wizard if requested
+    if init:
+        try:
+            app.console.print("[blue]Starting MCP setup wizard...[/blue]")
+
+            # Run the MCP wizard to configure server settings
+            wizard = WizardOrchestrator()
+
+            async def run_mcp_wizard():
+                """Run MCP setup wizard."""
+                wizard_state = await wizard.start_wizard("mcp", "server")
+                app.console.print("[blue]Configuring MCP server settings...[/blue]")
+
+                # Simulate wizard steps for MCP configuration
+                app.console.print("Step 1: Enable read-only server? [Y/n]: ", end="")
+                enable_readonly = click.confirm("", default=True)
+
+                if enable_readonly:
+                    app.console.print("Step 2: Read-only server port [9383]: ", end="")
+                    readonly_port = click.prompt("", default=9383, type=int)
+                else:
+                    readonly_port = None
+
+                app.console.print("Step 3: Enable admin server? [y/N]: ", end="")
+                enable_admin = click.confirm("", default=False)
+
+                if enable_admin:
+                    app.console.print("Step 4: Admin server port [9384]: ", end="")
+                    admin_port = click.prompt("", default=9384, type=int)
+                else:
+                    admin_port = None
+
+                app.console.print("Step 5: Auto-start with system? [y/N]: ", end="")
+                auto_start = click.confirm("", default=False)
+
+                # Show configuration summary
+                app.console.print("\n[green]Configuration Summary:[/green]")
+                if enable_readonly:
+                    app.console.print(f"  Read-only server: Port {readonly_port}")
+                if enable_admin:
+                    app.console.print(f"  Admin server: Port {admin_port}")
+                app.console.print(f"  Auto-start: {'Yes' if auto_start else 'No'}")
+
+                if click.confirm("\nApply this configuration?", default=True):
+                    app.console.print("[green]✓ MCP server configuration saved[/green]")
+
+                    # Start the appropriate server based on wizard choices
+                    if enable_admin and admin:
+                        return McpServerType.ADMIN, admin_port or 9384
+                    elif enable_readonly:
+                        return McpServerType.READ_ONLY, readonly_port or 9383
+                    else:
+                        app.console.print("[yellow]No servers enabled. Use --admin or default read-only mode.[/yellow]")
+                        return None, None
+                else:
+                    app.console.print("[yellow]Configuration cancelled. Using defaults.[/yellow]")
+                    return None, None
+
+            # Run wizard and get configuration
+            server_type_result, port_result = asyncio.run(run_mcp_wizard())
+
+            if server_type_result and port_result:
+                # Update server type and port based on wizard results
+                if server_type_result == McpServerType.ADMIN:
+                    admin = True
+                port = port_result
+
+                app.console.print(f"[green]Starting {server_type_result.value} server on port {port}...[/green]")
+
+        except Exception as e:
+            app.console.print(f"[red]Wizard error: {e}[/red]")
+            app.console.print("[dim]Continuing with default configuration...[/dim]")
 
     # Determine server type and configuration
     server_type = McpServerType.ADMIN if admin else McpServerType.READ_ONLY

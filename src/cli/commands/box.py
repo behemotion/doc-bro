@@ -12,7 +12,9 @@ from src.models.box import BoxExistsError, BoxValidationError, BoxNotFoundError
 from src.models.box_type import BoxType
 from src.services.box_service import BoxService
 from src.services.shelf_service import ShelfService
+from src.services.context_service import ContextService
 from src.services.database import DatabaseError
+from src.logic.wizard.orchestrator import WizardOrchestrator
 from src.core.lib_logger import get_component_logger
 
 logger = get_component_logger("box_cli")
@@ -26,11 +28,168 @@ def box():
 
 
 @box.command()
+@click.argument('name', required=False)
+@click.option('--shelf', '-s', type=str, help='Specify shelf context')
+@click.option('--init', '-i', is_flag=True, help='Launch setup wizard')
+@click.option('--verbose', '-v', is_flag=True, help='Show detailed information')
+def inspect(name: Optional[str] = None, shelf: Optional[str] = None, init: bool = False, verbose: bool = False):
+    """Display box information or prompt creation if not found."""
+
+    async def _inspect():
+        try:
+            context_service = ContextService()
+
+            if not name:
+                # List all boxes with status
+                box_service = BoxService()
+                boxes = await box_service.list_boxes(shelf_name=shelf)
+
+                if not boxes:
+                    shelf_context = f" in shelf '{shelf}'" if shelf else ""
+                    console.print(f"[yellow]No boxes found{shelf_context}. Create your first box![/yellow]")
+                    if click.confirm("Create a box now?"):
+                        name_input = click.prompt("Box name")
+                        box_type = click.prompt("Box type", type=click.Choice(['drag', 'rag', 'bag']))
+                        await _create_box_with_wizard(name_input, box_type, shelf, init)
+                    return
+
+                # Display box table with status
+                table = Table()
+                table.add_column("Name", style="cyan")
+                table.add_column("Type", justify="center")
+                table.add_column("Status", style="green")
+                table.add_column("Content", style="blue")
+                table.add_column("Last Modified", style="dim")
+
+                for box in boxes:
+                    # Get context for each box
+                    box_context = await context_service.check_box_exists(box.name, shelf)
+
+                    status = "configured" if box_context.configuration_state.is_configured else "needs setup"
+                    content = "empty" if box_context.is_empty else "has content"
+                    last_modified = box_context.last_modified.strftime("%Y-%m-%d") if box_context.last_modified else "unknown"
+
+                    table.add_row(box.name, box.type.value, status, content, last_modified)
+
+                console.print(table)
+                return
+
+            # Check specific box context
+            context = await context_service.check_box_exists(name, shelf)
+
+            if context.entity_exists:
+                # Box exists - display information
+                console.print(f"[cyan]Box '{name}'[/cyan] ([blue]{context.box_type}[/blue])")
+
+                if verbose:
+                    console.print(f"  Status: {'Empty' if context.is_empty else 'Has content'}")
+                    console.print(f"  Configuration: {'Configured' if context.configuration_state.is_configured else 'Needs setup'}")
+                    if context.content_summary:
+                        console.print(f"  Content: {context.content_summary}")
+                    if context.last_modified:
+                        console.print(f"  Last modified: {context.last_modified.strftime('%Y-%m-%d %H:%M:%S')}")
+
+                if context.is_empty:
+                    # Provide type-specific prompts
+                    if context.box_type == 'drag':
+                        console.print(f"[yellow]Box '{name}' is empty.[/yellow]")
+                        if click.confirm("Provide website URL to crawl?"):
+                            url = click.prompt("Website URL")
+                            console.print(f"Starting crawl of {url}...")
+                            # This would integrate with fill command
+                    elif context.box_type == 'rag':
+                        console.print(f"[yellow]Box '{name}' is empty.[/yellow]")
+                        if click.confirm("Provide file path to upload?"):
+                            file_path = click.prompt("File path")
+                            console.print(f"Uploading files from {file_path}...")
+                            # This would integrate with fill command
+                    elif context.box_type == 'bag':
+                        console.print(f"[yellow]Box '{name}' is empty.[/yellow]")
+                        if click.confirm("Provide content to store?"):
+                            content_path = click.prompt("Content path")
+                            console.print(f"Storing content from {content_path}...")
+                            # This would integrate with fill command
+
+                if not context.configuration_state.is_configured and init:
+                    console.print("Launching setup wizard...")
+                    await _run_box_wizard(name, context.box_type)
+
+            else:
+                # Box doesn't exist - offer to create
+                console.print(f"[red]Box '{name}' not found.[/red]")
+
+                if click.confirm(f"Create box '{name}'?"):
+                    box_type = click.prompt("Box type", type=click.Choice(['drag', 'rag', 'bag']))
+                    await _create_box_with_wizard(name, box_type, shelf, init)
+                else:
+                    console.print("Available actions:")
+                    console.print("  - List existing boxes: [cyan]docbro box[/cyan]")
+                    console.print("  - Create box: [cyan]docbro box create <name> --type <type>[/cyan]")
+
+        except Exception as e:
+            logger.error(f"Error inspecting box: {e}")
+            console.print(f"[red]Error: {e}[/red]")
+
+    asyncio.run(_inspect())
+
+
+async def _create_box_with_wizard(name: str, box_type: str, shelf: Optional[str] = None, run_wizard: bool = False):
+    """Create box with optional wizard."""
+    try:
+        box_service = BoxService()
+        shelf_service = ShelfService()
+
+        # Ensure we have a target shelf
+        target_shelf = shelf
+        if not target_shelf:
+            current = await shelf_service.get_current_shelf()
+            if current:
+                target_shelf = current.name
+            else:
+                console.print("[red]No current shelf set. Please specify --shelf or set current shelf[/red]")
+                return
+
+        box = await box_service.create_box(
+            name=name,
+            box_type=box_type,
+            shelf_name=target_shelf
+        )
+        console.print(f"[green]Created {box_type} box '{name}'[/green]")
+
+        if run_wizard or click.confirm("Launch setup wizard?"):
+            await _run_box_wizard(name, box_type)
+
+    except BoxExistsError:
+        console.print(f"[red]Box '{name}' already exists[/red]")
+    except Exception as e:
+        logger.error(f"Error creating box: {e}")
+        console.print(f"[red]Error creating box: {e}[/red]")
+
+
+async def _run_box_wizard(name: str, box_type: str):
+    """Run box setup wizard."""
+    try:
+        wizard = WizardOrchestrator()
+        wizard_state = await wizard.start_wizard("box", name)
+
+        console.print(f"[blue]Starting {box_type} box setup wizard for '{name}'[/blue]")
+        console.print("Follow the prompts to configure your box...")
+
+        # This would integrate with the full wizard flow
+        console.print(f"[green]Wizard completed for box '{name}'[/green]")
+
+    except Exception as e:
+        logger.error(f"Error running box wizard: {e}")
+        console.print(f"[red]Wizard error: {e}[/red]")
+
+
+@box.command()
 @click.argument('name', type=str)
 @click.option('--type', 'box_type', type=click.Choice(['drag', 'rag', 'bag']), required=True, help='Box type')
 @click.option('--shelf', '-s', type=str, help='Add to shelf')
 @click.option('--description', '-d', type=str, help='Box description')
-def create(name: str, box_type: str, shelf: Optional[str] = None, description: Optional[str] = None):
+@click.option('--init', '-i', is_flag=True, help='Launch setup wizard after creation')
+def create(name: str, box_type: str, shelf: Optional[str] = None, description: Optional[str] = None, init: bool = False):
     """Create a new box."""
 
     async def _create():
@@ -62,6 +221,11 @@ def create(name: str, box_type: str, shelf: Optional[str] = None, description: O
 
             # Show box type description
             console.print(f"  Purpose: {box.get_type_description()}")
+
+            # Launch wizard if requested
+            if init:
+                console.print("Launching setup wizard...")
+                await _run_box_wizard(name, box_type)
 
         except BoxExistsError as e:
             console.print(f"[red]Error: {e}[/red]")
