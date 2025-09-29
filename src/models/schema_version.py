@@ -17,7 +17,7 @@ class SchemaVersion(BaseModel):
     fields_removed: list[str] = Field(default_factory=list, description="Fields removed in this version")
     fields_changed: list[str] = Field(default_factory=list, description="Fields modified in this version")
 
-    CURRENT_VERSION: ClassVar[int] = 3
+    CURRENT_VERSION: ClassVar[int] = 4
 
     @classmethod
     def get_current_version(cls) -> int:
@@ -55,6 +55,18 @@ class SchemaVersion(BaseModel):
                     "statistics", "last_crawl_at", "source_url"
                 ],
                 fields_changed=["settings", "metadata"]
+            ),
+            cls(
+                version=4,
+                name="Shelf/Basket Schema",
+                description="Hierarchical project organization with shelfs containing baskets",
+                fields_added=[
+                    "shelfs table", "baskets table", "shelf_id", "is_current",
+                    "last_operation_at", "crawl_depth", "embedding_model",
+                    "chunk_size", "chunk_overlap", "total_pages", "total_size_bytes",
+                    "successful_pages", "failed_pages"
+                ],
+                fields_changed=["project organization model"]
             )
         ]
 

@@ -65,7 +65,6 @@ class DatabaseManager:
             await self._create_schema()
 
             # Apply any pending migrations
-            await self._apply_migrations()
 
             self._initialized = True
             self.logger.info("Database initialized", extra={
@@ -125,6 +124,52 @@ class DatabaseManager:
             metadata_json TEXT NOT NULL DEFAULT '{}'
         );
 
+        -- Shelfs table for organizing projects into collections
+        CREATE TABLE IF NOT EXISTS shelfs (
+            id TEXT PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            is_current BOOLEAN DEFAULT FALSE,
+            metadata_json TEXT DEFAULT '{}'
+        );
+
+        -- Baskets table (projects within shelfs)
+        CREATE TABLE IF NOT EXISTS baskets (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            shelf_id TEXT NOT NULL,
+            type TEXT NOT NULL DEFAULT 'data',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            last_operation_at TEXT,
+
+            -- Preserve all existing project fields
+            status TEXT NOT NULL DEFAULT 'created',
+            source_url TEXT,
+            crawl_depth INTEGER DEFAULT 2,
+            embedding_model TEXT DEFAULT 'mxbai-embed-large',
+            chunk_size INTEGER DEFAULT 1000,
+            chunk_overlap INTEGER DEFAULT 100,
+
+            -- Statistics
+            total_pages INTEGER DEFAULT 0,
+            total_size_bytes INTEGER DEFAULT 0,
+            successful_pages INTEGER DEFAULT 0,
+            failed_pages INTEGER DEFAULT 0,
+
+            -- Configuration
+            settings_json TEXT NOT NULL DEFAULT '{}',
+            metadata_json TEXT NOT NULL DEFAULT '{}',
+
+            -- Schema compatibility
+            schema_version INTEGER DEFAULT 4,
+            compatibility_status TEXT DEFAULT 'compatible',
+
+            FOREIGN KEY (shelf_id) REFERENCES shelfs (id) ON DELETE CASCADE,
+            UNIQUE(shelf_id, name)
+        );
+
         -- Migration records table for audit trail
         CREATE TABLE IF NOT EXISTS project_migrations (
             id TEXT PRIMARY KEY,
@@ -150,11 +195,22 @@ class DatabaseManager:
         CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
         CREATE INDEX IF NOT EXISTS idx_projects_compatibility ON projects(compatibility_status);
         CREATE INDEX IF NOT EXISTS idx_projects_schema_version ON projects(schema_version);
+
+        -- Shelf indexes
+        CREATE INDEX IF NOT EXISTS idx_shelfs_name ON shelfs(name);
+        CREATE INDEX IF NOT EXISTS idx_shelfs_is_current ON shelfs(is_current);
+
+        -- Basket indexes
+        CREATE INDEX IF NOT EXISTS idx_baskets_shelf_id ON baskets(shelf_id);
+        CREATE INDEX IF NOT EXISTS idx_baskets_name ON baskets(name);
+        CREATE INDEX IF NOT EXISTS idx_baskets_type ON baskets(type);
+        CREATE INDEX IF NOT EXISTS idx_baskets_status ON baskets(status);
+
         CREATE INDEX IF NOT EXISTS idx_migrations_project_id ON project_migrations(project_id);
         CREATE INDEX IF NOT EXISTS idx_migrations_operation ON project_migrations(operation);
 
         -- Insert current schema version
-        INSERT OR REPLACE INTO schema_version (version) VALUES (3);
+        INSERT OR REPLACE INTO schema_version (version) VALUES (4);
         """
 
         await self._connection.executescript(schema_sql)
@@ -289,114 +345,6 @@ class DatabaseManager:
 
         return conn
 
-    async def _apply_migrations(self) -> None:
-        """Apply database migrations."""
-        current_version = await self._get_schema_version()
-
-        # Migration to version 3: Unified schema
-        if current_version < 3:
-            self.logger.info(f"Applying migration from version {current_version} to version 3: Unified schema")
-            try:
-                # Check if the projects table exists and what columns it has
-                cursor = await self._connection.execute("""
-                    SELECT sql FROM sqlite_master
-                    WHERE type='table' AND name='projects'
-                """)
-                table_info = await cursor.fetchone()
-
-                if table_info:
-                    # Table exists, need to migrate it
-                    # First check if source_url column exists
-                    cursor = await self._connection.execute("PRAGMA table_info(projects)")
-                    columns = await cursor.fetchall()
-                    column_names = [col[1] for col in columns]
-
-                    if 'source_url' not in column_names:
-                        # Add the missing source_url column
-                        await self._connection.execute("""
-                            ALTER TABLE projects ADD COLUMN source_url TEXT
-                        """)
-                        self.logger.info("Added missing source_url column")
-
-                    # Add any other missing columns from the unified schema
-                    missing_columns = {
-                        'schema_version': 'INTEGER NOT NULL DEFAULT 3',
-                        'type': "TEXT NOT NULL DEFAULT 'crawling'",
-                        'compatibility_status': "TEXT NOT NULL DEFAULT 'compatible'",
-                        'last_crawl_at': 'TEXT',
-                        'settings_json': "TEXT NOT NULL DEFAULT '{}'",
-                        'statistics_json': "TEXT NOT NULL DEFAULT '{}'",
-                        'metadata_json': "TEXT NOT NULL DEFAULT '{}'"
-                    }
-
-                    for col_name, col_def in missing_columns.items():
-                        if col_name not in column_names:
-                            await self._connection.execute(f"""
-                                ALTER TABLE projects ADD COLUMN {col_name} {col_def}
-                            """)
-                            self.logger.info(f"Added missing column: {col_name}")
-
-                # Update schema version
-                await self._connection.execute("INSERT OR REPLACE INTO schema_version (version) VALUES (3)")
-                await self._connection.commit()
-
-                self.logger.info("Migration to version 3 completed successfully")
-
-            except Exception as e:
-                await self._connection.rollback()
-                self.logger.error(f"Migration to version 3 failed: {e}")
-                raise DatabaseError(f"Migration failed: {e}")
-
-        # Migration to version 2: Make source_url nullable (kept for backward compatibility)
-        elif current_version < 2:
-            self.logger.info("Applying migration to version 2: Making source_url nullable")
-            try:
-                # Create new table with nullable source_url
-                await self._connection.execute("""
-                    CREATE TABLE projects_new (
-                        id TEXT PRIMARY KEY,
-                        name TEXT UNIQUE NOT NULL,
-                        source_url TEXT,
-                        status TEXT NOT NULL DEFAULT 'created',
-                        crawl_depth INTEGER NOT NULL DEFAULT 2,
-                        embedding_model TEXT NOT NULL DEFAULT 'mxbai-embed-large',
-                        chunk_size INTEGER NOT NULL DEFAULT 1000,
-                        chunk_overlap INTEGER NOT NULL DEFAULT 100,
-                        created_at TIMESTAMP NOT NULL,
-                        updated_at TIMESTAMP NOT NULL,
-                        last_crawl_at TIMESTAMP,
-                        total_pages INTEGER NOT NULL DEFAULT 0,
-                        total_size_bytes INTEGER NOT NULL DEFAULT 0,
-                        successful_pages INTEGER NOT NULL DEFAULT 0,
-                        failed_pages INTEGER NOT NULL DEFAULT 0,
-                        metadata TEXT
-                    )
-                """)
-
-                # Copy data from old table
-                await self._connection.execute("""
-                    INSERT INTO projects_new
-                    SELECT * FROM projects
-                """)
-
-                # Drop old table and rename new one
-                await self._connection.execute("DROP TABLE projects")
-                await self._connection.execute("ALTER TABLE projects_new RENAME TO projects")
-
-                # Recreate indexes
-                await self._connection.execute("CREATE INDEX IF NOT EXISTS idx_projects_name ON projects (name)")
-                await self._connection.execute("CREATE INDEX IF NOT EXISTS idx_projects_status ON projects (status)")
-
-                # Update schema version
-                await self._connection.execute("INSERT OR REPLACE INTO schema_version (version) VALUES (2)")
-                await self._connection.commit()
-
-                self.logger.info("Migration to version 2 completed successfully")
-
-            except Exception as e:
-                await self._connection.rollback()
-                self.logger.error(f"Migration to version 2 failed: {e}")
-                raise DatabaseError(f"Migration failed: {e}")
 
     def _ensure_initialized(self) -> None:
         """Ensure database is initialized."""
@@ -405,53 +353,6 @@ class DatabaseManager:
 
     # Project operations
 
-    async def _apply_project_migrations(self, conn: aiosqlite.Connection, project_name: str) -> None:
-        """Apply project-specific database migrations."""
-        try:
-            # Check project schema version
-            cursor = await conn.execute("SELECT version FROM schema_version ORDER BY version DESC LIMIT 1")
-            row = await cursor.fetchone()
-            current_version = row[0] if row else 1
-
-            # Migration to version 2: Ensure crawl_depth column exists
-            if current_version < 2:
-                self.logger.info(f"Applying project migration from version {current_version} to version 2: Add crawl_depth column", extra={"project_name": project_name})
-
-                # Check if crawl_depth column exists in crawl_sessions
-                cursor = await conn.execute("PRAGMA table_info(crawl_sessions)")
-                columns = await cursor.fetchall()
-                column_names = [col[1] for col in columns]
-
-                if 'crawl_depth' not in column_names:
-                    # Add the missing crawl_depth column
-                    await conn.execute("ALTER TABLE crawl_sessions ADD COLUMN crawl_depth INTEGER NOT NULL DEFAULT 2")
-                    self.logger.info("Added crawl_depth column to crawl_sessions table", extra={"project_name": project_name})
-
-                # Check if crawl_depth column exists in pages
-                cursor = await conn.execute("PRAGMA table_info(pages)")
-                columns = await cursor.fetchall()
-                column_names = [col[1] for col in columns]
-
-                if 'crawl_depth' not in column_names:
-                    # Add the missing crawl_depth column
-                    await conn.execute("ALTER TABLE pages ADD COLUMN crawl_depth INTEGER NOT NULL DEFAULT 1")
-                    self.logger.info("Added crawl_depth column to pages table", extra={"project_name": project_name})
-
-                # Update schema version
-                await conn.execute("INSERT OR REPLACE INTO schema_version (version) VALUES (2)")
-                await conn.commit()
-
-                self.logger.info("Project migration completed successfully", extra={
-                    "project_name": project_name,
-                    "from_version": current_version,
-                    "to_version": 2
-                })
-        except Exception as e:
-            self.logger.error("Project migration failed", extra={
-                "project_name": project_name,
-                "error": str(e)
-            })
-            raise
 
     async def create_project(
         self,
@@ -483,19 +384,31 @@ class DatabaseManager:
         )
 
         try:
+            # Convert project-specific settings to JSON for unified schema
+            settings = {
+                "crawl_depth": project.crawl_depth,
+                "embedding_model": project.embedding_model,
+                "chunk_size": project.chunk_size,
+                "chunk_overlap": project.chunk_overlap
+            }
+
+            statistics = {
+                "total_pages": project.total_pages,
+                "total_size_bytes": project.total_size_bytes,
+                "successful_pages": project.successful_pages,
+                "failed_pages": project.failed_pages
+            }
+
             await self._connection.execute("""
                 INSERT INTO projects (
-                    id, name, source_url, status, crawl_depth, embedding_model,
-                    chunk_size, chunk_overlap, created_at, updated_at,
-                    total_pages, total_size_bytes, successful_pages, failed_pages, metadata
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    id, name, source_url, status, type, created_at, updated_at,
+                    settings_json, statistics_json, metadata_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 project.id, project.name, project.source_url, project.status.value,
-                project.crawl_depth, project.embedding_model, project.chunk_size,
-                project.chunk_overlap, project.created_at.isoformat(),
-                project.updated_at.isoformat(), project.total_pages,
-                project.total_size_bytes, project.successful_pages,
-                project.failed_pages, json.dumps(project.metadata)
+                "crawling",  # Default type for legacy projects
+                project.created_at.isoformat(), project.updated_at.isoformat(),
+                json.dumps(settings), json.dumps(statistics), json.dumps(project.metadata)
             ))
             await self._connection.commit()
 
@@ -517,9 +430,8 @@ class DatabaseManager:
         self._ensure_initialized()
 
         cursor = await self._connection.execute("""
-            SELECT id, name, source_url, status, crawl_depth, embedding_model,
-                   chunk_size, chunk_overlap, created_at, updated_at, last_crawl_at,
-                   total_pages, total_size_bytes, successful_pages, failed_pages, metadata
+            SELECT id, name, source_url, status, type, created_at, updated_at, last_crawl_at,
+                   settings_json, statistics_json, metadata_json
             FROM projects WHERE id = ?
         """, (project_id,))
 
@@ -534,9 +446,8 @@ class DatabaseManager:
         self._ensure_initialized()
 
         cursor = await self._connection.execute("""
-            SELECT id, name, source_url, status, crawl_depth, embedding_model,
-                   chunk_size, chunk_overlap, created_at, updated_at, last_crawl_at,
-                   total_pages, total_size_bytes, successful_pages, failed_pages, metadata
+            SELECT id, name, source_url, status, type, created_at, updated_at, last_crawl_at,
+                   settings_json, statistics_json, metadata_json
             FROM projects WHERE name = ?
         """, (name,))
 
@@ -556,9 +467,8 @@ class DatabaseManager:
         self._ensure_initialized()
 
         sql = """
-            SELECT id, name, source_url, status, crawl_depth, embedding_model,
-                   chunk_size, chunk_overlap, created_at, updated_at, last_crawl_at,
-                   total_pages, total_size_bytes, successful_pages, failed_pages, metadata
+            SELECT id, name, source_url, status, type, created_at, updated_at, last_crawl_at,
+                   settings_json, statistics_json, metadata_json
             FROM projects
         """
         params = []
@@ -826,28 +736,32 @@ class DatabaseManager:
         return None
 
     def _project_from_row(self, row: tuple) -> Project:
-        """Create Project from database row."""
-        (id, name, source_url, status, crawl_depth, embedding_model,
-         chunk_size, chunk_overlap, created_at, updated_at, last_crawl_at,
-         total_pages, total_size_bytes, successful_pages, failed_pages, metadata) = row
+        """Create Project from database row (unified schema)."""
+        (id, name, source_url, status, project_type, created_at, updated_at, last_crawl_at,
+         settings_json, statistics_json, metadata_json) = row
+
+        # Parse JSON fields
+        settings = json.loads(settings_json) if settings_json else {}
+        statistics = json.loads(statistics_json) if statistics_json else {}
+        metadata = json.loads(metadata_json) if metadata_json else {}
 
         return Project(
             id=id,
             name=name,
             source_url=source_url,
             status=ProjectStatus(status),
-            crawl_depth=crawl_depth,
-            embedding_model=embedding_model,
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
+            crawl_depth=settings.get("crawl_depth", 3),
+            embedding_model=settings.get("embedding_model", "mxbai-embed-large"),
+            chunk_size=settings.get("chunk_size", 500),
+            chunk_overlap=settings.get("chunk_overlap", 50),
             created_at=datetime.fromisoformat(created_at),
             updated_at=datetime.fromisoformat(updated_at),
             last_crawl_at=datetime.fromisoformat(last_crawl_at) if last_crawl_at else None,
-            total_pages=total_pages,
-            total_size_bytes=total_size_bytes,
-            successful_pages=successful_pages,
-            failed_pages=failed_pages,
-            metadata=json.loads(metadata) if metadata else {}
+            total_pages=statistics.get("total_pages", 0),
+            total_size_bytes=statistics.get("total_size_bytes", 0),
+            successful_pages=statistics.get("successful_pages", 0),
+            failed_pages=statistics.get("failed_pages", 0),
+            metadata=metadata
         )
 
     def _session_from_row(self, row: tuple) -> CrawlSession:

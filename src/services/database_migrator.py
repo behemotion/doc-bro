@@ -33,6 +33,7 @@ class DatabaseMigrator:
         self.migration_scripts = {
             1: self._migration_v1_to_v2,
             2: self._migration_v2_to_v3,
+            3: self._migration_v3_to_v4,
         }
 
     async def check_schema_version(self) -> int:
@@ -492,6 +493,244 @@ class DatabaseMigrator:
             )
             await conn.commit()
             self.logger.info(f"Updated schema version to {version}")
+
+    async def _migration_v3_to_v4(self) -> None:
+        """Migrate from version 3 to version 4 (shelf/basket system)."""
+        self.logger.info("Applying migration from version 3 to version 4 (shelf/basket system)")
+
+        async with aiosqlite.connect(str(self.db_path)) as conn:
+            # Create backup before migration
+            await self._create_migration_backup(conn, "v3_to_v4")
+
+            # Create shelf and basket tables
+            await self._create_shelf_basket_tables(conn)
+
+            # Create default shelf for existing projects
+            default_shelf_id = await self._create_default_shelf(conn)
+
+            # Migrate existing projects to baskets
+            await self._migrate_projects_to_baskets(conn, default_shelf_id)
+
+            # Validate migration
+            await self._validate_shelf_basket_migration(conn)
+
+            # Create indexes
+            await self._create_shelf_basket_indexes(conn)
+
+            await conn.commit()
+            self.logger.info("Successfully completed v3 to v4 migration")
+
+    async def _create_migration_backup(self, conn: aiosqlite.Connection, migration_name: str) -> None:
+        """Create backup before major migration."""
+        backup_timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        backup_name = f"{migration_name}_backup_{backup_timestamp}.db"
+        backup_path = self.config.data_dir / "backups" / backup_name
+
+        # Ensure backup directory exists
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Create backup using SQLite backup API
+        backup_conn = sqlite3.connect(str(backup_path))
+        conn._conn.backup(backup_conn)
+        backup_conn.close()
+
+        self.logger.info(f"Created migration backup at {backup_path}")
+
+    async def _create_shelf_basket_tables(self, conn: aiosqlite.Connection) -> None:
+        """Create shelf and basket tables."""
+        # Create shelfs table
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS shelfs (
+                id TEXT PRIMARY KEY,
+                name TEXT UNIQUE NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                is_current BOOLEAN DEFAULT FALSE,
+                metadata_json TEXT DEFAULT '{}'
+            )
+        """)
+
+        # Create baskets table
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS baskets (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                shelf_id TEXT NOT NULL,
+                type TEXT NOT NULL DEFAULT 'data',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                last_operation_at TEXT,
+
+                -- Preserve all existing project fields
+                status TEXT NOT NULL DEFAULT 'created',
+                source_url TEXT,
+                crawl_depth INTEGER DEFAULT 2,
+                embedding_model TEXT DEFAULT 'mxbai-embed-large',
+                chunk_size INTEGER DEFAULT 1000,
+                chunk_overlap INTEGER DEFAULT 100,
+
+                -- Statistics
+                total_pages INTEGER DEFAULT 0,
+                total_size_bytes INTEGER DEFAULT 0,
+                successful_pages INTEGER DEFAULT 0,
+                failed_pages INTEGER DEFAULT 0,
+
+                -- Configuration
+                settings_json TEXT NOT NULL DEFAULT '{}',
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+
+                -- Schema compatibility
+                schema_version INTEGER DEFAULT 4,
+                compatibility_status TEXT DEFAULT 'compatible',
+
+                FOREIGN KEY (shelf_id) REFERENCES shelfs (id) ON DELETE CASCADE,
+                UNIQUE(shelf_id, name)
+            )
+        """)
+
+        self.logger.info("Created shelf and basket tables")
+
+    async def _create_default_shelf(self, conn: aiosqlite.Connection) -> str:
+        """Create default shelf for migrated projects."""
+        import uuid
+
+        shelf_id = str(uuid.uuid4())
+        current_time = datetime.utcnow().isoformat()
+
+        await conn.execute("""
+            INSERT INTO shelfs (id, name, created_at, updated_at, is_current, metadata_json)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (
+            shelf_id,
+            "default",
+            current_time,
+            current_time,
+            True,
+            json.dumps({
+                "description": "Default shelf for migrated projects",
+                "migration_source": "v3_projects",
+                "auto_created": True
+            })
+        ))
+
+        self.logger.info(f"Created default shelf with ID: {shelf_id}")
+        return shelf_id
+
+    async def _migrate_projects_to_baskets(self, conn: aiosqlite.Connection, default_shelf_id: str) -> None:
+        """Migrate existing projects to baskets in default shelf."""
+        # Get all existing projects
+        cursor = await conn.execute("SELECT * FROM projects")
+        projects = await cursor.fetchall()
+
+        if not projects:
+            self.logger.info("No projects found to migrate")
+            return
+
+        # Get column names
+        cursor = await conn.execute("PRAGMA table_info(projects)")
+        columns = await cursor.fetchall()
+        column_names = [col[1] for col in columns]
+
+        migrated_count = 0
+        for project_row in projects:
+            # Convert row to dictionary
+            project = dict(zip(column_names, project_row))
+
+            # Determine basket type based on project characteristics
+            basket_type = "data"  # default
+            if project.get("source_url"):
+                basket_type = "crawling"
+
+            # Extract statistics from settings_json if available
+            settings = {}
+            statistics = {}
+            metadata = {}
+
+            try:
+                if project.get("settings_json"):
+                    settings = json.loads(project["settings_json"])
+                if project.get("statistics_json"):
+                    statistics = json.loads(project["statistics_json"])
+                if project.get("metadata_json"):
+                    metadata = json.loads(project["metadata_json"])
+            except json.JSONDecodeError as e:
+                self.logger.warning(f"Failed to parse JSON for project {project['name']}: {e}")
+
+            # Create basket entry
+            await conn.execute("""
+                INSERT INTO baskets (
+                    id, name, shelf_id, type, status, source_url,
+                    created_at, updated_at, last_operation_at,
+                    crawl_depth, embedding_model, chunk_size, chunk_overlap,
+                    total_pages, total_size_bytes, successful_pages, failed_pages,
+                    settings_json, metadata_json, schema_version, compatibility_status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                project["id"],
+                project["name"],
+                default_shelf_id,
+                basket_type,
+                project.get("status", "created"),
+                project.get("source_url"),
+                project["created_at"],
+                project["updated_at"],
+                project.get("last_crawl_at"),
+                settings.get("crawl_depth", 2),
+                settings.get("embedding_model", "mxbai-embed-large"),
+                settings.get("chunk_size", 1000),
+                settings.get("chunk_overlap", 100),
+                statistics.get("total_pages", 0),
+                statistics.get("total_size_bytes", 0),
+                statistics.get("successful_pages", 0),
+                statistics.get("failed_pages", 0),
+                project.get("settings_json", "{}"),
+                project.get("metadata_json", "{}"),
+                4,  # New schema version
+                "migrated"
+            ))
+
+            migrated_count += 1
+
+        self.logger.info(f"Migrated {migrated_count} projects to baskets")
+
+    async def _validate_shelf_basket_migration(self, conn: aiosqlite.Connection) -> None:
+        """Validate the shelf/basket migration."""
+        # Check shelf count
+        cursor = await conn.execute("SELECT COUNT(*) FROM shelfs")
+        shelf_count = (await cursor.fetchone())[0]
+
+        # Check basket count
+        cursor = await conn.execute("SELECT COUNT(*) FROM baskets")
+        basket_count = (await cursor.fetchone())[0]
+
+        # Check original project count
+        cursor = await conn.execute("SELECT COUNT(*) FROM projects")
+        project_count = (await cursor.fetchone())[0]
+
+        if basket_count != project_count:
+            raise MigrationError(
+                f"Migration validation failed: {project_count} projects but {basket_count} baskets"
+            )
+
+        if shelf_count == 0:
+            raise MigrationError("Migration validation failed: no shelfs created")
+
+        self.logger.info(f"Migration validation passed: {shelf_count} shelfs, {basket_count} baskets")
+
+    async def _create_shelf_basket_indexes(self, conn: aiosqlite.Connection) -> None:
+        """Create indexes for shelf and basket tables."""
+        # Shelf indexes
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_shelfs_name ON shelfs (name)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_shelfs_is_current ON shelfs (is_current)")
+
+        # Basket indexes
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_baskets_shelf_id ON baskets (shelf_id)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_baskets_name ON baskets (name)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_baskets_type ON baskets (type)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_baskets_status ON baskets (status)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_baskets_schema_version ON baskets (schema_version)")
+
+        self.logger.info("Created shelf and basket indexes")
 
     async def cleanup_migration_records(self, days_old: int = 30) -> int:
         """Clean up old migration records."""
