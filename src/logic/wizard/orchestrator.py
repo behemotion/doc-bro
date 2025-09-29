@@ -3,7 +3,7 @@
 import json
 import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from src.core.config import DocBroConfig
@@ -62,7 +62,7 @@ class WizardOrchestrator:
 
         # Create new wizard session
         wizard_id = str(uuid.uuid4())
-        now = datetime.now(datetime.UTC)
+        now = datetime.now(timezone.utc)
 
         wizard_state = WizardState(
             wizard_id=wizard_id,
@@ -109,7 +109,7 @@ class WizardOrchestrator:
 
         # Store response
         wizard_state.collected_data[current_step.step_title.lower().replace(" ", "_")] = response
-        wizard_state.last_activity = datetime.now(datetime.UTC)
+        wizard_state.last_activity = datetime.now(timezone.utc)
 
         # Check if wizard is complete
         if wizard_state.current_step >= wizard_state.total_steps:
@@ -362,7 +362,7 @@ class WizardOrchestrator:
 
         # Check if session is expired
         last_activity = datetime.fromisoformat(last_activity_str)
-        if datetime.now(datetime.UTC) - last_activity > self.session_timeout:
+        if datetime.now(timezone.utc) - last_activity > self.session_timeout:
             await self._delete_wizard_state(wizard_id)
             return None
 
@@ -386,7 +386,7 @@ class WizardOrchestrator:
 
     async def _cleanup_expired_sessions(self) -> None:
         """Clean up expired wizard sessions."""
-        cutoff_time = datetime.now(datetime.UTC) - self.session_timeout
+        cutoff_time = datetime.now(timezone.utc) - self.session_timeout
         async with self.db_manager.get_connection() as conn:
             await conn.execute(
                 "DELETE FROM wizard_states WHERE last_activity < ?",

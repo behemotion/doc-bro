@@ -168,39 +168,46 @@ class TestWizardStateTransitions:
     @pytest.mark.asyncio
     async def test_wizard_orchestrator_start_session(self, wizard_orchestrator):
         """Test starting a wizard session through orchestrator."""
-        with patch.object(wizard_orchestrator, '_create_wizard_state', new_callable=AsyncMock) as mock_create:
-            mock_wizard_id = str(uuid4())
-            mock_create.return_value = mock_wizard_id
+        # Test actual start_wizard method without mocking
+        wizard_state = await wizard_orchestrator.start_wizard("shelf", "new-shelf")
 
-            wizard_id = await wizard_orchestrator.start_wizard("shelf", "new-shelf")
-
-            assert wizard_id is not None
-            mock_create.assert_called_once()
+        assert wizard_state is not None
+        assert wizard_state.wizard_type == "shelf"
+        assert wizard_state.target_entity == "new-shelf"
+        assert wizard_state.current_step == 1
+        assert wizard_state.total_steps > 0
 
     @pytest.mark.asyncio
-    async def test_wizard_orchestrator_process_step(self, wizard_orchestrator, wizard_id):
+    async def test_wizard_orchestrator_process_step(self, wizard_orchestrator):
         """Test processing a wizard step through orchestrator."""
-        with patch.object(wizard_orchestrator, '_process_wizard_step', new_callable=AsyncMock) as mock_process:
-            mock_process.return_value = (True, "Next step prompt")
+        # Start a wizard first
+        wizard_state = await wizard_orchestrator.start_wizard("shelf", "test-shelf")
 
-            success, next_prompt = await wizard_orchestrator.process_step(
-                wizard_id,
-                "User response"
-            )
+        # Process first step (description - optional text)
+        result = await wizard_orchestrator.process_step(wizard_state.wizard_id, "Test description")
 
-            assert success is True
-            assert next_prompt is not None
+        assert result.accepted is True
+        assert len(result.validation_errors) == 0
+        assert result.is_complete is False  # Not done yet
 
     @pytest.mark.asyncio
-    async def test_wizard_orchestrator_complete_session(self, wizard_orchestrator, wizard_id):
+    async def test_wizard_orchestrator_complete_session(self, wizard_orchestrator):
         """Test completing a wizard session through orchestrator."""
-        with patch.object(wizard_orchestrator, '_finalize_wizard', new_callable=AsyncMock) as mock_finalize:
-            mock_finalize.return_value = {"success": True, "entity_created": True}
+        # Start wizard and complete all steps
+        wizard_state = await wizard_orchestrator.start_wizard("mcp", "mcp-config")
 
-            result = await wizard_orchestrator.complete_wizard(wizard_id)
+        # MCP wizard has 2 steps (read-only and admin servers)
+        result1 = await wizard_orchestrator.process_step(wizard_state.wizard_id, "yes")
+        assert result1.accepted is True
 
-            assert result["success"] is True
-            mock_finalize.assert_called_once_with(wizard_id)
+        result2 = await wizard_orchestrator.process_step(wizard_state.wizard_id, "yes")
+        assert result2.accepted is True
+        assert result2.is_complete is True
+
+        # Now complete the wizard
+        final_result = await wizard_orchestrator.complete_wizard(wizard_state.wizard_id)
+
+        assert final_result.configuration_applied is True
 
     def test_wizard_type_validation(self, wizard_id):
         """Test that only valid wizard types are accepted."""
@@ -238,29 +245,33 @@ class TestWizardStateTransitions:
         assert 1 <= state.current_step <= state.total_steps
 
     @pytest.mark.asyncio
-    async def test_wizard_cancellation(self, wizard_orchestrator, wizard_id):
+    async def test_wizard_cancellation(self, wizard_orchestrator):
         """Test cancelling an active wizard session."""
-        with patch.object(wizard_orchestrator, '_cancel_wizard', new_callable=AsyncMock) as mock_cancel:
-            mock_cancel.return_value = True
+        # Start a wizard
+        wizard_state = await wizard_orchestrator.start_wizard("shelf", "test-shelf")
 
-            result = await wizard_orchestrator.cancel_wizard(wizard_id)
+        # Delete the wizard state (equivalent to cancellation)
+        await wizard_orchestrator._delete_wizard_state(wizard_state.wizard_id)
 
-            assert result is True
-            mock_cancel.assert_called_once_with(wizard_id)
+        # Verify it's gone
+        retrieved_state = await wizard_orchestrator.get_wizard_status(wizard_state.wizard_id)
+        assert retrieved_state is None
 
     @pytest.mark.asyncio
     async def test_wizard_transition_timing(self, wizard_orchestrator):
         """Test that wizard step transitions meet <200ms requirement."""
         import time
 
-        with patch.object(wizard_orchestrator, '_process_wizard_step', new_callable=AsyncMock) as mock_process:
-            mock_process.return_value = (True, "Next step")
+        # Start wizard
+        wizard_state = await wizard_orchestrator.start_wizard("box", "test-box")
 
-            start_time = time.time()
-            success, _ = await wizard_orchestrator.process_step(str(uuid4()), "test response")
-            elapsed_time = (time.time() - start_time) * 1000  # Convert to ms
+        # Measure step processing time
+        start_time = time.time()
+        result = await wizard_orchestrator.process_step(wizard_state.wizard_id, "drag")
+        elapsed_time = (time.time() - start_time) * 1000  # Convert to ms
 
-            assert elapsed_time < 200, f"Wizard step took {elapsed_time}ms (>200ms threshold)"
+        assert elapsed_time < 200, f"Wizard step took {elapsed_time}ms (>200ms threshold)"
+        assert result.accepted is True
 
     def test_wizard_concurrent_sessions_limit(self):
         """Test limiting concurrent wizard sessions (max 10 per user)."""
