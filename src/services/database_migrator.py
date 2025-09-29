@@ -1,7 +1,7 @@
 """Database migration service for DocBro."""
 
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import json
@@ -120,7 +120,7 @@ class DatabaseMigrator:
 
     def _create_default_shelf_data(self, conn: sqlite3.Connection) -> None:
         """Create default shelf and box."""
-        now = datetime.now(datetime.UTC).isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         # Create default "common shelf"
         shelf_id = str(uuid.uuid4())
