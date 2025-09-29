@@ -23,6 +23,10 @@ class ShelfService:
         if not self.db._initialized:
             await self.db.initialize()
 
+    def _get_connection(self):
+        """Get the database connection."""
+        return self._get_connection()ection
+
     async def create_shelf(
         self,
         name: str,
@@ -71,7 +75,7 @@ class ShelfService:
             await self._unset_all_current()
 
         # Insert into database
-        async with self.db._conn.execute(
+        async with self._get_connection().execute(
             """
             INSERT INTO shelfs (id, name, created_at, updated_at, is_current, metadata_json)
             VALUES (?, ?, ?, ?, ?, ?)
@@ -85,7 +89,7 @@ class ShelfService:
                 self.db._json_dumps(shelf.metadata)
             )
         ) as cursor:
-            await self.db._conn.commit()
+            await self._get_connection().commit()
 
         logger.info(f"Created shelf: {shelf.name} (id={shelf.id})")
         return shelf
@@ -101,7 +105,7 @@ class ShelfService:
         """
         await self.initialize()
 
-        async with self.db._conn.execute(
+        async with self._get_connection().execute(
             """
             SELECT id, name, created_at, updated_at, is_current, metadata_json
             FROM shelfs
@@ -115,7 +119,7 @@ class ShelfService:
             return None
 
         # Get basket count
-        async with self.db._conn.execute(
+        async with self._get_connection().execute(
             "SELECT COUNT(*) FROM baskets WHERE shelf_id = ?",
             (shelf_id,)
         ) as cursor:
@@ -135,7 +139,7 @@ class ShelfService:
         """
         await self.initialize()
 
-        async with self.db._conn.execute(
+        async with self._get_connection().execute(
             """
             SELECT id, name, created_at, updated_at, is_current, metadata_json
             FROM shelfs
@@ -151,7 +155,7 @@ class ShelfService:
         shelf_id = row[0]
 
         # Get basket count
-        async with self.db._conn.execute(
+        async with self._get_connection().execute(
             "SELECT COUNT(*) FROM baskets WHERE shelf_id = ?",
             (shelf_id,)
         ) as cursor:
@@ -190,7 +194,7 @@ class ShelfService:
             query += " LIMIT ?"
             params.append(limit)
 
-        async with self.db._conn.execute(query, params) as cursor:
+        async with self._get_connection().execute(query, params) as cursor:
             rows = await cursor.fetchall()
 
         shelfs = []
@@ -198,7 +202,7 @@ class ShelfService:
             shelf_id = row[0]
 
             # Get basket count for each shelf
-            async with self.db._conn.execute(
+            async with self._get_connection().execute(
                 "SELECT COUNT(*) FROM baskets WHERE shelf_id = ?",
                 (shelf_id,)
             ) as count_cursor:
@@ -209,7 +213,7 @@ class ShelfService:
 
             if verbose:
                 # Load baskets for verbose mode
-                async with self.db._conn.execute(
+                async with self._get_connection().execute(
                     "SELECT id, name, type, status FROM baskets WHERE shelf_id = ?",
                     (shelf_id,)
                 ) as basket_cursor:
@@ -231,7 +235,7 @@ class ShelfService:
         """
         await self.initialize()
 
-        async with self.db._conn.execute(
+        async with self._get_connection().execute(
             """
             SELECT id, name, created_at, updated_at, is_current, metadata_json
             FROM shelfs
@@ -247,7 +251,7 @@ class ShelfService:
         shelf_id = row[0]
 
         # Get basket count
-        async with self.db._conn.execute(
+        async with self._get_connection().execute(
             "SELECT COUNT(*) FROM baskets WHERE shelf_id = ?",
             (shelf_id,)
         ) as cursor:
@@ -278,11 +282,11 @@ class ShelfService:
         await self._unset_all_current()
 
         # Set this shelf as current
-        async with self.db._conn.execute(
+        async with self._get_connection().execute(
             "UPDATE shelfs SET is_current = 1, updated_at = ? WHERE id = ?",
             (datetime.utcnow().isoformat(), shelf_id)
         ):
-            await self.db._conn.commit()
+            await self._get_connection().commit()
 
         shelf.set_current()
         logger.info(f"Set current shelf: {shelf.name} (id={shelf.id})")
@@ -340,8 +344,8 @@ class ShelfService:
             params.append(shelf_id)
 
             query = f"UPDATE shelfs SET {', '.join(updates)} WHERE id = ?"
-            async with self.db._conn.execute(query, params):
-                await self.db._conn.commit()
+            async with self._get_connection().execute(query, params):
+                await self._get_connection().commit()
 
             logger.info(f"Updated shelf: {shelf.name} (id={shelf.id})")
 
@@ -385,22 +389,22 @@ class ShelfService:
             logger.info(f"Creating backup of shelf: {shelf.name}")
 
         # Delete shelf (cascade will delete baskets)
-        async with self.db._conn.execute(
+        async with self._get_connection().execute(
             "DELETE FROM shelfs WHERE id = ?",
             (shelf_id,)
         ):
-            await self.db._conn.commit()
+            await self._get_connection().commit()
 
         logger.info(f"Removed shelf: {shelf.name} (id={shelf.id})")
         return True
 
     async def _unset_all_current(self) -> None:
         """Unset current flag on all shelfs."""
-        async with self.db._conn.execute(
+        async with self._get_connection().execute(
             "UPDATE shelfs SET is_current = 0, updated_at = ? WHERE is_current = 1",
             (datetime.utcnow().isoformat(),)
         ):
-            await self.db._conn.commit()
+            await self._get_connection().commit()
 
     def _row_to_shelf(self, row: tuple, basket_count: int = 0) -> Shelf:
         """Convert database row to Shelf model."""
