@@ -47,69 +47,45 @@ def display_global_settings():
 
 
 @click.command()
-@click.option(
-    "--init",
-    is_flag=True,
-    help="Initialize DocBro configuration"
-)
-@click.option(
-    "--uninstall",
-    is_flag=True,
-    help="Uninstall DocBro completely"
-)
-@click.option(
-    "--reset",
-    is_flag=True,
-    help="Reset DocBro to fresh state"
-)
-@click.option(
-    "--force",
-    is_flag=True,
-    help="Skip confirmation prompts"
-)
-@click.option(
-    "--auto",
-    is_flag=True,
-    help="Use automatic mode with defaults"
-)
+@click.option('--verbose', '-v', is_flag=True, help='Enable verbose output', default=False)
+@click.option('--quiet', '-q', is_flag=True, help='Suppress non-error output', default=False)
+@click.option('--format', '-f', type=click.Choice(['json', 'yaml', 'table']), help='Output format', default='table')
+@click.option('--init', '-i', is_flag=True, help='Launch setup wizard', default=False)
+@click.option('--force', '-F', is_flag=True, help='Force operation without prompts', default=False)
+@click.option('--dry-run', '-n', is_flag=True, help='Show what would be done without executing', default=False)
+@click.option('--timeout', '-t', type=int, help='Operation timeout in seconds')
+@click.option('--auto', '-a', is_flag=True, help='Auto-configure with defaults', default=False)
+@click.option('--vector-store', '-V', type=click.Choice(['sqlite_vec', 'qdrant']), help='Vector store provider')
+@click.option('--uninstall', '-u', is_flag=True, help='Uninstall DocBro', default=False)
+@click.option('--reset', '-r', is_flag=True, help='Reset configuration', default=False)
+@click.option('--preserve-data', '-k', is_flag=True, help='Preserve user data during reset', default=False)
 @click.option(
     "--non-interactive",
     is_flag=True,
     help="Disable interactive prompts"
 )
 @click.option(
-    "--vector-store",
-    type=click.Choice(["sqlite_vec", "qdrant"]),
-    help="Select vector store provider (with --init)"
-)
-@click.option(
     "--backup",
     is_flag=True,
     help="Create backup before uninstalling (with --uninstall)"
 )
-@click.option(
-    "--dry-run",
-    is_flag=True,
-    help="Show what would be removed (with --uninstall)"
-)
-@click.option(
-    "--preserve-data",
-    is_flag=True,
-    help="Keep user project data (with --uninstall or --reset)"
-)
 @click.pass_context
 def setup(
     ctx: click.Context,
+    verbose: bool,
+    quiet: bool,
+    format: str,
     init: bool,
+    force: bool,
+    dry_run: bool,
+    timeout: int | None,
+    auto: bool,
+    vector_store: str | None,
     uninstall: bool,
     reset: bool,
-    force: bool,
-    auto: bool,
+    preserve_data: bool,
     non_interactive: bool,
-    vector_store: str | None,
-    backup: bool,
-    dry_run: bool,
-    preserve_data: bool
+    backup: bool
 ):
     """Unified setup command for DocBro configuration.
 

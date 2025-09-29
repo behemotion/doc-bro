@@ -1,6 +1,7 @@
 """Wizard orchestrator for managing interactive setup sessions."""
 
 import json
+import time
 import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
@@ -10,6 +11,9 @@ from src.models.wizard_state import WizardState
 from src.models.wizard_step import WizardStep
 from src.services.database import DatabaseManager
 from src.cli.utils.navigation import ArrowNavigator, NavigationChoice
+from src.core.lib_logger import get_component_logger
+
+logger = get_component_logger("wizard_orchestrator")
 
 
 class WizardResult:
@@ -79,6 +83,8 @@ class WizardOrchestrator:
 
     async def process_step(self, wizard_id: str, response: Any) -> StepResult:
         """Process user response to current wizard step."""
+        start_time = time.time()
+
         # Load wizard state
         wizard_state = await self._load_wizard_state(wizard_id)
         if not wizard_state:
@@ -110,6 +116,13 @@ class WizardOrchestrator:
             wizard_state.is_complete = True
             await self._save_wizard_state(wizard_state)
 
+            # Performance monitoring for completion
+            elapsed_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+            if elapsed_time > 200:
+                logger.warning(f"Wizard completion took {elapsed_time:.2f}ms (target: <200ms) for session {wizard_id}")
+            else:
+                logger.debug(f"Wizard completed in {elapsed_time:.2f}ms for session {wizard_id}")
+
             return StepResult(
                 accepted=True,
                 validation_errors=[],
@@ -123,6 +136,13 @@ class WizardOrchestrator:
 
         # Save updated state
         await self._save_wizard_state(wizard_state)
+
+        # Performance monitoring
+        elapsed_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+        if elapsed_time > 200:
+            logger.warning(f"Wizard step processing took {elapsed_time:.2f}ms (target: <200ms) for session {wizard_id}")
+        else:
+            logger.debug(f"Wizard step processed in {elapsed_time:.2f}ms for session {wizard_id}")
 
         return StepResult(
             accepted=True,

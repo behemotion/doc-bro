@@ -19,14 +19,20 @@ def get_app():
 
 
 @click.command(name="serve")
-@click.option("--host", default=None, help="Server host (auto-detected based on server type)")
-@click.option("--port", default=None, type=int, help="Server port (auto-detected based on server type)")
-@click.option("--foreground", "-f", is_flag=True, help="Run server in foreground")
-@click.option("--status", is_flag=True, help="Check server status")
-@click.option("--admin", is_flag=True, help="Start admin MCP server instead of read-only")
-@click.option("--init", "-i", is_flag=True, help="Launch MCP setup wizard")
+@click.option('--verbose', '-v', is_flag=True, help='Enable verbose output', default=False)
+@click.option('--quiet', '-q', is_flag=True, help='Suppress non-error output', default=False)
+@click.option('--format', '-f', type=click.Choice(['json', 'yaml', 'table']), help='Output format', default='table')
+@click.option('--init', '-i', is_flag=True, help='Launch setup wizard', default=False)
+@click.option('--force', '-F', is_flag=True, help='Force operation without prompts', default=False)
+@click.option('--dry-run', '-n', is_flag=True, help='Show what would be done without executing', default=False)
+@click.option('--timeout', '-t', type=int, help='Operation timeout in seconds')
+@click.option('--host', '-H', type=str, help='Server host address')
+@click.option('--port', '-o', type=int, help='Server port number')
+@click.option('--admin', '-A', is_flag=True, help='Enable admin server', default=False)
+@click.option('--foreground', '-g', is_flag=True, help='Run in foreground', default=False)
+@click.option('--status', '-w', is_flag=True, help='Check server status', default=False)
 @click.pass_context
-def serve(ctx: click.Context, host: str, port: int, foreground: bool, status: bool, admin: bool, init: bool):
+def serve(ctx: click.Context, verbose: bool, quiet: bool, format: str, init: bool, force: bool, dry_run: bool, timeout: int, host: str, port: int, admin: bool, foreground: bool, status: bool):
     """Start the MCP server for AI assistant integration.
 
     The MCP (Model Context Protocol) server exposes your documentation

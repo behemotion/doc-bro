@@ -1,6 +1,7 @@
 """Context service for shelf/box existence checking and status detection."""
 
 import json
+import time
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -8,6 +9,9 @@ from src.core.config import DocBroConfig
 from src.models.command_context import CommandContext
 from src.models.configuration_state import ConfigurationState
 from src.services.database import DatabaseManager
+from src.core.lib_logger import get_component_logger
+
+logger = get_component_logger("context_service")
 
 
 class ContextService:
@@ -21,9 +25,13 @@ class ContextService:
 
     async def check_shelf_exists(self, name: str) -> CommandContext:
         """Check if shelf exists and return context information."""
+        start_time = time.time()
+
         # Check cache first
         cached_context = await self._get_cached_context(name, "shelf")
         if cached_context:
+            elapsed_time = (time.time() - start_time) * 1000
+            logger.debug(f"Shelf context retrieved from cache in {elapsed_time:.2f}ms for '{name}'")
             return cached_context
 
         # Query database for shelf
@@ -81,14 +89,25 @@ class ContextService:
         # Cache the result
         await self._cache_context(context)
 
+        # Performance monitoring
+        elapsed_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+        if elapsed_time > 500:
+            logger.warning(f"Shelf context detection took {elapsed_time:.2f}ms (target: <500ms) for '{name}'")
+        else:
+            logger.debug(f"Shelf context detected in {elapsed_time:.2f}ms for '{name}'")
+
         return context
 
     async def check_box_exists(self, name: str, shelf: Optional[str] = None) -> CommandContext:
         """Check if box exists and return context information."""
+        start_time = time.time()
+
         # Check cache first
         cache_key = f"{name}_{shelf or 'global'}"
         cached_context = await self._get_cached_context(cache_key, "box")
         if cached_context:
+            elapsed_time = (time.time() - start_time) * 1000
+            logger.debug(f"Box context retrieved from cache in {elapsed_time:.2f}ms for '{name}'")
             return cached_context
 
         # Query database for box
@@ -151,6 +170,13 @@ class ContextService:
 
         # Cache the result
         await self._cache_context(context, cache_key)
+
+        # Performance monitoring
+        elapsed_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+        if elapsed_time > 500:
+            logger.warning(f"Box context detection took {elapsed_time:.2f}ms (target: <500ms) for '{name}'")
+        else:
+            logger.debug(f"Box context detected in {elapsed_time:.2f}ms for '{name}'")
 
         return context
 

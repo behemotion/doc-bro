@@ -116,21 +116,21 @@ class FlagStandardizer:
         return {
             "shelf": {
                 "description": FlagMapping(
-                    long_form="--description",
-                    short_form="-d",
+                    long_form="--shelf-description",  # Changed to avoid conflict with box description
+                    short_form="-d",  # Keep -d for shelf as it's more common
                     flag_type="string",
                     description="Shelf description"
                 ),
                 "set_current": FlagMapping(
                     long_form="--set-current",
-                    short_form="-s",
+                    short_form="-s",  # Changed back to -s, will resolve --source conflict differently
                     flag_type="boolean",
                     description="Set as current shelf",
                     default_value="false"
                 ),
                 "create": FlagMapping(
                     long_form="--create",
-                    short_form="-C",
+                    short_form="-C",  # Keep -C for create
                     flag_type="boolean",
                     description="Force creation mode",
                     default_value="false"
@@ -139,20 +139,20 @@ class FlagStandardizer:
             "box": {
                 "type": FlagMapping(
                     long_form="--type",
-                    short_form="-t",
+                    short_form="-T",  # Changed from -t to avoid conflict with --timeout
                     flag_type="choice",
                     description="Box type",
                     choices=["drag", "rag", "bag"]
                 ),
                 "shelf": FlagMapping(
                     long_form="--shelf",
-                    short_form="-s",
+                    short_form="-B",  # Changed to -B (for Box shelf)
                     flag_type="string",
                     description="Target shelf name"
                 ),
                 "description": FlagMapping(
-                    long_form="--description",
-                    short_form="-d",
+                    long_form="--box-description",  # Changed to avoid conflict with shelf description
+                    short_form="-D",  # Changed from -d to avoid conflict with --depth
                     flag_type="string",
                     description="Box description"
                 )
@@ -160,7 +160,7 @@ class FlagStandardizer:
             "fill": {
                 "source": FlagMapping(
                     long_form="--source",
-                    short_form="-s",
+                    short_form="-S",  # Changed from -s to avoid conflict with shelf --set-current
                     flag_type="string",
                     description="Content source (URL, file path, or data)"
                 ),
@@ -172,19 +172,19 @@ class FlagStandardizer:
                 ),
                 "rate_limit": FlagMapping(
                     long_form="--rate-limit",
-                    short_form="-r",
+                    short_form="-R",  # Changed from -r to avoid conflict with setup --reset
                     flag_type="string",
                     description="Requests per second limit (drag boxes)"
                 ),
                 "depth": FlagMapping(
                     long_form="--depth",
-                    short_form="-d",
+                    short_form="-e",  # Changed from -d to avoid conflict with shelf description
                     flag_type="integer",
                     description="Maximum crawl depth (drag boxes)"
                 ),
                 "chunk_size": FlagMapping(
                     long_form="--chunk-size",
-                    short_form="-C",
+                    short_form="-z",  # Changed from -C to avoid conflict with --create
                     flag_type="integer",
                     description="Text chunk size for processing (rag boxes)"
                 ),
@@ -196,14 +196,14 @@ class FlagStandardizer:
                 ),
                 "recursive": FlagMapping(
                     long_form="--recursive",
-                    short_form="-R",
+                    short_form="-x",  # Changed from -r since setup --reset uses -r
                     flag_type="boolean",
                     description="Process directories recursively (bag boxes)",
                     default_value="false"
                 ),
                 "pattern": FlagMapping(
                     long_form="--pattern",
-                    short_form="-p",
+                    short_form="-P",  # Use -P for Pattern
                     flag_type="string",
                     description="File name pattern matching (bag boxes)"
                 )
@@ -211,33 +211,33 @@ class FlagStandardizer:
             "serve": {
                 "host": FlagMapping(
                     long_form="--host",
-                    short_form="-h",
+                    short_form="-H",  # Changed from -h to avoid conflict with --help
                     flag_type="string",
                     description="Server host address"
                 ),
                 "port": FlagMapping(
                     long_form="--port",
-                    short_form="-p",
+                    short_form="-o",  # Changed from -P since fill --pattern now uses -P
                     flag_type="integer",
                     description="Server port number"
                 ),
                 "admin": FlagMapping(
                     long_form="--admin",
-                    short_form="-a",
+                    short_form="-A",  # Changed from -a to avoid conflict with --auto
                     flag_type="boolean",
                     description="Enable admin server",
                     default_value="false"
                 ),
                 "foreground": FlagMapping(
                     long_form="--foreground",
-                    short_form="-f",
+                    short_form="-g",  # Changed from -F to avoid conflict with global --force
                     flag_type="boolean",
                     description="Run in foreground",
                     default_value="false"
                 ),
                 "status": FlagMapping(
                     long_form="--status",
-                    short_form="-S",
+                    short_form="-w",  # Use -w for status (w for "what's running")
                     flag_type="boolean",
                     description="Check server status",
                     default_value="false"
@@ -274,7 +274,7 @@ class FlagStandardizer:
                 ),
                 "preserve_data": FlagMapping(
                     long_form="--preserve-data",
-                    short_form="-P",
+                    short_form="-k",  # Changed from -p to avoid conflicts (k for "keep")
                     flag_type="boolean",
                     description="Preserve user data during reset",
                     default_value="false"
