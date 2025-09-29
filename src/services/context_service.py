@@ -2,7 +2,7 @@
 
 import json
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from src.core.config import DocBroConfig
@@ -82,7 +82,7 @@ class ContextService:
                 entity_exists=False,
                 is_empty=None,
                 configuration_state=config_state,
-                last_modified=datetime.now(datetime.UTC),
+                last_modified=datetime.now(timezone.utc),
                 content_summary=None
             )
 
@@ -164,7 +164,7 @@ class ContextService:
                 entity_exists=False,
                 is_empty=None,
                 configuration_state=config_state,
-                last_modified=datetime.now(datetime.UTC),
+                last_modified=datetime.now(timezone.utc),
                 content_summary=None
             )
 
@@ -212,7 +212,7 @@ class ContextService:
     async def _cache_context(self, context: CommandContext, cache_key: Optional[str] = None) -> None:
         """Cache context information with TTL."""
         key = cache_key or context.entity_name
-        expires_at = datetime.now(datetime.UTC) + self.cache_ttl
+        expires_at = datetime.now(timezone.utc) + self.cache_ttl
 
         async with self.db_manager.get_connection() as conn:
             await conn.execute("""

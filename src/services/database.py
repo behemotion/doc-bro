@@ -93,6 +93,22 @@ class DatabaseManager:
         self._initialized = False
         self.logger.info("Database connections closed")
 
+    def get_connection(self):
+        """Get database connection as async context manager.
+
+        Returns:
+            AsyncContextManager that yields aiosqlite.Connection
+        """
+        from contextlib import asynccontextmanager
+
+        @asynccontextmanager
+        async def _connection_context():
+            if not self._initialized:
+                await self.initialize()
+            yield self._connection
+
+        return _connection_context()
+
     async def _create_schema(self) -> None:
         """Create main database schema with unified project structure."""
         schema_sql = """

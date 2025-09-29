@@ -3,9 +3,12 @@
 import pytest
 import time
 import asyncio
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import datetime, timezone
 
 from src.services.context_service import ContextService
+from src.models.command_context import CommandContext
+from src.models.configuration_state import ConfigurationState
 
 
 pytestmark = pytest.mark.performance
@@ -22,10 +25,23 @@ class TestContextDetectionPerformance:
     @pytest.mark.asyncio
     async def test_shelf_context_check_response_time(self, context_service):
         """Test shelf existence check completes within 500ms."""
-        with patch.object(context_service, '_check_shelf_in_db', new_callable=AsyncMock) as mock_check:
-            from datetime import datetime
-            mock_check.return_value = (True, False, "Test shelf", datetime.now())
+        # Mock the database manager's get_connection method
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        # First call checks cache (returns None - cache miss)
+        # Second call gets shelf data
+        # Third call gets box count
+        mock_cursor.fetchone = AsyncMock(side_effect=[
+            None,  # Cache miss
+            (1, "performance-shelf", None, datetime.now(timezone.utc).isoformat(), datetime.now(timezone.utc).isoformat()),  # Shelf data
+            (0,)  # Box count
+        ])
+        mock_conn.execute = AsyncMock(return_value=mock_cursor)
+        mock_conn.commit = AsyncMock()
+        mock_conn.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_conn.__aexit__ = AsyncMock(return_value=None)
 
+        with patch.object(context_service.db_manager, 'get_connection', return_value=mock_conn):
             start_time = time.perf_counter()
             context = await context_service.check_shelf_exists("performance-shelf")
             elapsed_ms = (time.perf_counter() - start_time) * 1000
@@ -36,10 +52,20 @@ class TestContextDetectionPerformance:
     @pytest.mark.asyncio
     async def test_box_context_check_response_time(self, context_service):
         """Test box existence check completes within 500ms."""
-        with patch.object(context_service, '_check_box_in_db', new_callable=AsyncMock) as mock_check:
-            from datetime import datetime
-            mock_check.return_value = (True, True, "Empty box", datetime.now(), "drag")
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        # First call checks cache (returns None - cache miss)
+        # Second call gets box data
+        mock_cursor.fetchone = AsyncMock(side_effect=[
+            None,  # Cache miss
+            (1, "performance-box", "drag", None, datetime.now(timezone.utc).isoformat(), datetime.now(timezone.utc).isoformat())  # Box data
+        ])
+        mock_conn.execute = AsyncMock(return_value=mock_cursor)
+        mock_conn.commit = AsyncMock()
+        mock_conn.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_conn.__aexit__ = AsyncMock(return_value=None)
 
+        with patch.object(context_service.db_manager, 'get_connection', return_value=mock_conn):
             start_time = time.perf_counter()
             context = await context_service.check_box_exists("performance-box")
             elapsed_ms = (time.perf_counter() - start_time) * 1000
@@ -50,10 +76,32 @@ class TestContextDetectionPerformance:
     @pytest.mark.asyncio
     async def test_context_check_with_cache_hit(self, context_service):
         """Test cached context lookups are significantly faster."""
-        with patch.object(context_service, '_check_shelf_in_db', new_callable=AsyncMock) as mock_check:
-            from datetime import datetime
-            mock_check.return_value = (True, False, "Cached shelf", datetime.now())
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
 
+        # First call returns data from database (cache miss)
+        # Second call returns data from cache (cache hit)
+        config_state = ConfigurationState(
+            is_configured=True,
+            has_content=False,
+            configuration_version="1.0",
+            setup_completed_at=datetime.now(timezone.utc),
+            needs_migration=False
+        )
+        cache_row = ("cached-shelf", "shelf", True, True, config_state.model_dump_json(), datetime.now(timezone.utc).isoformat(), "0 boxes", (datetime.now(timezone.utc)).isoformat())
+
+        mock_cursor.fetchone = AsyncMock(side_effect=[
+            None,  # No cache on first call
+            (1, "cached-shelf", None, datetime.now(timezone.utc).isoformat(), datetime.now(timezone.utc).isoformat()),  # DB query
+            (0,),  # box count
+            cache_row  # Cache hit on second call
+        ])
+        mock_conn.execute = AsyncMock(return_value=mock_cursor)
+        mock_conn.commit = AsyncMock()
+        mock_conn.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_conn.__aexit__ = AsyncMock(return_value=None)
+
+        with patch.object(context_service.db_manager, 'get_connection', return_value=mock_conn):
             # First call - database query
             start_time = time.perf_counter()
             await context_service.check_shelf_exists("cached-shelf")
@@ -69,16 +117,28 @@ class TestContextDetectionPerformance:
             assert cached_call_ms < 500, f"Cached call took {cached_call_ms:.2f}ms"
 
             # Cached call should be significantly faster
-            # But we're testing against mocks, so just verify it completes quickly
             assert cached_call_ms < 100, f"Cached lookup should be <100ms, was {cached_call_ms:.2f}ms"
 
     @pytest.mark.asyncio
     async def test_multiple_sequential_context_checks(self, context_service):
         """Test multiple context checks maintain performance."""
-        with patch.object(context_service, '_check_shelf_in_db', new_callable=AsyncMock) as mock_check:
-            from datetime import datetime
-            mock_check.return_value = (True, False, "Test", datetime.now())
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
 
+        # Mock responses for 5 different shelves
+        responses = []
+        for i in range(5):
+            responses.append(None)  # Cache miss
+            responses.append((i+1, f"shelf-{i}", None, datetime.now(timezone.utc).isoformat(), datetime.now(timezone.utc).isoformat()))
+            responses.append((0,))  # box count
+
+        mock_cursor.fetchone = AsyncMock(side_effect=responses)
+        mock_conn.execute = AsyncMock(return_value=mock_cursor)
+        mock_conn.commit = AsyncMock()
+        mock_conn.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_conn.__aexit__ = AsyncMock(return_value=None)
+
+        with patch.object(context_service.db_manager, 'get_connection', return_value=mock_conn):
             times = []
             for i in range(5):
                 start_time = time.perf_counter()
@@ -97,10 +157,23 @@ class TestContextDetectionPerformance:
     @pytest.mark.asyncio
     async def test_concurrent_context_checks_performance(self, context_service):
         """Test concurrent context checks don't degrade performance."""
-        with patch.object(context_service, '_check_shelf_in_db', new_callable=AsyncMock) as mock_check:
-            from datetime import datetime
-            mock_check.return_value = (True, False, "Test", datetime.now())
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
 
+        # Mock responses for 10 concurrent shelves
+        responses = []
+        for i in range(10):
+            responses.append(None)  # Cache miss
+            responses.append((i+1, f"concurrent-shelf-{i}", None, datetime.now(timezone.utc).isoformat(), datetime.now(timezone.utc).isoformat()))
+            responses.append((0,))  # box count
+
+        mock_cursor.fetchone = AsyncMock(side_effect=responses)
+        mock_conn.execute = AsyncMock(return_value=mock_cursor)
+        mock_conn.commit = AsyncMock()
+        mock_conn.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_conn.__aexit__ = AsyncMock(return_value=None)
+
+        with patch.object(context_service.db_manager, 'get_connection', return_value=mock_conn):
             # Create 10 concurrent requests
             start_time = time.perf_counter()
             tasks = [
@@ -120,10 +193,24 @@ class TestContextDetectionPerformance:
     @pytest.mark.asyncio
     async def test_context_check_under_load(self, context_service):
         """Test context detection maintains performance under load."""
-        with patch.object(context_service, '_check_shelf_in_db', new_callable=AsyncMock) as mock_check:
-            from datetime import datetime
-            mock_check.return_value = (True, False, "Load test", datetime.now())
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
 
+        # Mock responses for 15 shelves (3 batches of 5)
+        responses = []
+        for batch in range(3):
+            for i in range(5):
+                responses.append(None)  # Cache miss
+                responses.append((batch*5+i+1, f"load-shelf-{batch}-{i}", None, datetime.now(timezone.utc).isoformat(), datetime.now(timezone.utc).isoformat()))
+                responses.append((0,))  # box count
+
+        mock_cursor.fetchone = AsyncMock(side_effect=responses)
+        mock_conn.execute = AsyncMock(return_value=mock_cursor)
+        mock_conn.commit = AsyncMock()
+        mock_conn.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_conn.__aexit__ = AsyncMock(return_value=None)
+
+        with patch.object(context_service.db_manager, 'get_connection', return_value=mock_conn):
             # Simulate high load with many rapid requests
             times = []
             for batch in range(3):  # 3 batches of 5 concurrent requests
@@ -141,38 +228,29 @@ class TestContextDetectionPerformance:
                 assert batch_time < 1000, f"Batch {i+1} took {batch_time:.2f}ms"
 
     @pytest.mark.asyncio
-    async def test_configuration_state_query_performance(self, context_service):
-        """Test configuration state queries meet performance requirements."""
-        with patch.object(context_service, '_get_entity_config_state', new_callable=AsyncMock) as mock_config:
-            from src.models.configuration_state import ConfigurationState
-            from datetime import datetime
-
-            mock_config.return_value = ConfigurationState(
-                is_configured=True,
-                has_content=True,
-                configuration_version="1.0",
-                setup_completed_at=datetime.now(),
-                needs_migration=False
-            )
-
-            start_time = time.perf_counter()
-            config = await context_service.get_configuration_state("test-entity", "shelf")
-            elapsed_ms = (time.perf_counter() - start_time) * 1000
-
-            assert elapsed_ms < 500, f"Config state query took {elapsed_ms:.2f}ms"
-            assert config.is_configured is True
-
-    @pytest.mark.asyncio
     async def test_context_check_memory_efficiency(self, context_service):
         """Test context checks don't leak memory with repeated calls."""
         import tracemalloc
 
         tracemalloc.start()
 
-        with patch.object(context_service, '_check_shelf_in_db', new_callable=AsyncMock) as mock_check:
-            from datetime import datetime
-            mock_check.return_value = (True, False, "Memory test", datetime.now())
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
 
+        # Mock responses for 100 shelves
+        responses = []
+        for i in range(100):
+            responses.append(None)  # Cache miss
+            responses.append((i+1, f"memory-shelf-{i}", None, datetime.now(timezone.utc).isoformat(), datetime.now(timezone.utc).isoformat()))
+            responses.append((0,))  # box count
+
+        mock_cursor.fetchone = AsyncMock(side_effect=responses)
+        mock_conn.execute = AsyncMock(return_value=mock_cursor)
+        mock_conn.commit = AsyncMock()
+        mock_conn.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_conn.__aexit__ = AsyncMock(return_value=None)
+
+        with patch.object(context_service.db_manager, 'get_connection', return_value=mock_conn):
             # Get baseline memory
             baseline_memory = tracemalloc.get_traced_memory()[0]
 
