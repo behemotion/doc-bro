@@ -29,7 +29,7 @@ def box():
 
 @box.command()
 @click.argument('name', required=False)
-@click.option('--shelf', '-s', type=str, help='Specify shelf context')
+@click.option('--shelf', '-B', type=str, help='Specify shelf context')
 @click.option('--init', '-i', is_flag=True, help='Launch setup wizard')
 @click.option('--verbose', '-v', is_flag=True, help='Show detailed information')
 def inspect(name: Optional[str] = None, shelf: Optional[str] = None, init: bool = False, verbose: bool = False):
@@ -185,9 +185,9 @@ async def _run_box_wizard(name: str, box_type: str):
 
 @box.command()
 @click.argument('name', type=str)
-@click.option('--type', 'box_type', type=click.Choice(['drag', 'rag', 'bag']), required=True, help='Box type')
-@click.option('--shelf', '-s', type=str, help='Add to shelf')
-@click.option('--description', '-d', type=str, help='Box description')
+@click.option('--type', '-T', 'box_type', type=click.Choice(['drag', 'rag', 'bag']), required=True, help='Box type')
+@click.option('--shelf', '-B', type=str, help='Add to shelf')
+@click.option('--box-description', '-D', 'description', type=str, help='Box description')
 @click.option('--init', '-i', is_flag=True, help='Launch setup wizard after creation')
 def create(name: str, box_type: str, shelf: Optional[str] = None, description: Optional[str] = None, init: bool = False):
     """Create a new box."""
@@ -247,10 +247,10 @@ def create(name: str, box_type: str, shelf: Optional[str] = None, description: O
 
 
 @box.command()
-@click.option('--shelf', '-s', type=str, help='Filter by shelf')
-@click.option('--type', 'box_type', type=click.Choice(['drag', 'rag', 'bag']), help='Filter by type')
+@click.option('--shelf', '-B', type=str, help='Filter by shelf')
+@click.option('--type', '-T', 'box_type', type=click.Choice(['drag', 'rag', 'bag']), help='Filter by type')
 @click.option('--verbose', '-v', is_flag=True, help='Show detailed information')
-@click.option('--limit', type=int, default=10, help='Maximum boxes to display')
+@click.option('--limit', '-l', type=int, default=10, help='Maximum boxes to display')
 def list(shelf: Optional[str] = None, box_type: Optional[str] = None, verbose: bool = False, limit: int = 10):
     """List boxes."""
 
@@ -425,7 +425,7 @@ def rename(old_name: str, new_name: str):
 
 @box.command()
 @click.argument('name', type=str)
-@click.option('--force', '-f', is_flag=True, help='Skip confirmation')
+@click.option('--force', '-F', is_flag=True, help='Skip confirmation')
 def delete(name: str, force: bool = False):
     """Delete a box."""
 

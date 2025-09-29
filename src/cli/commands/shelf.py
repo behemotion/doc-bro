@@ -143,10 +143,12 @@ async def _run_shelf_wizard(name: str):
 
 @shelf.command()
 @click.argument('name', type=str)
-@click.option('--description', '-d', type=str, help='Shelf description')
+@click.option('--shelf-description', '-d', type=str, help='Shelf description')
 @click.option('--set-current', '-s', is_flag=True, help='Set as current shelf')
 @click.option('--init', '-i', is_flag=True, help='Launch setup wizard after creation')
-def create(name: str, description: Optional[str] = None, set_current: bool = False, init: bool = False):
+@click.option('--verbose', '-v', is_flag=True, help='Enable verbose output', default=False)
+@click.option('--force', '-F', is_flag=True, help='Force operation without prompts', default=False)
+def create(name: str, shelf_description: Optional[str] = None, set_current: bool = False, init: bool = False, verbose: bool = False, force: bool = False):
     """Create a new shelf with optional wizard."""
 
     async def _create():
@@ -155,7 +157,7 @@ def create(name: str, description: Optional[str] = None, set_current: bool = Fal
 
             shelf = await shelf_service.create_shelf(
                 name=name,
-                description=description,
+                description=shelf_description,
                 set_current=set_current
             )
 
@@ -188,7 +190,7 @@ def create(name: str, description: Optional[str] = None, set_current: bool = Fal
 @shelf.command()
 @click.option('--verbose', '-v', is_flag=True, help='Show detailed information')
 @click.option('--current-only', is_flag=True, help='Show only current shelf')
-@click.option('--limit', type=int, default=10, help='Maximum shelves to display')
+@click.option('--limit', '-l', type=int, default=10, help='Maximum shelves to display')
 def list(verbose: bool = False, current_only: bool = False, limit: int = 10):
     """List all shelves."""
 
@@ -324,7 +326,7 @@ def rename(old_name: str, new_name: str):
 
 @shelf.command()
 @click.argument('name', type=str)
-@click.option('--force', '-f', is_flag=True, help='Skip confirmation')
+@click.option('--force', '-F', is_flag=True, help='Skip confirmation')
 @click.option('--no-backup', is_flag=True, help="Don't create backup")
 def delete(name: str, force: bool = False, no_backup: bool = False):
     """Delete a shelf."""
