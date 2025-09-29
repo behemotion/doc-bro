@@ -324,36 +324,40 @@ class WizardOrchestrator:
 
     async def _save_wizard_state(self, wizard_state: WizardState) -> None:
         """Save wizard state to database."""
-        async with self.db_manager.get_connection() as conn:
-            await conn.execute("""
-                INSERT OR REPLACE INTO wizard_states
-                (wizard_id, wizard_type, target_entity, current_step, total_steps,
-                 collected_data, start_time, last_activity, is_complete)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                wizard_state.wizard_id,
-                wizard_state.wizard_type,
-                wizard_state.target_entity,
-                wizard_state.current_step,
-                wizard_state.total_steps,
-                json.dumps(wizard_state.collected_data),
-                wizard_state.start_time.isoformat(),
-                wizard_state.last_activity.isoformat(),
-                wizard_state.is_complete
-            ))
-            await conn.commit()
+        if not self.db_manager._initialized:
+            await self.db_manager.initialize()
+
+        await self.db_manager._connection.execute("""
+            INSERT OR REPLACE INTO wizard_states
+            (wizard_id, wizard_type, target_entity, current_step, total_steps,
+             collected_data, start_time, last_activity, is_complete)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            wizard_state.wizard_id,
+            wizard_state.wizard_type,
+            wizard_state.target_entity,
+            wizard_state.current_step,
+            wizard_state.total_steps,
+            json.dumps(wizard_state.collected_data),
+            wizard_state.start_time.isoformat(),
+            wizard_state.last_activity.isoformat(),
+            wizard_state.is_complete
+        ))
+        await self.db_manager._connection.commit()
 
     async def _load_wizard_state(self, wizard_id: str) -> Optional[WizardState]:
         """Load wizard state from database."""
-        async with self.db_manager.get_connection() as conn:
-            cursor = await conn.execute("""
-                SELECT wizard_id, wizard_type, target_entity, current_step, total_steps,
-                       collected_data, start_time, last_activity, is_complete
-                FROM wizard_states
-                WHERE wizard_id = ?
-            """, (wizard_id,))
+        if not self.db_manager._initialized:
+            await self.db_manager.initialize()
 
-            row = await cursor.fetchone()
+        cursor = await self.db_manager._connection.execute("""
+            SELECT wizard_id, wizard_type, target_entity, current_step, total_steps,
+                   collected_data, start_time, last_activity, is_complete
+            FROM wizard_states
+            WHERE wizard_id = ?
+        """, (wizard_id,))
+
+        row = await cursor.fetchone()
 
         if not row:
             return None
@@ -380,25 +384,31 @@ class WizardOrchestrator:
 
     async def _delete_wizard_state(self, wizard_id: str) -> None:
         """Delete wizard state from database."""
-        async with self.db_manager.get_connection() as conn:
-            await conn.execute("DELETE FROM wizard_states WHERE wizard_id = ?", (wizard_id,))
-            await conn.commit()
+        if not self.db_manager._initialized:
+            await self.db_manager.initialize()
+
+        await self.db_manager._connection.execute("DELETE FROM wizard_states WHERE wizard_id = ?", (wizard_id,))
+        await self.db_manager._connection.commit()
 
     async def _cleanup_expired_sessions(self) -> None:
         """Clean up expired wizard sessions."""
+        if not self.db_manager._initialized:
+            await self.db_manager.initialize()
+
         cutoff_time = datetime.now(timezone.utc) - self.session_timeout
-        async with self.db_manager.get_connection() as conn:
-            await conn.execute(
-                "DELETE FROM wizard_states WHERE last_activity < ?",
-                (cutoff_time.isoformat(),)
-            )
-            await conn.commit()
+        await self.db_manager._connection.execute(
+            "DELETE FROM wizard_states WHERE last_activity < ?",
+            (cutoff_time.isoformat(),)
+        )
+        await self.db_manager._connection.commit()
 
     async def _count_active_sessions(self) -> int:
         """Count active wizard sessions."""
-        async with self.db_manager.get_connection() as conn:
-            cursor = await conn.execute("SELECT COUNT(*) FROM wizard_states WHERE is_complete = 0")
-            return (await cursor.fetchone())[0]
+        if not self.db_manager._initialized:
+            await self.db_manager.initialize()
+
+        cursor = await self.db_manager._connection.execute("SELECT COUNT(*) FROM wizard_states WHERE is_complete = 0")
+        return (await cursor.fetchone())[0]
 
     async def _apply_shelf_configuration(self, wizard_state: WizardState) -> WizardResult:
         """Apply shelf wizard configuration."""
