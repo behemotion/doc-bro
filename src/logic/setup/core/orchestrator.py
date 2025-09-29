@@ -68,9 +68,11 @@ class SetupOrchestrator:
             SetupOperation with results
         """
         # Create operation
+        flags = self._build_flags(locals())
+        flags.add("init")  # Add the operation flag itself
         operation = SetupOperation(
             operation_type=OperationType.INIT,
-            flags=self._build_flags(locals())
+            flags=flags
         )
         self.current_operation = operation
 
