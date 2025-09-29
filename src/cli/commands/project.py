@@ -317,7 +317,7 @@ async def _interactive_list_projects():
         for project in projects:
             # Get project stats
             try:
-                stats = await unified_service.get_project_stats(project.name)
+                stats = await unified_service.get_project_statistics()
                 file_count = str(stats.get("file_count", "N/A"))
             except Exception:
                 file_count = "N/A"
@@ -424,7 +424,7 @@ async def _interactive_project_stats(projects):
 
         for project in projects:
             try:
-                stats = await unified_service.get_project_stats(project.name)
+                stats = await unified_service.get_project_statistics()
                 file_count = stats.get("file_count", 0)
                 project_size = stats.get("total_size", 0)
 
@@ -517,7 +517,7 @@ async def _create_project_impl(name: str, project_type: str, description: str | 
                 return
 
         # Check if project exists
-        existing_project = await unified_service.get_project(name)
+        existing_project = await unified_service.get_project_by_name(name)
         if existing_project and not force:
             error_msg = CLI_ERROR_MESSAGES["project_exists"].format(name=name)
             console.print(f"[red]Error: {error_msg}[/red]")
@@ -659,7 +659,7 @@ async def _list_projects_impl(status: str | None, project_type: str | None, comp
 
                 # Get additional stats
                 try:
-                    stats = await unified_service.get_project_stats(project.name)
+                    stats = await unified_service.get_project_statistics()
                     if stats:
                         console.print(f"  Files: {stats.get('file_count', 'N/A')}")
                         if 'total_size' in stats:
@@ -720,7 +720,7 @@ async def _remove_project_impl(name: str, confirm: bool, backup: bool, force: bo
         unified_service = await get_unified_project_service()
 
         # Check if project exists
-        project = await unified_service.get_project(name)
+        project = await unified_service.get_project_by_name(name)
         if not project:
             error_msg = CLI_ERROR_MESSAGES["project_not_found"].format(name=name)
             console.print(f"[red]Error: {error_msg}[/red]")
@@ -735,7 +735,7 @@ async def _remove_project_impl(name: str, confirm: bool, backup: bool, force: bo
 
         # Remove project
         with console.status(f"Removing project '{name}'..."):
-            success = await unified_service.remove_project(name, backup=backup)
+            success = await unified_service.delete_project(name)
 
         if success:
             console.print(f"[green]✓[/green] Project '{name}' removed successfully!")
@@ -760,7 +760,7 @@ async def _show_project_impl(name: str, detailed: bool):
         unified_service = await get_unified_project_service()
 
         # Get project
-        project = await unified_service.get_project(name)
+        project = await unified_service.get_project_by_name(name)
         if not project:
             error_msg = CLI_ERROR_MESSAGES["project_not_found"].format(name=name)
             console.print(f"[red]Error: {error_msg}[/red]")
@@ -779,7 +779,7 @@ async def _show_project_impl(name: str, detailed: bool):
         if detailed:
             # Get detailed statistics
             try:
-                stats = await unified_service.get_project_stats(name)
+                stats = await unified_service.get_project_statistics()
                 if stats:
                     console.print("\n[bold]Statistics:[/bold]")
                     for key, value in stats.items():
@@ -809,7 +809,7 @@ async def _update_project_impl(name: str, settings: str | None, description: str
         unified_service = await get_unified_project_service()
 
         # Get project
-        project = await unified_service.get_project(name)
+        project = await unified_service.get_project_by_name(name)
         if not project:
             error_msg = CLI_ERROR_MESSAGES["project_not_found"].format(name=name)
             console.print(f"[red]Error: {error_msg}[/red]")
