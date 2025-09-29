@@ -1,5 +1,6 @@
 """Service for managing shelfs (collections of baskets)."""
 
+import json
 import logging
 from datetime import datetime
 from typing import List, Optional
@@ -25,7 +26,7 @@ class ShelfService:
 
     def _get_connection(self):
         """Get the database connection."""
-        return self._get_connection()ection
+        return self.db._connection
 
     async def create_shelf(
         self,
@@ -86,7 +87,7 @@ class ShelfService:
                 shelf.created_at.isoformat(),
                 shelf.updated_at.isoformat(),
                 shelf.is_current,
-                self.db._json_dumps(shelf.metadata)
+                json.dumps(shelf.metadata)
             )
         ) as cursor:
             await self._get_connection().commit()
@@ -338,7 +339,7 @@ class ShelfService:
 
         if updates or description is not None or metadata:
             updates.append("metadata_json = ?")
-            params.append(self.db._json_dumps(shelf.metadata))
+            params.append(json.dumps(shelf.metadata))
             updates.append("updated_at = ?")
             params.append(datetime.utcnow().isoformat())
             params.append(shelf_id)
@@ -414,7 +415,7 @@ class ShelfService:
             created_at=datetime.fromisoformat(row[2]),
             updated_at=datetime.fromisoformat(row[3]),
             is_current=bool(row[4]),
-            metadata=self.db._json_loads(row[5]) if row[5] else {},
+            metadata=json.loads(row[5]) if row[5] else {},
             basket_count=basket_count
         )
 
