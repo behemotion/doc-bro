@@ -9,7 +9,7 @@ import httpx
 import json
 from unittest.mock import AsyncMock, patch
 
-pytestmark = [pytest.mark.contract, pytest.mark.async_test]
+pytestmark = [pytest.mark.contract, pytest.mark.asyncio]
 
 
 class TestMcpReadOnlyShelfEndpoints:
