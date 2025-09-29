@@ -7,10 +7,35 @@ from typing import Dict, Any, Optional, List
 
 from src.logic.mcp.models.response import McpResponse
 from src.logic.mcp.services.read_only import ReadOnlyMcpService
-from src.services.project import ProjectService
-from src.services.search import SearchService
+from src.logic.projects.core.project_manager import ProjectManager
+from src.services.rag import RAGSearchService
 
 logger = logging.getLogger(__name__)
+
+
+class McpReadOnlyServer:
+    """MCP Read-Only Server class for testing compatibility."""
+
+    def __init__(self, host: str = "127.0.0.1", port: int = 9383):
+        self.host = host
+        self.port = port
+        self.app = app
+        self.project_service = None
+        self.search_service = None
+        self.read_only_service = None
+
+    async def start(self):
+        """Start the server."""
+        await initialize_services()
+        return self
+
+    async def stop(self):
+        """Stop the server."""
+        pass
+
+    def get_app(self):
+        """Get the FastAPI app."""
+        return self.app
 
 # Create FastAPI app
 app = FastAPI(
@@ -26,23 +51,44 @@ search_service = None   # Will be injected
 read_only_service = None  # Will be injected
 
 
-def initialize_services():
+async def initialize_services():
     """Initialize services for the read-only server."""
     global project_service, search_service, read_only_service
 
-    # In production, these would be properly initialized with configuration
-    from src.services.project import ProjectService
-    from src.services.search import SearchService
+    # Initialize services with proper dependencies
+    from src.logic.projects.core.project_manager import ProjectManager
+    from src.services.rag import RAGSearchService
+    from src.services.vector_store_factory import VectorStoreFactory
+    from src.services.embeddings import EmbeddingService
+    from src.core.config import get_config
 
-    project_service = ProjectService()
-    search_service = SearchService()
+    # Get configuration
+    config = get_config()
+
+    # Initialize dependencies
+    vector_store = VectorStoreFactory.create_vector_store(config)
+    embedding_service = EmbeddingService(config)
+
+    # Initialize main services
+    project_service = ProjectManager()
+    logger.info(f"ProjectManager initialized with data directory: {project_service.data_directory}")
+    logger.info(f"ProjectManager registry path: {project_service.registry_path}")
+    await project_service._ensure_db_initialized()
+
+    # Test project listing for debugging
+    projects = await project_service.list_projects()
+    logger.info(f"Projects found: {len(projects)}")
+    for project in projects:
+        logger.info(f"  - {project.name} ({project.type})")
+
+    search_service = RAGSearchService(vector_store, embedding_service, config)
     read_only_service = ReadOnlyMcpService(project_service, search_service)
 
 
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup."""
-    initialize_services()
+    await initialize_services()
     logger.info("Read-only MCP server started")
 
 

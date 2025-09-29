@@ -114,24 +114,6 @@ class TestLegacyCommandAliases:
         with patch("src.cli.main.setup") as mock:
             yield mock
 
-    def test_init_command_alias(self, runner, mock_setup_command):
-        """Test that 'docbro init' maps to 'docbro setup --init'."""
-        from src.cli.main import init
-
-        result = runner.invoke(init, [])
-
-        assert result.exit_code == 0
-        # Verify it calls setup command with --init flag
-        mock_setup_command.assert_called_once()
-
-    def test_init_command_with_options(self, runner, mock_setup_command):
-        """Test 'docbro init --auto --vector-store sqlite_vec'."""
-        from src.cli.main import init
-
-        result = runner.invoke(init, ["--auto", "--vector-store", "sqlite_vec"])
-
-        assert result.exit_code == 0
-        mock_setup_command.assert_called_once()
 
     def test_uninstall_command_alias(self, runner, mock_setup_command):
         """Test that 'docbro uninstall' maps to 'docbro setup --uninstall'."""

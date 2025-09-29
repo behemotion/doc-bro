@@ -6,8 +6,8 @@ from datetime import datetime
 
 from src.logic.mcp.models.response import McpResponse
 from src.logic.mcp.models.file_access import FileAccessRequest, ProjectType, FileAccessType
-from src.services.project import ProjectService
-from src.services.search import SearchService
+from src.logic.projects.core.project_manager import ProjectManager
+from src.services.rag import RAGSearchService
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class ReadOnlyMcpService:
     """Service providing read-only MCP operations for project access."""
 
-    def __init__(self, project_service: ProjectService, search_service: SearchService):
+    def __init__(self, project_service: ProjectManager, search_service: RAGSearchService):
         """Initialize with required services."""
         self.project_service = project_service
         self.search_service = search_service
@@ -27,27 +27,32 @@ class ReadOnlyMcpService:
     ) -> McpResponse:
         """List all DocBro projects with optional filtering."""
         try:
-            # Get all projects from project service
-            projects = await self.project_service.list_projects()
-
-            # Apply status filter if provided
+            # Convert filter parameters to proper types
+            status_enum = None
             if status_filter:
-                projects = [p for p in projects if p.status == status_filter]
+                # Convert string to enum if needed
+                from src.logic.projects.models.config import ProjectStatus
+                status_enum = ProjectStatus.from_string(status_filter) if hasattr(ProjectStatus, 'from_string') else None
 
-            # Apply limit if provided
-            if limit:
-                projects = projects[:limit]
+            # Get all projects from project service
+            projects = await self.project_service.list_projects(
+                status=status_enum,
+                limit=limit
+            )
 
             # Convert to response format
             project_data = []
             for project in projects:
+                # Get description from metadata or use empty string
+                description = project.metadata.get('description', '') if hasattr(project, 'metadata') else ''
+
                 project_data.append({
                     "name": project.name,
                     "type": project.type,
                     "status": project.status,
-                    "description": project.description or "",
+                    "description": description,
                     "created_at": project.created_at.isoformat() if project.created_at else None,
-                    "last_updated": project.last_updated.isoformat() if project.last_updated else None,
+                    "last_updated": project.updated_at.isoformat() if hasattr(project, 'updated_at') and project.updated_at else None,
                     "file_count": getattr(project, 'file_count', 0)
                 })
 

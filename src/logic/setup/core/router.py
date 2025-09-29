@@ -51,7 +51,7 @@ class CommandRouter:
             if reset:
                 ops.append("--reset")
             raise ValueError(
-                f"Conflicting operation flags: {', '.join(ops)}. "
+                f"conflicting operation flags: {', '.join(ops)} cannot be used together. "
                 "Only one operation flag can be specified at a time."
             )
 

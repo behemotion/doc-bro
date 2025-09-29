@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Any
 
 from src.models.project_status import ProjectStatus
-from src.services.project_manager import ProjectManager
+from src.logic.projects.core.project_manager import ProjectManager
 
 from ..analytics.reporter import ErrorReporter
 from ..models.batch import BatchOperation

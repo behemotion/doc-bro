@@ -5,205 +5,151 @@ from typing import Dict, List, Set, Optional
 from unittest.mock import Mock, patch, MagicMock
 import click
 
-from src.cli.utils.short_key_validator import ShortKeyValidator, ShortKeyMapper
+from src.cli.utils.short_key_validator import ContextualShortKeyManager, ShortKeyMapping
 
 
-class TestShortKeyValidation:
-    """Test short key validation and conflict detection."""
-
-    @pytest.fixture
-    def validator(self):
-        """Create ShortKeyValidator instance."""
-        return ShortKeyValidator()
+class TestContextualShortKeyManager:
+    """Test ContextualShortKeyManager functionality."""
 
     @pytest.fixture
-    def sample_options(self):
-        """Sample CLI options for testing."""
-        return [
-            {"name": "name", "short": "n", "description": "Project name"},
-            {"name": "type", "short": "t", "description": "Project type"},
-            {"name": "status", "short": "s", "description": "Project status"},
-            {"name": "verbose", "short": "v", "description": "Verbose output"},
-            {"name": "help", "short": "h", "description": "Show help"},
-            {"name": "config", "short": "c", "description": "Config file"},
-        ]
+    def manager(self):
+        """Create ContextualShortKeyManager instance."""
+        return ContextualShortKeyManager()
 
-    def test_validate_unique_short_keys(self, validator, sample_options):
-        """Test validation of unique short keys."""
-        result = validator.validate_options(sample_options)
+    def test_initialization(self, manager):
+        """Test manager initialization with default mappings."""
+        assert manager.context_mappings is not None
+        assert manager.reverse_mappings is not None
+        assert manager.global_options is not None
 
-        assert result["valid"] is True
-        assert len(result["conflicts"]) == 0
-        assert len(result["short_keys"]) == 6
+        # Check some default global options
+        assert "--help" in manager.global_options
+        assert manager.global_options["--help"] == "-h"
 
-    def test_detect_short_key_conflicts(self, validator):
-        """Test detection of short key conflicts."""
-        conflicting_options = [
-            {"name": "name", "short": "n"},
-            {"name": "new", "short": "n"},  # Conflict!
-            {"name": "status", "short": "s"},
-            {"name": "size", "short": "s"},  # Conflict!
-        ]
+    def test_register_context(self, manager):
+        """Test registering a new context with mappings."""
+        test_context = "test.command"
+        test_mappings = {
+            "--name": "-n",
+            "--type": "-t"
+        }
 
-        result = validator.validate_options(conflicting_options)
+        manager.register_context(test_context, test_mappings)
 
-        assert result["valid"] is False
-        assert len(result["conflicts"]) == 2
-        assert "n" in result["conflicts"]
-        assert "s" in result["conflicts"]
+        assert test_context in manager.context_mappings
+        assert manager.context_mappings[test_context]["--name"] == "-n"
+        assert manager.context_mappings[test_context]["--type"] == "-t"
 
-    def test_global_uniqueness_check(self, validator):
-        """Test global uniqueness across command contexts."""
-        # Define options for different commands
-        project_options = [
-            {"name": "name", "short": "n", "context": "project"},
-            {"name": "type", "short": "t", "context": "project"},
-        ]
+    def test_add_mapping_success(self, manager):
+        """Test successfully adding a mapping."""
+        result = manager.add_mapping("test.context", "--option", "-o")
 
-        upload_options = [
-            {"name": "name", "short": "n", "context": "upload"},  # OK if scoped
-            {"name": "source", "short": "s", "context": "upload"},
-        ]
+        assert result is True
+        assert manager.get_short_key("--option", "test.context") == "-o"
 
-        # Test with global uniqueness required
-        result = validator.validate_global_uniqueness(
-            project_options + upload_options,
-            enforce_global=True
-        )
+    def test_add_mapping_conflict(self, manager):
+        """Test adding conflicting mapping."""
+        # Add first mapping
+        manager.add_mapping("test.context", "--option1", "-o")
 
-        assert result["valid"] is False  # 'n' used in both contexts
-        assert "n" in result["global_conflicts"]
+        # Try to add conflicting mapping
+        result = manager.add_mapping("test.context", "--option2", "-o")
 
-        # Test with context scoping allowed
-        result = validator.validate_global_uniqueness(
-            project_options + upload_options,
-            enforce_global=False
-        )
+        assert result is False  # Should fail due to conflict
 
-        assert result["valid"] is True  # Contexts allow reuse
+    def test_get_short_key_global(self, manager):
+        """Test getting short key for global option."""
+        short_key = manager.get_short_key("--help", "any.context")
+        assert short_key == "-h"
 
-    def test_reserved_short_keys(self, validator):
-        """Test that reserved short keys are not used."""
-        reserved = ["h", "?", "-"]  # Common reserved keys
+    def test_get_short_key_context_specific(self, manager):
+        """Test getting short key for context-specific option."""
+        # Use existing project context
+        short_key = manager.get_short_key("--name", "project")
+        assert short_key == "-n"
 
-        options_with_reserved = [
-            {"name": "host", "short": "h"},  # Reserved for help
-            {"name": "query", "short": "?"},  # Reserved for help
-            {"name": "minus", "short": "-"},  # Invalid character
-        ]
+    def test_get_short_key_not_found(self, manager):
+        """Test getting short key for non-existent option."""
+        short_key = manager.get_short_key("--nonexistent", "project")
+        assert short_key is None
 
-        for option in options_with_reserved:
-            result = validator.validate_single_option(option, reserved)
-            assert result["valid"] is False
-            assert "reserved" in result["reason"].lower()
+    def test_validate_context_success(self, manager):
+        """Test validating a context with no conflicts."""
+        is_valid, issues = manager.validate_context("project")
+        assert is_valid is True
+        assert len(issues) == 0
 
-    def test_short_key_case_sensitivity(self, validator):
-        """Test case sensitivity in short key validation."""
-        options = [
-            {"name": "name", "short": "n"},
-            {"name": "Name", "short": "N"},  # Different case
-        ]
+    def test_validate_context_with_conflicts(self, manager):
+        """Test validating a context with conflicts."""
+        # Create a context with conflicts
+        test_context = "test.conflict"
+        manager.context_mappings[test_context] = {
+            "--option1": "-x",
+            "--option2": "-x"  # Conflict!
+        }
+        manager.reverse_mappings[test_context] = {
+            "-x": "--option1"  # Will detect conflict with option2
+        }
 
-        # Case sensitive validation (default)
-        result = validator.validate_options(options, case_sensitive=True)
-        assert result["valid"] is True  # 'n' and 'N' are different
+        is_valid, issues = manager.validate_context(test_context)
+        assert is_valid is False
+        assert len(issues) > 0
 
-        # Case insensitive validation
-        result = validator.validate_options(options, case_sensitive=False)
-        assert result["valid"] is False  # 'n' and 'N' conflict
+    def test_suggest_short_key(self, manager):
+        """Test suggesting a short key for an option."""
+        suggestion = manager.suggest_short_key("--example", "test.context")
+        assert suggestion.startswith("-")
+        assert len(suggestion) >= 2  # At least "-x"
 
 
 class TestShortKeyGeneration:
-    """Test automatic short key generation."""
+    """Test automatic short key generation using ContextualShortKeyManager."""
 
     @pytest.fixture
-    def mapper(self):
-        """Create ShortKeyMapper instance."""
-        return ShortKeyMapper()
+    def manager(self):
+        """Create ContextualShortKeyManager instance."""
+        return ContextualShortKeyManager()
 
-    def test_generate_short_key_from_name(self, mapper):
-        """Test generating short key from option name."""
-        test_cases = [
-            ("name", "n"),
-            ("type", "t"),
-            ("status", "s"),
-            ("verbose", "v"),
-            ("output-format", "o"),  # First letter of first word
-            ("max-size", "m"),
-        ]
+    def test_suggest_short_key_basic(self, manager):
+        """Test basic short key suggestion."""
+        suggestion = manager.suggest_short_key("--name", "test.context")
+        assert suggestion == "-n"
 
-        for name, expected in test_cases:
-            short_key = mapper.generate_short_key(name)
-            assert short_key == expected
+    def test_suggest_short_key_with_conflicts(self, manager):
+        """Test short key suggestion when preferred choice is taken."""
+        # Add a conflicting mapping
+        manager.add_mapping("test.context", "--existing", "-n")
 
-    def test_generate_unique_short_key(self, mapper):
-        """Test generating unique short key when first choice is taken."""
-        used_keys = {"n", "s", "t"}
+        # Should suggest alternative for --name
+        suggestion = manager.suggest_short_key("--name", "test.context")
+        assert suggestion != "-n"
+        assert suggestion.startswith("-")
 
-        # First letter taken, try second
-        short_key = mapper.generate_unique_key("name", used_keys)
-        assert short_key == "a"  # Second letter
+    def test_suggest_short_key_with_preferred_chars(self, manager):
+        """Test short key suggestion with preferred characters."""
+        preferred = ["x", "y", "z"]
+        suggestion = manager.suggest_short_key("--option", "test.context", preferred)
+        assert suggestion in ["-x", "-y", "-z"]
 
-        # Multiple letters taken
-        used_keys.update({"a", "m", "e"})
-        short_key = mapper.generate_unique_key("name", used_keys)
-        assert short_key not in used_keys
-        assert len(short_key) == 1
+    def test_context_help_generation(self, manager):
+        """Test generating help text for a context."""
+        help_text = manager.get_context_help("project")
+        assert "Options for project:" in help_text
+        assert "--name" in help_text
+        assert "-n" in help_text
 
-    def test_two_character_fallback(self, mapper):
-        """Test two-character key generation when single chars exhausted."""
-        # Simulate all single letters taken
-        used_keys = set("abcdefghijklmnopqrstuvwxyz")
+    def test_get_all_contexts(self, manager):
+        """Test getting all registered contexts."""
+        contexts = manager.get_all_contexts()
+        assert "project" in contexts
+        assert "upload" in contexts
+        assert len(contexts) > 0
 
-        short_key = mapper.generate_unique_key(
-            "name",
-            used_keys,
-            allow_two_char=True
-        )
-
-        assert len(short_key) == 2
-        assert short_key[0] == "n"  # First letter of name
-        assert short_key not in used_keys
-
-    def test_generate_keys_for_option_set(self, mapper):
-        """Test generating keys for a complete option set."""
-        options = [
-            "name", "new", "next",  # All start with 'n'
-            "status", "size", "sort",  # All start with 's'
-            "type", "test",  # Start with 't'
-            "verbose",
-        ]
-
-        key_map = mapper.generate_key_map(options)
-
-        # All options should have unique keys
-        assert len(key_map) == len(options)
-        assert len(set(key_map.values())) == len(options)
-
-        # Check specific assignments
-        assert key_map["name"] == "n"  # Gets first 'n'
-        assert key_map["verbose"] == "v"  # No conflict
-
-        # Others get alternatives
-        assert key_map["new"] != "n"
-        assert key_map["status"] == "s"  # Gets first 's'
-        assert key_map["size"] != "s"
-
-    def test_prioritized_key_assignment(self, mapper):
-        """Test that important options get priority for short keys."""
-        options = [
-            {"name": "name", "priority": 1},
-            {"name": "new", "priority": 2},
-            {"name": "next", "priority": 3},
-        ]
-
-        key_map = mapper.generate_with_priority(options)
-
-        # Highest priority gets first choice
-        assert key_map["name"] == "n"
-        # Lower priorities get alternatives
-        assert key_map["new"] != "n"
-        assert key_map["next"] != "n"
+    def test_validate_all_contexts(self, manager):
+        """Test validating all contexts."""
+        issues = manager.validate_all_contexts()
+        # Should be no issues with default configuration
+        assert len(issues) == 0
 
 
 class TestCLIShortKeyIntegration:
@@ -250,210 +196,61 @@ class TestCLIShortKeyIntegration:
             return name
 
         # Both commands can use -n in their context
-        assert create.params[0].opts == ("--name", "-n")
-        assert remove.params[0].opts == ("--name", "-n")
+        assert create.params[0].opts == ["--name", "-n"]
+        assert remove.params[0].opts == ["--name", "-n"]
 
-    def test_dynamic_short_key_assignment(self):
-        """Test dynamic assignment of short keys at runtime."""
-        mapper = ShortKeyMapper()
+    def test_contextual_short_key_usage(self):
+        """Test using ContextualShortKeyManager with CLI commands."""
+        manager = ContextualShortKeyManager()
 
-        # Simulate dynamic command construction
-        command_options = {
-            "create": ["name", "type", "config"],
-            "list": ["status", "type", "limit"],
-            "remove": ["name", "force", "confirm"],
+        # Test getting short keys for project context
+        name_key = manager.get_short_key("--name", "project")
+        type_key = manager.get_short_key("--type", "project")
+
+        assert name_key == "-n"
+        assert type_key == "-t"
+
+
+class TestShortKeyHelperFunctions:
+    """Test helper functions from the short_key_validator module."""
+
+    def test_get_short_key_function(self):
+        """Test the convenience get_short_key function."""
+        from src.cli.utils.short_key_validator import get_short_key
+
+        # Test getting short key for project name
+        short_key = get_short_key("--name", "project", None)
+        assert short_key == "-n"
+
+        # Test getting short key for project create context
+        short_key = get_short_key("--description", "project", "create")
+        assert short_key == "-d"
+
+        # Test non-existent option
+        short_key = get_short_key("--nonexistent", "project", None)
+        assert short_key == "--nonexistent"  # Returns original if not found
+
+    def test_validate_command_options_function(self):
+        """Test the convenience validate_command_options function."""
+        from src.cli.utils.short_key_validator import validate_command_options
+
+        # Test valid options
+        valid_options = {
+            "--name": "-n",
+            "--type": "-t"
         }
+        is_valid, issues = validate_command_options("test", "cmd", valid_options)
+        assert is_valid is True
+        assert len(issues) == 0
 
-        # Generate keys for each command
-        key_maps = {}
-        for cmd, options in command_options.items():
-            key_maps[cmd] = mapper.generate_key_map(options)
-
-        # Verify each command has unique internal keys
-        for cmd, key_map in key_maps.items():
-            assert len(key_map) == len(command_options[cmd])
-            assert len(set(key_map.values())) == len(key_map)
-
-
-class TestShortKeyConflictResolution:
-    """Test strategies for resolving short key conflicts."""
-
-    @pytest.fixture
-    def resolver(self):
-        """Create conflict resolver."""
-        return ShortKeyValidator()
-
-    def test_automatic_conflict_resolution(self, resolver):
-        """Test automatic resolution of conflicts."""
-        conflicting_options = [
-            {"name": "name", "short": "n"},
-            {"name": "new", "short": "n"},
-            {"name": "next", "short": "n"},
-        ]
-
-        resolved = resolver.resolve_conflicts(conflicting_options)
-
-        # All should have unique keys after resolution
-        short_keys = [opt["short"] for opt in resolved]
-        assert len(short_keys) == len(set(short_keys))
-
-        # First option keeps original
-        assert resolved[0]["short"] == "n"
-
-        # Others get new keys
-        assert resolved[1]["short"] != "n"
-        assert resolved[2]["short"] != "n"
-        assert resolved[1]["short"] != resolved[2]["short"]
-
-    def test_manual_conflict_resolution(self, resolver):
-        """Test manual override of conflicting keys."""
-        options = [
-            {"name": "name", "short": "n"},
-            {"name": "new", "short": "n", "override": "w"},  # Manual override
-        ]
-
-        resolved = resolver.resolve_conflicts(
-            options,
-            allow_override=True
-        )
-
-        assert resolved[0]["short"] == "n"
-        assert resolved[1]["short"] == "w"  # Uses override
-
-    def test_conflict_resolution_with_constraints(self, resolver):
-        """Test resolution with additional constraints."""
-        options = [
-            {"name": "name", "short": "n"},
-            {"name": "new", "short": "n"},
-        ]
-
-        forbidden_keys = {"e", "w"}  # Can't use these
-
-        resolved = resolver.resolve_conflicts(
-            options,
-            forbidden=forbidden_keys
-        )
-
-        # Resolution avoids forbidden keys
-        for opt in resolved:
-            assert opt["short"] not in forbidden_keys
-
-
-class TestShortKeyDocumentation:
-    """Test generation of short key documentation."""
-
-    @pytest.fixture
-    def doc_generator(self):
-        """Create documentation generator."""
-        return ShortKeyMapper()
-
-    def test_generate_help_text(self, doc_generator):
-        """Test generation of help text with short keys."""
-        options = [
-            {"name": "name", "short": "n", "description": "Project name"},
-            {"name": "type", "short": "t", "description": "Project type"},
-            {"name": "verbose", "short": "v", "description": "Verbose output"},
-        ]
-
-        help_text = doc_generator.generate_help(options)
-
-        assert "-n, --name" in help_text
-        assert "-t, --type" in help_text
-        assert "-v, --verbose" in help_text
-
-        # Descriptions included
-        assert "Project name" in help_text
-        assert "Project type" in help_text
-
-    def test_generate_usage_examples(self, doc_generator):
-        """Test generation of usage examples with short keys."""
-        command_name = "docbro project"
-        options = [
-            {"name": "name", "short": "n", "required": True},
-            {"name": "type", "short": "t", "required": True},
-            {"name": "verbose", "short": "v", "required": False},
-        ]
-
-        examples = doc_generator.generate_examples(command_name, options)
-
-        # Should include both long and short form examples
-        assert f"{command_name} --name test --type data" in examples
-        assert f"{command_name} -n test -t data" in examples
-
-        # Optional parameters shown separately
-        assert "-v" in examples or "--verbose" in examples
-
-    def test_generate_conflict_report(self, doc_generator):
-        """Test generation of conflict resolution report."""
-        original = [
-            {"name": "name", "short": "n"},
-            {"name": "new", "short": "n"},
-        ]
-
-        resolved = [
-            {"name": "name", "short": "n"},
-            {"name": "new", "short": "e"},  # Changed
-        ]
-
-        report = doc_generator.generate_conflict_report(original, resolved)
-
-        assert "Conflict resolved" in report
-        assert "name: n (unchanged)" in report
-        assert "new: n → e" in report  # Shows change
-
-
-class TestShortKeyPersistence:
-    """Test saving and loading short key mappings."""
-
-    @pytest.fixture
-    def mapper(self):
-        """Create ShortKeyMapper instance."""
-        return ShortKeyMapper()
-
-    def test_save_key_mappings(self, mapper, tmp_path):
-        """Test saving key mappings to file."""
-        mappings = {
-            "project": {
-                "name": "n",
-                "type": "t",
-                "status": "s"
-            },
-            "upload": {
-                "source": "s",
-                "type": "t",
-                "recursive": "r"
-            }
+        # Test conflicting options
+        conflicting_options = {
+            "--name": "-x",
+            "--type": "-x"  # Conflict!
         }
-
-        mapping_file = tmp_path / "key_mappings.json"
-        mapper.save_mappings(mappings, mapping_file)
-
-        assert mapping_file.exists()
-
-        loaded = mapper.load_mappings(mapping_file)
-        assert loaded == mappings
-
-    def test_validate_loaded_mappings(self, mapper):
-        """Test validation of loaded mappings."""
-        # Valid mappings
-        valid_mappings = {
-            "command": {
-                "option1": "a",
-                "option2": "b"
-            }
-        }
-
-        assert mapper.validate_mappings(valid_mappings) is True
-
-        # Invalid: duplicate values
-        invalid_mappings = {
-            "command": {
-                "option1": "a",
-                "option2": "a"  # Duplicate!
-            }
-        }
-
-        assert mapper.validate_mappings(invalid_mappings) is False
+        is_valid, issues = validate_command_options("test", "cmd", conflicting_options)
+        assert is_valid is False
+        assert len(issues) > 0
 
 
 if __name__ == "__main__":

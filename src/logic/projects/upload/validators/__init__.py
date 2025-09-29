@@ -1,9 +1,9 @@
 """Upload validation services."""
 
 from .conflict_resolver import ConflictResolver
-from .format_validator import FormatValidator
+from .format_validator import FileValidator
 
 __all__ = [
-    "FormatValidator",
+    "FileValidator",
     "ConflictResolver"
 ]

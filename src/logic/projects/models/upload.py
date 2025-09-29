@@ -56,7 +56,7 @@ class UploadSource(BaseModel):
     failure_count: int = Field(default=0, description="Number of failed operations")
 
     model_config = ConfigDict(
-        use_enum_values=True,
+        use_enum_values=False,
         validate_assignment=True
     )
 
@@ -148,6 +148,28 @@ class UploadSource(BaseModel):
         if total_operations == 0:
             return 1.0  # No operations yet, assume reliable
         return self.success_count / total_operations
+
+    @classmethod
+    def parse(cls, source_str: str) -> 'UploadSource':
+        """Parse a source string and detect its type."""
+        source_str = source_str.strip()
+
+        # Detect source type based on string pattern
+        if source_str.startswith('http://'):
+            source_type = UploadSourceType.HTTP
+        elif source_str.startswith('https://'):
+            source_type = UploadSourceType.HTTPS
+        elif source_str.startswith('ftp://'):
+            source_type = UploadSourceType.FTP
+        elif source_str.startswith('sftp://'):
+            source_type = UploadSourceType.SFTP
+        elif source_str.startswith('smb://') or source_str.startswith('\\\\'):
+            source_type = UploadSourceType.SMB
+        else:
+            # Default to local for file paths
+            source_type = UploadSourceType.LOCAL
+
+        return cls(type=source_type, location=source_str)
 
 
 class UploadOperation(BaseModel):

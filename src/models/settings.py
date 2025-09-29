@@ -148,6 +148,32 @@ class GlobalSettings(BaseModel):
             if config.get("enabled", False)
         }
 
+
+class VectorStoreSettings(BaseModel):
+    """Vector store settings model for testing compatibility."""
+
+    provider: VectorStoreProvider
+    qdrant_config: Dict[str, Any] | None = None
+    sqlite_vec_config: Dict[str, Any] | None = None
+
+    @validator("qdrant_config", pre=True, always=True)
+    def validate_qdrant_config(cls, v, values):
+        """Validate Qdrant config when provider is QDRANT."""
+        provider = values.get("provider")
+        if provider == VectorStoreProvider.QDRANT:
+            if not v:
+                return {"url": "http://localhost:6333", "api_key": None}
+        return v
+
+    @validator("sqlite_vec_config", pre=True, always=True)
+    def validate_sqlite_vec_config(cls, v, values):
+        """Validate SQLite-vec config when provider is SQLITE_VEC."""
+        provider = values.get("provider")
+        if provider == VectorStoreProvider.SQLITE_VEC:
+            if not v:
+                return {"database_path": "~/.local/share/docbro/vectors.db"}
+        return v
+
     @classmethod
     def from_config(cls, config: DocBroConfig) -> "GlobalSettings":
         """Create GlobalSettings from DocBroConfig."""
@@ -158,6 +184,15 @@ class GlobalSettings(BaseModel):
                 data[field_name] = getattr(config, field_name)
 
         return cls(**data)
+
+
+# Define fields that cannot be overridden in project settings
+NON_OVERRIDABLE_FIELDS = [
+    "vector_store_provider",
+    "storage_dir",
+    "config_dir",
+    "cache_dir"
+]
 
 
 class ProjectSettings(BaseModel):

@@ -80,8 +80,8 @@ class SetupOperation(BaseModel):
         if "vector-store" in v and "init" not in v:
             raise ValueError("--vector-store requires --init flag")
 
-        if "auto" in v and not (present_ops or "menu" in v):
-            raise ValueError("--auto requires an operation flag")
+        if "auto" in v and not present_ops:
+            raise ValueError("--auto requires an operation flag like --init, --uninstall, or --reset")
 
         if "non-interactive" in v and not present_ops:
             raise ValueError("--non-interactive requires an operation flag")

@@ -363,9 +363,19 @@ def validate_command_options(
     if subcommand:
         context = f"{command}.{subcommand}"
 
-    # Register the options temporarily
+    # Register the options temporarily and track conflicts
     temp_manager = ContextualShortKeyManager()
-    temp_manager.register_context(context, options)
 
-    # Validate
+    # Manually add mappings to track conflicts
+    conflicts = []
+    for long_opt, short_key in options.items():
+        success = temp_manager.add_mapping(context, long_opt, short_key)
+        if not success:
+            conflicts.append(f"Conflict detected for {long_opt} -> {short_key}")
+
+    # If there were conflicts during registration, return False
+    if conflicts:
+        return False, conflicts
+
+    # Validate the successfully registered context
     return temp_manager.validate_context(context)
