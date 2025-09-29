@@ -297,7 +297,7 @@ async def _interactive_list_projects():
     console = Console()
 
     try:
-        unified_service = await get_unified_service()
+        unified_service = await get_unified_project_service()
 
         projects = await unified_service.list_projects()
 
@@ -409,7 +409,7 @@ async def _interactive_project_stats(projects):
     console = Console()
 
     try:
-        unified_service = await get_unified_service()
+        unified_service = await get_unified_project_service()
 
         # Create stats table
         table = Table(title="Project Statistics")
@@ -488,7 +488,7 @@ async def _create_project_impl(name: str, project_type: str, description: str | 
     console = Console()
 
     try:
-        unified_service = await get_unified_service()
+        unified_service = await get_unified_project_service()
 
         # Validate project type
         try:
@@ -588,7 +588,7 @@ async def _list_projects_impl(status: str | None, project_type: str | None, comp
     console = Console()
 
     try:
-        unified_service = await get_unified_service()
+        unified_service = await get_unified_project_service()
 
         # Convert string parameters to enums
         status_filter = None
@@ -717,7 +717,7 @@ async def _remove_project_impl(name: str, confirm: bool, backup: bool, force: bo
     console = Console()
 
     try:
-        unified_service = await get_unified_service()
+        unified_service = await get_unified_project_service()
 
         # Check if project exists
         project = await unified_service.get_project(name)
@@ -757,7 +757,7 @@ async def _show_project_impl(name: str, detailed: bool):
     console = Console()
 
     try:
-        unified_service = await get_unified_service()
+        unified_service = await get_unified_project_service()
 
         # Get project
         project = await unified_service.get_project(name)
@@ -806,7 +806,7 @@ async def _update_project_impl(name: str, settings: str | None, description: str
     console = Console()
 
     try:
-        unified_service = await get_unified_service()
+        unified_service = await get_unified_project_service()
 
         # Get project
         project = await unified_service.get_project(name)
