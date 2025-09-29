@@ -132,7 +132,7 @@ class TestFillCommandContract:
 
         result = cli_runner.invoke(main, [
             'fill', 'test-rag',
-            '--source', './test/documents/'
+            '--source', 'https://example.com/documents.pdf'
         ])
 
         assert result.exit_code == 0
