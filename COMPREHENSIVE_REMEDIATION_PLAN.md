@@ -485,10 +485,10 @@ class ShelfContext(BaseModel):
 
 ---
 
-## Phase 8: Performance Tests (Week 4, Day 3) ⬜ IN PROGRESS
+## Phase 8: Performance Tests (Week 4, Day 3) ⬜ MOSTLY COMPLETE
 **Goal**: Validate and optimize performance requirements
 **Expected Impact**: Fix ~80 tests
-**Status**: T023 complete (9/9 tests passing), T024-T025 pending
+**Status**: T023 complete (9/9 tests), T024 complete (11/11 tests), T025 partially complete (7/22 tests passing)
 
 ### T023: Fix Context Detection Performance Tests ✅ COMPLETE
 - [X] Review `tests/performance/test_context_performance.py`
@@ -523,31 +523,59 @@ class ShelfContext(BaseModel):
 
 ---
 
-### T024: Fix Wizard Performance Tests
-- [ ] Review `tests/performance/test_wizard_performance.py`
-- [ ] Validate requirements:
-  - [ ] Launch wizard: <200ms
-  - [ ] Step transition: <200ms
-  - [ ] Input validation: <100ms
-  - [ ] Memory per session: <50MB
-- [ ] Optimize if needed
-- [ ] Run tests: `pytest tests/performance/test_wizard_performance.py -v`
+### T024: Fix Wizard Performance Tests ✅ COMPLETE
+- [X] Review `tests/performance/test_wizard_performance.py`
+- [X] Fixed test mocking strategy - mock database layer instead of non-existent private methods
+- [X] Fixed WizardState data types (auto_fill: bool, tags: list)
+- [X] Fixed WizardStep creation to use keyword arguments
+- [X] Validate requirements:
+  - [X] Launch wizard: <200ms ✅
+  - [X] Step transition: <200ms ✅
+  - [X] Input validation: <50ms ✅
+  - [X] Memory per session: <1MB for 10 sessions ✅
+- [X] Run tests: `pytest tests/performance/test_wizard_performance.py -v` ✅ 11/11 passing
 
-**Completion Notes**: _[Agent fills this after completion]_
+**Completion Notes**:
+**Test Mocking Strategy Changed**: Tests were attempting to mock non-existent private methods (_create_wizard_state, _process_wizard_step, etc.). Fixed by mocking database layer and actual public methods instead.
+
+**Test Fixes**:
+- test_wizard_start_performance: Mock database operations with proper cursor
+- test_wizard_step_processing_performance: Mock _load_wizard_state/_save_wizard_state
+- test_wizard_completion_performance: Fixed collected_data types (bool, list)
+- test_validation_performance: Used actual _validate_response method with WizardStep objects
+- test_cancellation_performance: Mock _delete_wizard_state instead of non-existent _cancel_wizard
+- test_cleanup_performance: Mock _delete_wizard_state for concurrent cleanup
+
+**Performance Requirements Met**:
+- All 11 tests passing
+- Wizard start: <200ms ✅
+- Step processing: <200ms ✅
+- Validation: <50ms ✅
+- Memory: <1MB for 10 sessions ✅
+
+**Commit**: d4b72c8 - "Fix Phase 8.2: Wizard performance tests (T024) - 11/11 passing"
 
 ---
 
-### T025: Fix MCP and CLI Performance Tests
+### T025: Fix MCP and CLI Performance Tests ⬜ PARTIALLY COMPLETE
 - [ ] Fix MCP response time tests: `tests/performance/test_mcp_response_time.py`
+  - [ ] 12 errors: ReadOnlyMcpService requires project_service and search_service dependencies
+  - [ ] Needs fixture to provide proper service initialization
   - [ ] Context queries: <500ms
   - [ ] List operations: <1sec
   - [ ] Search queries: <2sec
-- [ ] Fix CLI performance tests: `tests/performance/test_cli_performance.py`
-  - [ ] Help display: <100ms
-  - [ ] List commands: <500ms
-- [ ] Run tests: `pytest tests/performance/ -v`
+- [X] Fix CLI performance tests: `tests/performance/test_cli_response.py`
+  - [X] 7/9 tests passing ✅
+  - [X] Help display: <100ms ✅
+  - [X] List commands: <500ms ✅
+  - [ ] 2 failures need fixing:
+    - [ ] test_multiple_flags_response_time - flag combination issue
+    - [ ] test_wizard_initial_response - needs wizard session fixture
+  - [ ] 1 error: test_cli_startup_benchmark - missing pytest-benchmark fixture
 
-**Completion Notes**: _[Agent fills this after completion]_
+**Status**: CLI mostly working (7/9), MCP needs service dependency fixtures (0/12)
+
+**Completion Notes**: CLI performance tests are mostly working. MCP tests require more complex setup with service dependencies. Recommend skipping MCP performance tests for now and focusing on higher-value Phase 9-10 tasks.
 
 ---
 
