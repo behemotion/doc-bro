@@ -28,7 +28,7 @@ class DocBroConfig(PydanticBaseSettings):
 
     # Application settings
     debug: bool = Field(default=False)
-    data_dir: Path = Field(default_factory=lambda: Path.home() / ".docbro")
+    data_dir: Path = Field(default_factory=lambda: Path.home() / ".local" / "share" / "docbro")
 
     # Service deployment configuration
     qdrant_deployment: ServiceDeployment = Field(default=ServiceDeployment.DOCKER)
@@ -97,7 +97,7 @@ class DocBroConfig(PydanticBaseSettings):
 
     # Database configuration
     database_url: str = Field(
-        default_factory=lambda: f"sqlite+aiosqlite:///{Path.home() / '.docbro' / 'docbro.db'}"
+        default_factory=lambda: f"sqlite+aiosqlite:///{Path.home() / '.local' / 'share' / 'docbro' / 'project_registry.db'}"
     )
 
     # Logging configuration
@@ -149,7 +149,7 @@ class DocBroConfig(PydanticBaseSettings):
     @property
     def database_path(self) -> Path:
         """Get database file path."""
-        return self.data_dir / "docbro.db"
+        return self.data_dir / "project_registry.db"
 
     @property
     def cache_dir(self) -> Path:
