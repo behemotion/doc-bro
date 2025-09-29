@@ -18,8 +18,13 @@ except ImportError:
 import logging
 
 from src.cli.utils.navigation import ArrowNavigator, NavigationChoice
-from src.logic.projects.core.project_manager import ProjectManager
-from src.logic.projects.models.project import ProjectStatus, ProjectType
+from src.services.unified_project_service import UnifiedProjectService, ProjectNotFoundError, IncompatibleProjectError
+from src.services.compatibility_checker import CompatibilityChecker, CompatibilityResult
+from src.services.project_export_service import ProjectExportService
+from src.models.unified_project import UnifiedProject, UnifiedProjectStatus
+from src.models.compatibility_status import CompatibilityStatus
+from src.logic.projects.models.project import ProjectType
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -41,11 +46,11 @@ def get_app():
     return main_get_app()
 
 
-async def get_project_manager():
-    """Get or create ProjectManager instance."""
-    manager = ProjectManager()
-    await manager._ensure_db_initialized()
-    return manager
+async def get_unified_project_service():
+    """Get or create UnifiedProjectService instance."""
+    service = UnifiedProjectService()
+    await service.initialize()
+    return service
 
 
 # CLI Error Messages from contracts
@@ -69,6 +74,9 @@ CLI_ERROR_MESSAGES = {
 @click.option("--remove", "-r", "-rm", is_flag=True, help="Remove a project")
 @click.option("--show", "-s", is_flag=True, help="Show project details")
 @click.option("--update", "-u", is_flag=True, help="Update project settings")
+@click.option("--recreate", is_flag=True, help="Recreate incompatible project")
+@click.option("--export", "-e", is_flag=True, help="Export project for backup")
+@click.option("--check-compatibility", is_flag=True, help="Check project compatibility")
 @click.argument("name", required=False)
 @click.option("--type", "-t", "project_type",
               type=click.Choice(['crawling', 'data', 'storage'], case_sensitive=False),
@@ -77,8 +85,11 @@ CLI_ERROR_MESSAGES = {
 @click.option("--settings", help="JSON settings")
 @click.option("--force", "-f", is_flag=True, help="Force operation")
 @click.option("--status", "-st",
-              type=click.Choice(['active', 'inactive', 'error', 'processing'], case_sensitive=False),
+              type=click.Choice(['active', 'inactive', 'error', 'processing', 'created', 'crawling', 'indexing', 'ready', 'failed', 'archived'], case_sensitive=False),
               help="Filter by status (for list)")
+@click.option("--compatibility", "-comp",
+              type=click.Choice(['compatible', 'incompatible', 'migrating'], case_sensitive=False),
+              help="Filter by compatibility status (for list)")
 @click.option("--limit", type=int, help="Limit results (for list)")
 @click.option("--verbose", "-v", is_flag=True, help="Verbose output")
 @click.option("--confirm", is_flag=True, help="Skip confirmation (for remove)")
@@ -86,8 +97,9 @@ CLI_ERROR_MESSAGES = {
 @click.option("--detailed", "-dt", is_flag=True, help="Detailed view (for show)")
 @click.pass_context
 def project(ctx: click.Context, create: bool, list: bool, remove: bool, show: bool, update: bool,
+           recreate: bool, export: bool, check_compatibility: bool,
            name: str | None, project_type: str | None, description: str | None, settings: str | None,
-           force: bool, status: str | None, limit: int | None, verbose: bool, confirm: bool,
+           force: bool, status: str | None, compatibility: str | None, limit: int | None, verbose: bool, confirm: bool,
            backup: bool, detailed: bool):
     """Manage documentation projects.
 
@@ -122,7 +134,7 @@ def project(ctx: click.Context, create: bool, list: bool, remove: bool, show: bo
       storage     File storage with inventory management
     """
     # Count active flags
-    active_flags = sum([create, list, remove, show, update])
+    active_flags = sum([create, list, remove, show, update, recreate, export, check_compatibility])
 
     if active_flags == 0:
         if name:
@@ -146,7 +158,7 @@ def project(ctx: click.Context, create: bool, list: bool, remove: bool, show: bo
             ctx.exit(1)
         run_async(_create_project_impl(name, project_type, description, settings, force))
     elif list:
-        run_async(_list_projects_impl(status, project_type, limit, verbose))
+        run_async(_list_projects_impl(status, project_type, compatibility, limit, verbose))
     elif remove:
         if not name:
             click.echo("Error: Project name is required for --remove", err=True)
@@ -162,6 +174,21 @@ def project(ctx: click.Context, create: bool, list: bool, remove: bool, show: bo
             click.echo("Error: Project name is required for --update", err=True)
             ctx.exit(1)
         run_async(_update_project_impl(name, settings, description))
+    elif recreate:
+        if not name:
+            click.echo("Error: Project name is required for --recreate", err=True)
+            ctx.exit(1)
+        run_async(_recreate_project_impl(name, confirm, force))
+    elif export:
+        if not name:
+            click.echo("Error: Project name is required for --export", err=True)
+            ctx.exit(1)
+        run_async(_export_project_impl(name))
+    elif check_compatibility:
+        if not name:
+            click.echo("Error: Project name is required for --check-compatibility", err=True)
+            ctx.exit(1)
+        run_async(_check_compatibility_impl(name))
 
 
 
@@ -173,10 +200,10 @@ async def interactive_project_menu():
     navigator = ArrowNavigator()
 
     try:
-        project_manager = await get_project_manager()
+        unified_service = await get_unified_project_service()
 
         # Get existing projects
-        projects = await project_manager.list_projects()
+        projects = await unified_service.list_projects()
 
         while True:
             console.clear()
@@ -210,13 +237,13 @@ async def interactive_project_menu():
             elif choice == "create":
                 await _interactive_create_project()
                 # Refresh project list
-                projects = await project_manager.list_projects()
+                projects = await unified_service.list_projects()
             elif choice == "list":
                 await _interactive_list_projects()
             elif choice == "manage" and projects:
                 await _interactive_manage_projects(projects)
                 # Refresh project list
-                projects = await project_manager.list_projects()
+                projects = await unified_service.list_projects()
             elif choice == "stats" and projects:
                 await _interactive_project_stats(projects)
 
@@ -270,9 +297,9 @@ async def _interactive_list_projects():
     console = Console()
 
     try:
-        project_manager = await get_project_manager()
+        unified_service = await get_unified_service()
 
-        projects = await project_manager.list_projects()
+        projects = await unified_service.list_projects()
 
         if not projects:
             console.print("[yellow]No projects found[/yellow]")
@@ -290,7 +317,7 @@ async def _interactive_list_projects():
         for project in projects:
             # Get project stats
             try:
-                stats = await project_manager.get_project_stats(project.name)
+                stats = await unified_service.get_project_stats(project.name)
                 file_count = str(stats.get("file_count", "N/A"))
             except Exception:
                 file_count = "N/A"
@@ -382,7 +409,7 @@ async def _interactive_project_stats(projects):
     console = Console()
 
     try:
-        project_manager = await get_project_manager()
+        unified_service = await get_unified_service()
 
         # Create stats table
         table = Table(title="Project Statistics")
@@ -397,7 +424,7 @@ async def _interactive_project_stats(projects):
 
         for project in projects:
             try:
-                stats = await project_manager.get_project_stats(project.name)
+                stats = await unified_service.get_project_stats(project.name)
                 file_count = stats.get("file_count", 0)
                 project_size = stats.get("total_size", 0)
 
@@ -461,7 +488,7 @@ async def _create_project_impl(name: str, project_type: str, description: str | 
     console = Console()
 
     try:
-        project_manager = await get_project_manager()
+        unified_service = await get_unified_service()
 
         # Validate project type
         try:
@@ -490,7 +517,7 @@ async def _create_project_impl(name: str, project_type: str, description: str | 
                 return
 
         # Check if project exists
-        existing_project = await project_manager.get_project(name)
+        existing_project = await unified_service.get_project(name)
         if existing_project and not force:
             error_msg = CLI_ERROR_MESSAGES["project_exists"].format(name=name)
             console.print(f"[red]Error: {error_msg}[/red]")
@@ -498,7 +525,7 @@ async def _create_project_impl(name: str, project_type: str, description: str | 
 
         # Create project
         with console.status(f"Creating project '{name}'..."):
-            project = await project_manager.create_project(
+            project = await unified_service.create_project(
                 name=name,
                 project_type=proj_type,
                 settings=parsed_settings
@@ -555,19 +582,19 @@ async def _create_project_impl(name: str, project_type: str, description: str | 
         console.print(f"[dim]Full error: {traceback.format_exc()}[/dim]")
 
 
-async def _list_projects_impl(status: str | None, project_type: str | None,
+async def _list_projects_impl(status: str | None, project_type: str | None, compatibility: str | None,
                               limit: int | None, verbose: bool):
     """Implementation of project listing."""
     console = Console()
 
     try:
-        project_manager = await get_project_manager()
+        unified_service = await get_unified_service()
 
         # Convert string parameters to enums
         status_filter = None
         if status:
             try:
-                status_filter = ProjectStatus(status.lower())
+                status_filter = UnifiedProjectStatus(status.lower())
             except ValueError:
                 console.print(f"[red]Error: Invalid status '{status}'[/red]")
                 return
@@ -580,10 +607,19 @@ async def _list_projects_impl(status: str | None, project_type: str | None,
                 console.print(f"[red]Error: Invalid project type '{project_type}'[/red]")
                 return
 
+        compatibility_filter = None
+        if compatibility:
+            try:
+                compatibility_filter = CompatibilityStatus(compatibility.lower())
+            except ValueError:
+                console.print(f"[red]Error: Invalid compatibility status '{compatibility}'[/red]")
+                return
+
         # Get projects
-        projects = await project_manager.list_projects(
-            status=status_filter,
-            project_type=type_filter,
+        projects = await unified_service.list_projects(
+            status_filter=status_filter,
+            type_filter=type_filter,
+            compatibility_filter=compatibility_filter,
             limit=limit
         )
 
@@ -623,7 +659,7 @@ async def _list_projects_impl(status: str | None, project_type: str | None,
 
                 # Get additional stats
                 try:
-                    stats = await project_manager.get_project_stats(project.name)
+                    stats = await unified_service.get_project_stats(project.name)
                     if stats:
                         console.print(f"  Files: {stats.get('file_count', 'N/A')}")
                         if 'total_size' in stats:
@@ -636,6 +672,7 @@ async def _list_projects_impl(status: str | None, project_type: str | None,
             table.add_column("Name", style="cyan")
             table.add_column("Type", style="green")
             table.add_column("Status", style="yellow")
+            table.add_column("Compatibility", style="magenta")
             table.add_column("Created", style="blue")
 
             for project in projects:
@@ -652,12 +689,19 @@ async def _list_projects_impl(status: str | None, project_type: str | None,
                 else:
                     status_str = str(project_status).title()
 
+                compatibility_status = project.compatibility_status
+                if hasattr(compatibility_status, 'value'):
+                    compatibility_str = compatibility_status.value.title()
+                else:
+                    compatibility_str = str(compatibility_status).title()
+
                 created_str = project.created_at.strftime("%Y-%m-%d") if hasattr(project.created_at, 'strftime') else str(project.created_at)
 
                 table.add_row(
                     project.name,
                     type_str,
                     status_str,
+                    compatibility_str,
                     created_str
                 )
 
@@ -673,10 +717,10 @@ async def _remove_project_impl(name: str, confirm: bool, backup: bool, force: bo
     console = Console()
 
     try:
-        project_manager = await get_project_manager()
+        unified_service = await get_unified_service()
 
         # Check if project exists
-        project = await project_manager.get_project(name)
+        project = await unified_service.get_project(name)
         if not project:
             error_msg = CLI_ERROR_MESSAGES["project_not_found"].format(name=name)
             console.print(f"[red]Error: {error_msg}[/red]")
@@ -691,7 +735,7 @@ async def _remove_project_impl(name: str, confirm: bool, backup: bool, force: bo
 
         # Remove project
         with console.status(f"Removing project '{name}'..."):
-            success = await project_manager.remove_project(name, backup=backup)
+            success = await unified_service.remove_project(name, backup=backup)
 
         if success:
             console.print(f"[green]✓[/green] Project '{name}' removed successfully!")
@@ -713,10 +757,10 @@ async def _show_project_impl(name: str, detailed: bool):
     console = Console()
 
     try:
-        project_manager = await get_project_manager()
+        unified_service = await get_unified_service()
 
         # Get project
-        project = await project_manager.get_project(name)
+        project = await unified_service.get_project(name)
         if not project:
             error_msg = CLI_ERROR_MESSAGES["project_not_found"].format(name=name)
             console.print(f"[red]Error: {error_msg}[/red]")
@@ -735,7 +779,7 @@ async def _show_project_impl(name: str, detailed: bool):
         if detailed:
             # Get detailed statistics
             try:
-                stats = await project_manager.get_project_stats(name)
+                stats = await unified_service.get_project_stats(name)
                 if stats:
                     console.print("\n[bold]Statistics:[/bold]")
                     for key, value in stats.items():
@@ -762,10 +806,10 @@ async def _update_project_impl(name: str, settings: str | None, description: str
     console = Console()
 
     try:
-        project_manager = await get_project_manager()
+        unified_service = await get_unified_service()
 
         # Get project
-        project = await project_manager.get_project(name)
+        project = await unified_service.get_project(name)
         if not project:
             error_msg = CLI_ERROR_MESSAGES["project_not_found"].format(name=name)
             console.print(f"[red]Error: {error_msg}[/red]")
@@ -789,13 +833,181 @@ async def _update_project_impl(name: str, settings: str | None, description: str
 
         # Save changes
         with console.status(f"Updating project '{name}'..."):
-            updated_project = await project_manager.update_project(project)
+            updated_project = await unified_service.update_project(project)
 
         console.print(f"[green]✓[/green] Project '{name}' updated successfully!")
 
     except Exception as e:
         logger.error(f"Error updating project: {e}")
         console.print(f"[red]Error updating project: {str(e)}[/red]")
+
+
+async def _recreate_project_impl(name: str, confirm: bool, force: bool):
+    """Implementation of project recreation."""
+    console = Console()
+
+    try:
+        unified_service = await get_unified_project_service()
+
+        # Get project by name first to get its ID
+        project = await unified_service.get_project_by_name(name)
+        if not project:
+            error_msg = CLI_ERROR_MESSAGES["project_not_found"].format(name=name)
+            console.print(f"[red]Error: {error_msg}[/red]")
+            return
+
+        # Check compatibility
+        compatibility_result = await unified_service.check_project_compatibility(project.id)
+        if compatibility_result.is_compatible and not force:
+            console.print(f"[yellow]Project '{name}' is already compatible with current schema[/yellow]")
+            console.print("Use --force to recreate anyway")
+            return
+
+        # Confirmation prompt if not already confirmed
+        if not confirm:
+            console.print(f"[yellow]Warning: Recreation will reset all statistics and crawled data for '{name}'[/yellow]")
+            console.print("Settings and metadata will be preserved.")
+            response = console.input(f"Are you sure you want to recreate project '{name}'? [y/N]: ")
+            if response.lower() not in ['y', 'yes']:
+                console.print("[yellow]Operation cancelled[/yellow]")
+                return
+
+        # Recreate project
+        with console.status(f"Recreating project '{name}'..."):
+            new_project, migration_record = await unified_service.recreate_project(
+                project.id,
+                preserve_data=False,
+                initiated_by_command="docbro project --recreate"
+            )
+
+        console.print(f"[green]✓[/green] Project '{name}' recreated successfully!")
+        console.print(f"  Schema version: v{project.schema_version} → v{new_project.schema_version}")
+        console.print(f"  Migration ID: {migration_record.id}")
+        console.print(f"  Settings preserved: {len(new_project.settings)} items")
+        console.print(f"  Metadata preserved: {len(new_project.metadata)} items")
+
+    except IncompatibleProjectError as e:
+        console.print(f"[red]Error: {str(e)}[/red]")
+    except ProjectNotFoundError as e:
+        console.print(f"[red]Error: {str(e)}[/red]")
+    except Exception as e:
+        logger.error(f"Error recreating project: {e}")
+        console.print(f"[red]Error recreating project: {str(e)}[/red]")
+
+
+async def _export_project_impl(name: str):
+    """Implementation of project export."""
+    console = Console()
+
+    try:
+        unified_service = await get_unified_project_service()
+        export_service = ProjectExportService()
+
+        # Get project
+        project = await unified_service.get_project_by_name(name)
+        if not project:
+            error_msg = CLI_ERROR_MESSAGES["project_not_found"].format(name=name)
+            console.print(f"[red]Error: {error_msg}[/red]")
+            return
+
+        # Export project
+        with console.status(f"Exporting project '{name}'..."):
+            export_path = await export_service.export_to_file(
+                project=project,
+                export_type="full",
+                include_statistics=True,
+                pretty_json=True
+            )
+
+        console.print(f"[green]✓[/green] Project '{name}' exported successfully!")
+        console.print(f"  Export file: {export_path}")
+        console.print(f"  Schema version: v{project.schema_version}")
+        console.print(f"  Settings: {len(project.settings)} items")
+        console.print(f"  Metadata: {len(project.metadata)} items")
+
+        # Show file size
+        file_size = export_path.stat().st_size
+        console.print(f"  File size: {_format_bytes(file_size)}")
+
+    except ProjectNotFoundError as e:
+        console.print(f"[red]Error: {str(e)}[/red]")
+    except Exception as e:
+        logger.error(f"Error exporting project: {e}")
+        console.print(f"[red]Error exporting project: {str(e)}[/red]")
+
+
+async def _check_compatibility_impl(name: str):
+    """Implementation of compatibility check."""
+    console = Console()
+
+    try:
+        unified_service = await get_unified_project_service()
+        compatibility_checker = CompatibilityChecker()
+
+        # Get project
+        project = await unified_service.get_project_by_name(name)
+        if not project:
+            error_msg = CLI_ERROR_MESSAGES["project_not_found"].format(name=name)
+            console.print(f"[red]Error: {error_msg}[/red]")
+            return
+
+        # Check compatibility
+        with console.status(f"Checking compatibility for project '{name}'..."):
+            compatibility_result = await compatibility_checker.check_project_compatibility(project)
+
+        # Display results
+        console.print(f"\n[bold cyan]Compatibility Check: {project.name}[/bold cyan]")
+
+        # Status
+        if compatibility_result.is_compatible:
+            console.print(f"Status: [green]Compatible[/green]")
+        else:
+            console.print(f"Status: [red]Incompatible[/red]")
+
+        # Version info
+        console.print(f"Project Schema Version: v{compatibility_result.project_version}")
+        console.print(f"Current Schema Version: v{compatibility_result.current_version}")
+
+        # Issues
+        if compatibility_result.issues:
+            console.print(f"\n[bold]Issues Found ({len(compatibility_result.issues)}):[/bold]")
+            for issue in compatibility_result.issues:
+                console.print(f"  • {issue}")
+
+        # Missing fields
+        if compatibility_result.missing_fields:
+            console.print(f"\n[bold]Missing Fields ({len(compatibility_result.missing_fields)}):[/bold]")
+            for field in compatibility_result.missing_fields:
+                console.print(f"  • {field}")
+
+        # Extra fields
+        if compatibility_result.extra_fields:
+            console.print(f"\n[bold]Extra Fields ({len(compatibility_result.extra_fields)}):[/bold]")
+            for field in compatibility_result.extra_fields:
+                console.print(f"  • {field}")
+
+        # Recommendations
+        if compatibility_result.needs_recreation:
+            console.print(f"\n[bold yellow]Recommendation:[/bold yellow]")
+            console.print("This project requires recreation to be compatible with the current schema.")
+
+            # Get recreation instructions
+            instructions = compatibility_checker.get_recreation_instructions(compatibility_result, project.name)
+            console.print("\n[bold]Recreation Instructions:[/bold]")
+            for instruction in instructions:
+                console.print(instruction)
+
+        elif compatibility_result.migration_required:
+            console.print(f"\n[bold yellow]Recommendation:[/bold yellow]")
+            console.print("This project can be automatically migrated to the current schema.")
+        else:
+            console.print(f"\n[bold green]✓[/bold green] No action required - project is fully compatible!")
+
+    except ProjectNotFoundError as e:
+        console.print(f"[red]Error: {str(e)}[/red]")
+    except Exception as e:
+        logger.error(f"Error checking compatibility: {e}")
+        console.print(f"[red]Error checking compatibility: {str(e)}[/red]")
 
 
 def _format_bytes(bytes_count: int) -> str:

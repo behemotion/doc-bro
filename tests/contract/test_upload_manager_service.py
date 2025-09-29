@@ -96,7 +96,7 @@ class TestUploadManagerContract:
         self.upload_manager.cancel_upload = AsyncMock()
 
     @pytest.mark.asyncio
-    async def test_upload_files_contract(self):
+    def test_upload_files_contract(self):
         """Test upload_files method contract."""
         # Setup
         project = Project(
@@ -135,7 +135,7 @@ class TestUploadManagerContract:
         assert result.operation_id == "upload-123"
 
     @pytest.mark.asyncio
-    async def test_upload_files_without_progress_callback(self):
+    def test_upload_files_without_progress_callback(self):
         """Test upload_files without progress callback."""
         # Setup
         project = Project(
@@ -170,7 +170,7 @@ class TestUploadManagerContract:
         assert result == expected_result
 
     @pytest.mark.asyncio
-    async def test_upload_files_with_errors(self):
+    def test_upload_files_with_errors(self):
         """Test upload_files with some files failing."""
         # Setup
         project = Project(
@@ -206,7 +206,7 @@ class TestUploadManagerContract:
         assert len(result.errors) == 2
 
     @pytest.mark.asyncio
-    async def test_validate_upload_contract(self):
+    def test_validate_upload_contract(self):
         """Test validate_upload method contract."""
         # Setup
         project = Project(
@@ -240,7 +240,7 @@ class TestUploadManagerContract:
         assert len(result.warnings) == 1
 
     @pytest.mark.asyncio
-    async def test_validate_upload_with_errors(self):
+    def test_validate_upload_with_errors(self):
         """Test validate_upload with validation errors."""
         # Setup
         project = Project(
@@ -273,7 +273,7 @@ class TestUploadManagerContract:
         assert len(result.errors) == 2
 
     @pytest.mark.asyncio
-    async def test_get_upload_status_contract(self):
+    def test_get_upload_status_contract(self):
         """Test get_upload_status method contract."""
         # Setup
         operation_id = "upload-126"
@@ -300,7 +300,7 @@ class TestUploadManagerContract:
         assert result.current_file == "document.pdf"
 
     @pytest.mark.asyncio
-    async def test_get_upload_status_not_found(self):
+    def test_get_upload_status_not_found(self):
         """Test get_upload_status for non-existent operation."""
         # Setup
         operation_id = "nonexistent-upload"
@@ -314,7 +314,7 @@ class TestUploadManagerContract:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_cancel_upload_contract(self):
+    def test_cancel_upload_contract(self):
         """Test cancel_upload method contract."""
         # Setup
         operation_id = "upload-127"
@@ -328,7 +328,7 @@ class TestUploadManagerContract:
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_cancel_upload_not_found(self):
+    def test_cancel_upload_not_found(self):
         """Test cancel_upload for non-existent operation."""
         # Setup
         operation_id = "nonexistent-upload"
@@ -342,7 +342,7 @@ class TestUploadManagerContract:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_all_source_types_supported(self):
+    def test_all_source_types_supported(self):
         """Test that all upload source types are supported."""
         source_types = [
             UploadSourceType.LOCAL,
@@ -389,7 +389,7 @@ class TestUploadManagerContract:
             assert result.operation_id == f"upload-{source_type.value}"
 
     @pytest.mark.asyncio
-    async def test_progress_callback_invocation(self):
+    def test_progress_callback_invocation(self):
         """Test that progress callback is properly invoked."""
         # Setup
         project = Project(
@@ -452,7 +452,7 @@ class TestUploadManagerContract:
         assert progress_callback.call_count == 3  # Three progress updates
 
     @pytest.mark.asyncio
-    async def test_method_signatures_match_contract(self):
+    def test_method_signatures_match_contract(self):
         """Test that all methods have correct signatures."""
         # This test verifies that the implementation matches the contract interface
         # Will fail until implementation exists, which is expected in TDD

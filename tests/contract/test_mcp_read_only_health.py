@@ -17,7 +17,7 @@ class TestMcpReadOnlyHealth:
         return "http://localhost:9383"
 
     @pytest.mark.contract
-    async def test_health_endpoint_basic_request(self, base_url: str) -> None:
+    def test_health_endpoint_basic_request(self, base_url: str) -> None:
         """Test basic health check request."""
         async with httpx.AsyncClient() as client:
             response = await client.get(f"{base_url}/mcp/v1/health")
@@ -33,7 +33,7 @@ class TestMcpReadOnlyHealth:
         assert isinstance(data["data"], dict)
 
     @pytest.mark.contract
-    async def test_health_response_schema(self, base_url: str) -> None:
+    def test_health_response_schema(self, base_url: str) -> None:
         """Test that health response matches OpenAPI HealthResponse schema."""
         async with httpx.AsyncClient() as client:
             response = await client.get(f"{base_url}/mcp/v1/health")
@@ -53,7 +53,7 @@ class TestMcpReadOnlyHealth:
         assert isinstance(health_data["docbro_health"], dict)
 
     @pytest.mark.contract
-    async def test_health_includes_docbro_health_output(self, base_url: str) -> None:
+    def test_health_includes_docbro_health_output(self, base_url: str) -> None:
         """Test that health response includes DocBro health command output."""
         async with httpx.AsyncClient() as client:
             response = await client.get(f"{base_url}/mcp/v1/health")
@@ -71,7 +71,7 @@ class TestMcpReadOnlyHealth:
         assert len(docbro_health) > 0  # Should not be empty
 
     @pytest.mark.contract
-    async def test_health_endpoint_method_validation(self, base_url: str) -> None:
+    def test_health_endpoint_method_validation(self, base_url: str) -> None:
         """Test that health endpoint only accepts GET requests."""
         async with httpx.AsyncClient() as client:
             # POST should not be allowed
@@ -87,7 +87,7 @@ class TestMcpReadOnlyHealth:
             assert delete_response.status_code == 405  # Method Not Allowed
 
     @pytest.mark.contract
-    async def test_health_response_headers(self, base_url: str) -> None:
+    def test_health_response_headers(self, base_url: str) -> None:
         """Test that health response has correct headers."""
         async with httpx.AsyncClient() as client:
             response = await client.get(f"{base_url}/mcp/v1/health")

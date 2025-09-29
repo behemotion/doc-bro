@@ -29,6 +29,11 @@ from .service_config import (
 )
 from .system_requirements import SystemRequirements
 from .vector_store_types import VectorStoreProvider
+# Unified schema models
+from .compatibility_status import CompatibilityStatus
+from .schema_version import SchemaVersion
+from .migration_record import ProjectMigrationRecord, MigrationOperation
+from .unified_project import UnifiedProject, UnifiedProjectStatus
 
 __all__ = [
     "Project",
@@ -54,4 +59,11 @@ __all__ = [
     "ServiceName",
     "ServiceStatusType",
     "VectorStoreProvider",
+    # Unified schema models
+    "CompatibilityStatus",
+    "SchemaVersion",
+    "ProjectMigrationRecord",
+    "MigrationOperation",
+    "UnifiedProject",
+    "UnifiedProjectStatus",
 ]

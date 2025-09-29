@@ -33,7 +33,7 @@ def mock_setup_service():
 class TestSetupStartApiContract:
     """Contract tests for POST /setup/start endpoint."""
 
-    async def test_start_setup_endpoint_exists(self, mock_app, mock_setup_service):
+    def test_start_setup_endpoint_exists(self, mock_app, mock_setup_service):
         """Test that the /setup/start endpoint is registered."""
         # This will fail until the endpoint is implemented
         from src.api.setup_endpoints import setup_router
@@ -42,7 +42,7 @@ class TestSetupStartApiContract:
         routes = [route.path for route in setup_router.routes if hasattr(route, 'path')]
         assert "/setup/start" in routes
 
-    async def test_start_setup_interactive_mode_success(self, mock_app, mock_setup_service):
+    def test_start_setup_interactive_mode_success(self, mock_app, mock_setup_service):
         """Test successful interactive setup session creation."""
         # Mock service response
         session_id = "550e8400-e29b-41d4-a716-446655440000"
@@ -66,7 +66,7 @@ class TestSetupStartApiContract:
         # For now, just verify the service would be called correctly
         mock_setup_service.create_setup_session.assert_not_called()  # Will be called by actual endpoint
 
-    async def test_start_setup_auto_mode_success(self, mock_app, mock_setup_service):
+    def test_start_setup_auto_mode_success(self, mock_app, mock_setup_service):
         """Test successful auto setup session creation."""
         session_id = "550e8400-e29b-41d4-a716-446655440001"
         mock_setup_service.create_setup_session.return_value = {
@@ -85,7 +85,7 @@ class TestSetupStartApiContract:
         # Endpoint should accept auto mode
         assert request_data['setup_mode'] == 'auto'
 
-    async def test_start_setup_force_restart_flag(self, mock_app, mock_setup_service):
+    def test_start_setup_force_restart_flag(self, mock_app, mock_setup_service):
         """Test force_restart flag is handled."""
         mock_setup_service.create_setup_session.return_value = {
             'session_id': "550e8400-e29b-41d4-a716-446655440002",
@@ -103,7 +103,7 @@ class TestSetupStartApiContract:
         # Should accept force_restart parameter
         assert request_data['force_restart'] is True
 
-    async def test_start_setup_invalid_mode_400(self, mock_app, mock_setup_service):
+    def test_start_setup_invalid_mode_400(self, mock_app, mock_setup_service):
         """Test invalid setup mode returns 400 error."""
         request_data = {
             'setup_mode': 'invalid_mode',
@@ -114,7 +114,7 @@ class TestSetupStartApiContract:
         valid_modes = ['interactive', 'auto']
         assert request_data['setup_mode'] not in valid_modes
 
-    async def test_start_setup_missing_mode_400(self, mock_app, mock_setup_service):
+    def test_start_setup_missing_mode_400(self, mock_app, mock_setup_service):
         """Test missing setup_mode returns 400 error."""
         request_data = {
             'force_restart': False
@@ -123,7 +123,7 @@ class TestSetupStartApiContract:
         # Should require setup_mode field
         assert 'setup_mode' not in request_data
 
-    async def test_start_setup_session_already_exists_409(self, mock_app, mock_setup_service):
+    def test_start_setup_session_already_exists_409(self, mock_app, mock_setup_service):
         """Test existing active session returns 409 conflict."""
         from src.models.setup_types import SetupSessionExistsError
 
@@ -142,7 +142,7 @@ class TestSetupStartApiContract:
         except SetupSessionExistsError:
             pass  # Expected exception
 
-    async def test_start_setup_response_schema_valid(self, mock_app, mock_setup_service):
+    def test_start_setup_response_schema_valid(self, mock_app, mock_setup_service):
         """Test response follows SetupSessionResponse schema."""
         session_response = {
             'session_id': "550e8400-e29b-41d4-a716-446655440003",
@@ -160,7 +160,7 @@ class TestSetupStartApiContract:
         assert isinstance(session_response['total_steps'], int)
         assert session_response['total_steps'] > 0
 
-    async def test_start_setup_error_response_schema(self, mock_app, mock_setup_service):
+    def test_start_setup_error_response_schema(self, mock_app, mock_setup_service):
         """Test error responses follow ErrorResponse schema."""
         error_response = {
             'error': 'validation_error',
@@ -176,7 +176,7 @@ class TestSetupStartApiContract:
         if 'request_id' in error_response:
             assert UUID(error_response['request_id'])  # Valid UUID if present
 
-    async def test_start_setup_json_content_type(self, mock_app, mock_setup_service):
+    def test_start_setup_json_content_type(self, mock_app, mock_setup_service):
         """Test endpoint expects application/json content type."""
         request_data = {
             'setup_mode': 'interactive',
@@ -189,7 +189,7 @@ class TestSetupStartApiContract:
         parsed = json.loads(json_data)
         assert parsed == request_data
 
-    async def test_start_setup_default_force_restart_false(self, mock_app, mock_setup_service):
+    def test_start_setup_default_force_restart_false(self, mock_app, mock_setup_service):
         """Test force_restart defaults to false when omitted."""
         request_data = {
             'setup_mode': 'interactive'

@@ -202,7 +202,7 @@ class TestInstallationServicesEndpoint:
         assert response.services[2].error_message == "Connection refused"
 
     @pytest.mark.asyncio
-    async def test_get_installation_services_endpoint_not_implemented(self):
+    def test_get_installation_services_endpoint_not_implemented(self):
         """Test GET /installation/{id}/services endpoint fails since it's not implemented (TDD)."""
         # This test MUST fail since the endpoint doesn't exist yet (TDD requirement)
 

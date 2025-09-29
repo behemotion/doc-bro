@@ -17,7 +17,7 @@ class TestMcpAdminProjectCreate:
         return "http://127.0.0.1:9384"
 
     @pytest.mark.contract
-    async def test_project_create_basic_request(self, base_url: str) -> None:
+    def test_project_create_basic_request(self, base_url: str) -> None:
         """Test basic project creation request."""
         request_data = {
             "method": "project_create",
@@ -55,7 +55,7 @@ class TestMcpAdminProjectCreate:
         assert isinstance(op_data["result"], str)
 
     @pytest.mark.contract
-    async def test_project_create_with_description(self, base_url: str) -> None:
+    def test_project_create_with_description(self, base_url: str) -> None:
         """Test project creation with description."""
         request_data = {
             "method": "project_create",
@@ -81,7 +81,7 @@ class TestMcpAdminProjectCreate:
         assert op_data["project_name"] == "test-described-project"
 
     @pytest.mark.contract
-    async def test_project_create_with_settings(self, base_url: str) -> None:
+    def test_project_create_with_settings(self, base_url: str) -> None:
         """Test project creation with custom settings."""
         request_data = {
             "method": "project_create",
@@ -111,7 +111,7 @@ class TestMcpAdminProjectCreate:
         assert op_data["project_name"] == "test-configured-project"
 
     @pytest.mark.contract
-    async def test_project_create_all_project_types(self, base_url: str) -> None:
+    def test_project_create_all_project_types(self, base_url: str) -> None:
         """Test project creation for all valid project types."""
         project_types = ["crawling", "data", "storage"]
 
@@ -135,7 +135,7 @@ class TestMcpAdminProjectCreate:
             assert response.status_code == 200
 
     @pytest.mark.contract
-    async def test_project_create_missing_name(self, base_url: str) -> None:
+    def test_project_create_missing_name(self, base_url: str) -> None:
         """Test project creation without required name parameter fails."""
         request_data = {
             "method": "project_create",
@@ -155,7 +155,7 @@ class TestMcpAdminProjectCreate:
         assert response.status_code in [400, 422]
 
     @pytest.mark.contract
-    async def test_project_create_missing_type(self, base_url: str) -> None:
+    def test_project_create_missing_type(self, base_url: str) -> None:
         """Test project creation without required type parameter fails."""
         request_data = {
             "method": "project_create",
@@ -175,7 +175,7 @@ class TestMcpAdminProjectCreate:
         assert response.status_code in [400, 422]
 
     @pytest.mark.contract
-    async def test_project_create_invalid_type(self, base_url: str) -> None:
+    def test_project_create_invalid_type(self, base_url: str) -> None:
         """Test project creation with invalid type fails."""
         request_data = {
             "method": "project_create",
@@ -196,7 +196,7 @@ class TestMcpAdminProjectCreate:
         assert response.status_code in [400, 422]
 
     @pytest.mark.contract
-    async def test_project_create_duplicate_name(self, base_url: str) -> None:
+    def test_project_create_duplicate_name(self, base_url: str) -> None:
         """Test creating project with duplicate name fails gracefully."""
         request_data = {
             "method": "project_create",

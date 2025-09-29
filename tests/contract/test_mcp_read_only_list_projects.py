@@ -18,7 +18,7 @@ class TestMcpReadOnlyListProjects:
         return "http://localhost:9383"
 
     @pytest.mark.contract
-    async def test_list_projects_basic_request(self, base_url: str) -> None:
+    def test_list_projects_basic_request(self, base_url: str) -> None:
         """Test basic project listing request."""
         request_data = {
             "method": "list_projects",
@@ -52,7 +52,7 @@ class TestMcpReadOnlyListProjects:
         assert isinstance(metadata["filtered_count"], int)
 
     @pytest.mark.contract
-    async def test_list_projects_with_status_filter(self, base_url: str) -> None:
+    def test_list_projects_with_status_filter(self, base_url: str) -> None:
         """Test project listing with status filter."""
         request_data = {
             "method": "list_projects",
@@ -76,7 +76,7 @@ class TestMcpReadOnlyListProjects:
             assert project["status"] == "active"
 
     @pytest.mark.contract
-    async def test_list_projects_with_limit(self, base_url: str) -> None:
+    def test_list_projects_with_limit(self, base_url: str) -> None:
         """Test project listing with limit parameter."""
         request_data = {
             "method": "list_projects",
@@ -99,7 +99,7 @@ class TestMcpReadOnlyListProjects:
         assert len(data["data"]) <= 5
 
     @pytest.mark.contract
-    async def test_project_metadata_schema(self, base_url: str) -> None:
+    def test_project_metadata_schema(self, base_url: str) -> None:
         """Test that project metadata matches OpenAPI schema."""
         request_data = {
             "method": "list_projects",

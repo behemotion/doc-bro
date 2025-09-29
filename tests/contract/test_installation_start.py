@@ -239,7 +239,7 @@ class TestInstallationStartEndpoint:
         assert response.status_code == 400, "Should return 400 for invalid schema"
 
     @pytest.mark.asyncio
-    async def test_installation_start_content_type_validation(self):
+    def test_installation_start_content_type_validation(self):
         """Test that endpoint requires application/json content type."""
         if not self.client:
             pytest.fail("MCP server with installation endpoint not implemented yet")
@@ -346,7 +346,7 @@ class TestInstallationStartEndpoint:
             assert response.status_code == 405, f"{method} should not be allowed on /installation/start"
 
     @pytest.mark.asyncio
-    async def test_installation_id_uniqueness(self):
+    def test_installation_id_uniqueness(self):
         """Test that each installation request generates unique installation_id."""
         if not self.client:
             pytest.fail("MCP server with installation endpoint not implemented yet")

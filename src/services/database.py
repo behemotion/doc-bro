@@ -19,6 +19,10 @@ from src.models import (
     Project,
     ProjectStatus,
 )
+from src.models.compatibility_status import CompatibilityStatus
+from src.models.migration_record import MigrationOperation, ProjectMigrationRecord
+from src.models.schema_version import SchemaVersion
+from src.lib.exceptions import DatabaseSchemaError, MigrationError
 
 
 class DatabaseError(Exception):
@@ -38,6 +42,7 @@ class DatabaseManager:
         # Connection pool
         self._connection: aiosqlite.Connection | None = None  # Main DB connection
         self._project_connections: dict[str, aiosqlite.Connection] = {}  # Project-specific connections
+        self._migration_connection: aiosqlite.Connection | None = None  # Migration-specific connection
         self._initialized = False
 
     async def initialize(self) -> None:
@@ -59,6 +64,9 @@ class DatabaseManager:
             # Create schema
             await self._create_schema()
 
+            # Apply any pending migrations
+            await self._apply_migrations()
+
             self._initialized = True
             self.logger.info("Database initialized", extra={
                 "db_path": str(self.db_path),
@@ -79,6 +87,11 @@ class DatabaseManager:
             await conn.close()
         self._project_connections.clear()
 
+        # Close migration connection
+        if self._migration_connection:
+            await self._migration_connection.close()
+            self._migration_connection = None
+
         # Close main connection
         if self._connection:
             await self._connection.close()
@@ -87,7 +100,7 @@ class DatabaseManager:
         self.logger.info("Database connections closed")
 
     async def _create_schema(self) -> None:
-        """Create main database schema (projects only)."""
+        """Create main database schema with unified project structure."""
         schema_sql = """
         -- Schema version tracking
         CREATE TABLE IF NOT EXISTS schema_version (
@@ -95,29 +108,50 @@ class DatabaseManager:
             applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
-        -- Projects table (main database only stores project metadata)
+        -- Unified projects table supporting all project types
         CREATE TABLE IF NOT EXISTS projects (
             id TEXT PRIMARY KEY,
             name TEXT UNIQUE NOT NULL,
+            schema_version INTEGER NOT NULL DEFAULT 3,
+            type TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'active',
+            compatibility_status TEXT NOT NULL DEFAULT 'compatible',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            last_crawl_at TEXT,
             source_url TEXT,
-            status TEXT NOT NULL DEFAULT 'created',
-            crawl_depth INTEGER NOT NULL DEFAULT 2,
-            embedding_model TEXT NOT NULL DEFAULT 'mxbai-embed-large',
-            chunk_size INTEGER NOT NULL DEFAULT 1000,
-            chunk_overlap INTEGER NOT NULL DEFAULT 100,
-            created_at TIMESTAMP NOT NULL,
-            updated_at TIMESTAMP NOT NULL,
-            last_crawl_at TIMESTAMP,
-            total_pages INTEGER NOT NULL DEFAULT 0,
-            total_size_bytes INTEGER NOT NULL DEFAULT 0,
-            successful_pages INTEGER NOT NULL DEFAULT 0,
-            failed_pages INTEGER NOT NULL DEFAULT 0,
-            metadata TEXT
+            settings_json TEXT NOT NULL DEFAULT '{}',
+            statistics_json TEXT NOT NULL DEFAULT '{}',
+            metadata_json TEXT NOT NULL DEFAULT '{}'
+        );
+
+        -- Migration records table for audit trail
+        CREATE TABLE IF NOT EXISTS project_migrations (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            project_name TEXT NOT NULL,
+            operation TEXT NOT NULL,
+            from_schema_version INTEGER NOT NULL,
+            to_schema_version INTEGER NOT NULL,
+            started_at TEXT NOT NULL,
+            completed_at TEXT,
+            success BOOLEAN DEFAULT FALSE,
+            error_message TEXT,
+            preserved_settings_json TEXT DEFAULT '{}',
+            preserved_metadata_json TEXT DEFAULT '{}',
+            data_size_bytes INTEGER DEFAULT 0,
+            user_initiated BOOLEAN DEFAULT TRUE,
+            initiated_by_command TEXT DEFAULT 'unknown'
         );
 
         -- Indexes for performance
-        CREATE INDEX IF NOT EXISTS idx_projects_name ON projects (name);
-        CREATE INDEX IF NOT EXISTS idx_projects_status ON projects (status);
+        CREATE INDEX IF NOT EXISTS idx_projects_name ON projects(name);
+        CREATE INDEX IF NOT EXISTS idx_projects_type ON projects(type);
+        CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
+        CREATE INDEX IF NOT EXISTS idx_projects_compatibility ON projects(compatibility_status);
+        CREATE INDEX IF NOT EXISTS idx_projects_schema_version ON projects(schema_version);
+        CREATE INDEX IF NOT EXISTS idx_migrations_project_id ON project_migrations(project_id);
+        CREATE INDEX IF NOT EXISTS idx_migrations_operation ON project_migrations(operation);
 
         -- Insert current schema version
         INSERT OR REPLACE INTO schema_version (version) VALUES (3);
@@ -253,8 +287,62 @@ class DatabaseManager:
         """Apply database migrations."""
         current_version = await self._get_schema_version()
 
-        # Migration to version 2: Make source_url nullable
-        if current_version < 2:
+        # Migration to version 3: Unified schema
+        if current_version < 3:
+            self.logger.info(f"Applying migration from version {current_version} to version 3: Unified schema")
+            try:
+                # Check if the projects table exists and what columns it has
+                cursor = await self._connection.execute("""
+                    SELECT sql FROM sqlite_master
+                    WHERE type='table' AND name='projects'
+                """)
+                table_info = await cursor.fetchone()
+
+                if table_info:
+                    # Table exists, need to migrate it
+                    # First check if source_url column exists
+                    cursor = await self._connection.execute("PRAGMA table_info(projects)")
+                    columns = await cursor.fetchall()
+                    column_names = [col[1] for col in columns]
+
+                    if 'source_url' not in column_names:
+                        # Add the missing source_url column
+                        await self._connection.execute("""
+                            ALTER TABLE projects ADD COLUMN source_url TEXT
+                        """)
+                        self.logger.info("Added missing source_url column")
+
+                    # Add any other missing columns from the unified schema
+                    missing_columns = {
+                        'schema_version': 'INTEGER NOT NULL DEFAULT 3',
+                        'type': "TEXT NOT NULL DEFAULT 'crawling'",
+                        'compatibility_status': "TEXT NOT NULL DEFAULT 'compatible'",
+                        'last_crawl_at': 'TEXT',
+                        'settings_json': "TEXT NOT NULL DEFAULT '{}'",
+                        'statistics_json': "TEXT NOT NULL DEFAULT '{}'",
+                        'metadata_json': "TEXT NOT NULL DEFAULT '{}'"
+                    }
+
+                    for col_name, col_def in missing_columns.items():
+                        if col_name not in column_names:
+                            await self._connection.execute(f"""
+                                ALTER TABLE projects ADD COLUMN {col_name} {col_def}
+                            """)
+                            self.logger.info(f"Added missing column: {col_name}")
+
+                # Update schema version
+                await self._connection.execute("INSERT OR REPLACE INTO schema_version (version) VALUES (3)")
+                await self._connection.commit()
+
+                self.logger.info("Migration to version 3 completed successfully")
+
+            except Exception as e:
+                await self._connection.rollback()
+                self.logger.error(f"Migration to version 3 failed: {e}")
+                raise DatabaseError(f"Migration failed: {e}")
+
+        # Migration to version 2: Make source_url nullable (kept for backward compatibility)
+        elif current_version < 2:
             self.logger.info("Applying migration to version 2: Making source_url nullable")
             try:
                 # Create new table with nullable source_url
@@ -1216,6 +1304,165 @@ class DatabaseManager:
             chunk_overlap=chunk_overlap,
             metadata=metadata
         )
+
+    # Migration connection management
+
+    async def get_migration_connection(self) -> aiosqlite.Connection:
+        """Get or create a dedicated migration connection with isolation."""
+        if self._migration_connection is None:
+            self._migration_connection = await aiosqlite.connect(str(self.db_path))
+
+            # Configure migration connection with stronger isolation
+            await self._migration_connection.execute("PRAGMA foreign_keys = ON")
+            await self._migration_connection.execute("PRAGMA journal_mode = WAL")
+            await self._migration_connection.execute("PRAGMA synchronous = FULL")  # Ensure durability
+            await self._migration_connection.execute("PRAGMA temp_store = MEMORY")  # Use memory for temp tables
+            await self._migration_connection.execute("PRAGMA cache_size = -64000")  # 64MB cache
+
+            self.logger.info("Migration connection established with enhanced settings")
+
+        return self._migration_connection
+
+    async def begin_migration_transaction(self) -> aiosqlite.Connection:
+        """Begin a migration transaction with rollback capability."""
+        conn = await self.get_migration_connection()
+        await conn.execute("BEGIN IMMEDIATE")  # Immediate lock for migrations
+        self.logger.info("Migration transaction started")
+        return conn
+
+    async def commit_migration_transaction(self) -> None:
+        """Commit migration transaction."""
+        if self._migration_connection:
+            await self._migration_connection.commit()
+            self.logger.info("Migration transaction committed")
+
+    async def rollback_migration_transaction(self) -> None:
+        """Rollback migration transaction."""
+        if self._migration_connection:
+            await self._migration_connection.rollback()
+            self.logger.info("Migration transaction rolled back")
+
+    async def close_migration_connection(self) -> None:
+        """Close migration-specific connection."""
+        if self._migration_connection:
+            await self._migration_connection.close()
+            self._migration_connection = None
+            self.logger.info("Migration connection closed")
+
+    async def check_database_integrity(self) -> bool:
+        """Check database integrity before/after migrations."""
+        try:
+            conn = await self.get_migration_connection()
+
+            # Check integrity
+            cursor = await conn.execute("PRAGMA integrity_check")
+            result = await cursor.fetchone()
+
+            if result and result[0] == "ok":
+                self.logger.info("Database integrity check passed")
+                return True
+            else:
+                self.logger.error(f"Database integrity check failed: {result}")
+                return False
+
+        except Exception as e:
+            self.logger.error(f"Database integrity check error: {e}")
+            return False
+
+    async def backup_database_for_migration(self, backup_path: str) -> bool:
+        """Create a backup before migration."""
+        try:
+            # Use VACUUM INTO for atomic backup
+            conn = await self.get_migration_connection()
+            await conn.execute(f"VACUUM INTO '{backup_path}'")
+
+            self.logger.info(f"Database backup created at {backup_path}")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Database backup failed: {e}")
+            return False
+
+    async def get_migration_lock(self) -> bool:
+        """Acquire exclusive lock for migration operations."""
+        try:
+            conn = await self.get_migration_connection()
+            # Use advisory lock simulation with a migration flag table
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS migration_lock (
+                    id INTEGER PRIMARY KEY,
+                    locked_at TEXT,
+                    locked_by TEXT
+                )
+            """)
+
+            # Try to acquire lock
+            cursor = await conn.execute("SELECT COUNT(*) FROM migration_lock")
+            count = (await cursor.fetchone())[0]
+
+            if count == 0:
+                await conn.execute("""
+                    INSERT INTO migration_lock (id, locked_at, locked_by)
+                    VALUES (1, ?, ?)
+                """, (datetime.utcnow().isoformat(), "database_manager"))
+                await conn.commit()
+                self.logger.info("Migration lock acquired")
+                return True
+            else:
+                self.logger.warning("Migration lock already held")
+                return False
+
+        except Exception as e:
+            self.logger.error(f"Failed to acquire migration lock: {e}")
+            return False
+
+    async def release_migration_lock(self) -> None:
+        """Release migration lock."""
+        try:
+            conn = await self.get_migration_connection()
+            await conn.execute("DELETE FROM migration_lock WHERE id = 1")
+            await conn.commit()
+            self.logger.info("Migration lock released")
+
+        except Exception as e:
+            self.logger.error(f"Failed to release migration lock: {e}")
+
+    async def get_migration_status(self) -> dict[str, Any]:
+        """Get current migration status."""
+        try:
+            conn = await self.get_migration_connection()
+
+            # Check if migration is in progress
+            cursor = await conn.execute("SELECT locked_at, locked_by FROM migration_lock WHERE id = 1")
+            lock_info = await cursor.fetchone()
+
+            # Get schema version
+            schema_version = await self._get_schema_version()
+
+            # Count projects by compatibility status
+            cursor = await conn.execute("""
+                SELECT compatibility_status, COUNT(*) as count
+                FROM projects
+                GROUP BY compatibility_status
+            """)
+            compatibility_counts = dict(await cursor.fetchall())
+
+            return {
+                "schema_version": schema_version,
+                "migration_in_progress": lock_info is not None,
+                "migration_locked_at": lock_info[0] if lock_info else None,
+                "migration_locked_by": lock_info[1] if lock_info else None,
+                "compatibility_counts": compatibility_counts,
+                "database_path": str(self.db_path)
+            }
+
+        except Exception as e:
+            self.logger.error(f"Failed to get migration status: {e}")
+            return {
+                "error": str(e),
+                "schema_version": 0,
+                "migration_in_progress": False
+            }
 
     async def cleanup_project(self, project_id: str) -> dict[str, Any]:
         """Clean up all project data."""

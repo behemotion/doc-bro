@@ -17,7 +17,7 @@ class TestMcpReadOnlySearchProjects:
         return "http://localhost:9383"
 
     @pytest.mark.contract
-    async def test_search_projects_basic_request(self, base_url: str) -> None:
+    def test_search_projects_basic_request(self, base_url: str) -> None:
         """Test basic search request with required query parameter."""
         request_data = {
             "method": "search_projects",
@@ -55,7 +55,7 @@ class TestMcpReadOnlySearchProjects:
         assert isinstance(metadata["search_time_ms"], (int, float))
 
     @pytest.mark.contract
-    async def test_search_projects_with_project_filter(self, base_url: str) -> None:
+    def test_search_projects_with_project_filter(self, base_url: str) -> None:
         """Test search with project_names filter."""
         request_data = {
             "method": "search_projects",
@@ -80,7 +80,7 @@ class TestMcpReadOnlySearchProjects:
             assert result["project_name"] in ["test-project", "docs-project"]
 
     @pytest.mark.contract
-    async def test_search_projects_with_limit(self, base_url: str) -> None:
+    def test_search_projects_with_limit(self, base_url: str) -> None:
         """Test search with limit parameter."""
         request_data = {
             "method": "search_projects",
@@ -104,7 +104,7 @@ class TestMcpReadOnlySearchProjects:
         assert len(data["data"]) <= 3
 
     @pytest.mark.contract
-    async def test_search_result_schema(self, base_url: str) -> None:
+    def test_search_result_schema(self, base_url: str) -> None:
         """Test that search results match OpenAPI SearchResult schema."""
         request_data = {
             "method": "search_projects",
@@ -142,7 +142,7 @@ class TestMcpReadOnlySearchProjects:
             assert isinstance(result["metadata"], dict)
 
     @pytest.mark.contract
-    async def test_search_projects_missing_query(self, base_url: str) -> None:
+    def test_search_projects_missing_query(self, base_url: str) -> None:
         """Test search request without required query parameter fails."""
         request_data = {
             "method": "search_projects",

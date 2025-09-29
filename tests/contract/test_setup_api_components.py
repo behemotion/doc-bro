@@ -25,7 +25,7 @@ def mock_setup_service():
 class TestSetupComponentsApiContract:
     """Contract tests for GET /setup/session/{session_id}/components endpoint."""
 
-    async def test_components_endpoint_exists(self, mock_setup_service):
+    def test_components_endpoint_exists(self, mock_setup_service):
         """Test that the components endpoint is registered."""
         from src.api.setup_endpoints import setup_router
 
@@ -34,7 +34,7 @@ class TestSetupComponentsApiContract:
         components_route_exists = any("/setup/session/{session_id}/components" in route for route in routes)
         assert components_route_exists
 
-    async def test_get_components_success(self, mock_setup_service):
+    def test_get_components_success(self, mock_setup_service):
         """Test successful component availability retrieval."""
         session_id = "550e8400-e29b-41d4-a716-446655440000"
         mock_response = {
@@ -82,7 +82,7 @@ class TestSetupComponentsApiContract:
         uuid_obj = UUID(session_id)
         assert str(uuid_obj) == session_id
 
-    async def test_get_components_invalid_uuid_400(self, mock_setup_service):
+    def test_get_components_invalid_uuid_400(self, mock_setup_service):
         """Test invalid UUID format returns 400 error."""
         invalid_session_id = "not-a-uuid"
 
@@ -90,7 +90,7 @@ class TestSetupComponentsApiContract:
         with pytest.raises(ValueError):
             UUID(invalid_session_id)
 
-    async def test_components_response_schema_valid(self, mock_setup_service):
+    def test_components_response_schema_valid(self, mock_setup_service):
         """Test response follows ComponentAvailabilityResponse schema."""
         response = {
             'components': [
@@ -125,7 +125,7 @@ class TestSetupComponentsApiContract:
         assert component['component_type'] in ['docker', 'ollama', 'mcp_client']
         assert component['health_status'] in ['healthy', 'degraded', 'unhealthy', 'unknown']
 
-    async def test_component_docker_available(self, mock_setup_service):
+    def test_component_docker_available(self, mock_setup_service):
         """Test Docker component available response."""
         docker_component = {
             'component_type': 'docker',
@@ -149,7 +149,7 @@ class TestSetupComponentsApiContract:
         assert docker_component['health_status'] == 'healthy'
         assert 'api_version' in docker_component['capabilities']
 
-    async def test_component_ollama_available(self, mock_setup_service):
+    def test_component_ollama_available(self, mock_setup_service):
         """Test Ollama component available response."""
         ollama_component = {
             'component_type': 'ollama',
@@ -172,7 +172,7 @@ class TestSetupComponentsApiContract:
         assert ollama_component['available'] is True
         assert 'models' in ollama_component['capabilities']
 
-    async def test_component_mcp_client_not_available(self, mock_setup_service):
+    def test_component_mcp_client_not_available(self, mock_setup_service):
         """Test MCP client component not available response."""
         mcp_component = {
             'component_type': 'mcp_client',
@@ -192,7 +192,7 @@ class TestSetupComponentsApiContract:
         assert mcp_component['health_status'] in ['unhealthy', 'unknown']
         assert mcp_component['error_message'] is not None
 
-    async def test_component_health_status_degraded(self, mock_setup_service):
+    def test_component_health_status_degraded(self, mock_setup_service):
         """Test component with degraded health status."""
         degraded_component = {
             'component_type': 'docker',
@@ -211,7 +211,7 @@ class TestSetupComponentsApiContract:
         assert degraded_component['health_status'] == 'degraded'
         assert degraded_component['error_message'] is not None
 
-    async def test_component_capabilities_structure(self, mock_setup_service):
+    def test_component_capabilities_structure(self, mock_setup_service):
         """Test component capabilities field structure."""
         test_capabilities = [
             {'api_version': '1.43', 'compose_support': True},  # Docker
@@ -226,7 +226,7 @@ class TestSetupComponentsApiContract:
             import json
             json.dumps(capabilities)  # Should not raise exception
 
-    async def test_components_last_checked_format(self, mock_setup_service):
+    def test_components_last_checked_format(self, mock_setup_service):
         """Test last_checked timestamp format."""
         response = {
             'components': [],
@@ -238,7 +238,7 @@ class TestSetupComponentsApiContract:
         parsed_time = datetime.fromisoformat(response['last_checked'].replace('Z', '+00:00'))
         assert parsed_time is not None
 
-    async def test_components_empty_list(self, mock_setup_service):
+    def test_components_empty_list(self, mock_setup_service):
         """Test response with no components detected."""
         response = {
             'components': [],

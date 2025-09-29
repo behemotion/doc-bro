@@ -143,7 +143,7 @@ class TestAsyncRetryServiceContract:
             pytest.fail("RetryService implementation not found - create src/services/retry_service.py")
 
     @pytest.mark.asyncio
-    async def test_retry_with_backoff_success_eventually(self, retry_service):
+    def test_retry_with_backoff_success_eventually(self, retry_service):
         """Test that retry succeeds when operation eventually succeeds"""
         call_count = 0
 
@@ -160,7 +160,7 @@ class TestAsyncRetryServiceContract:
         assert call_count == 3  # Should have tried 3 times
 
     @pytest.mark.asyncio
-    async def test_retry_with_backoff_fails_after_max_attempts(self, retry_service):
+    def test_retry_with_backoff_fails_after_max_attempts(self, retry_service):
         """Test that retry fails after maximum attempts"""
         call_count = 0
 
@@ -175,7 +175,7 @@ class TestAsyncRetryServiceContract:
         assert call_count == 3  # Should have tried exactly 3 times
 
     @pytest.mark.asyncio
-    async def test_retry_timing_follows_backoff(self, retry_service):
+    def test_retry_timing_follows_backoff(self, retry_service):
         """Test that retry timing follows exponential backoff pattern"""
         call_times = []
 
@@ -202,7 +202,7 @@ class TestAsyncRetryServiceContract:
             assert 3.8 <= second_interval <= 4.2, f"Second retry interval should be ~4s, got {second_interval:.2f}s"
 
     @pytest.mark.asyncio
-    async def test_non_retryable_errors_fail_immediately(self, retry_service):
+    def test_non_retryable_errors_fail_immediately(self, retry_service):
         """Test that non-retryable errors don't trigger retries"""
         call_count = 0
 
@@ -239,7 +239,7 @@ class TestRetryPolicyPerformanceContract:
 
     @pytest.mark.performance
     @pytest.mark.asyncio
-    async def test_retry_overhead_minimal(self, retry_service):
+    def test_retry_overhead_minimal(self, retry_service):
         """Test that retry logic adds minimal overhead"""
         call_count = 0
 
@@ -258,7 +258,7 @@ class TestRetryPolicyPerformanceContract:
 
     @pytest.mark.performance
     @pytest.mark.asyncio
-    async def test_total_retry_time_reasonable(self, retry_service):
+    def test_total_retry_time_reasonable(self, retry_service):
         """Test that total retry time matches expected backoff"""
         async def always_failing_operation():
             raise ConnectionError("Test failure")

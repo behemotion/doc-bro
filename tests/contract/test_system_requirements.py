@@ -11,7 +11,7 @@ class TestSystemRequirementsEndpoint:
     """Validate GET /installation/{id}/requirements endpoint and SystemRequirements schema."""
 
     @pytest.mark.asyncio
-    async def test_system_requirements_endpoint_not_implemented(self):
+    def test_system_requirements_endpoint_not_implemented(self):
         """Test that endpoint doesn't exist yet - should fail initially (TDD requirement)."""
         from src.services.mcp_server import create_app
 
@@ -270,7 +270,7 @@ class TestSystemRequirementsEndpoint:
         assert parsed == data
 
     @pytest.mark.asyncio
-    async def test_installation_requirements_endpoint_contract(self):
+    def test_installation_requirements_endpoint_contract(self):
         """Test the contract for GET /installation/{id}/requirements endpoint when implemented."""
         from src.services.mcp_server import MCPServer
         from src.core.config import DocBroConfig
