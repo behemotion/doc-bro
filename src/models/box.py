@@ -168,7 +168,7 @@ class Box(BaseModel):
         if not self.settings:
             self.settings = {}
         self.settings.update(settings)
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(datetime.UTC)
 
     def get_setting(self, key: str, default: Any = None) -> Any:
         """Get a specific setting value."""

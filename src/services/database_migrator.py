@@ -120,7 +120,7 @@ class DatabaseMigrator:
 
     def _create_default_shelf_data(self, conn: sqlite3.Connection) -> None:
         """Create default shelf and box."""
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(datetime.UTC).isoformat()
 
         # Create default "common shelf"
         shelf_id = str(uuid.uuid4())

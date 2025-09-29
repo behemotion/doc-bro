@@ -82,7 +82,7 @@ class ContextService:
                 entity_exists=False,
                 is_empty=None,
                 configuration_state=config_state,
-                last_modified=datetime.utcnow(),
+                last_modified=datetime.now(datetime.UTC),
                 content_summary=None
             )
 
@@ -164,7 +164,7 @@ class ContextService:
                 entity_exists=False,
                 is_empty=None,
                 configuration_state=config_state,
-                last_modified=datetime.utcnow(),
+                last_modified=datetime.now(datetime.UTC),
                 content_summary=None
             )
 
@@ -212,7 +212,7 @@ class ContextService:
     async def _cache_context(self, context: CommandContext, cache_key: Optional[str] = None) -> None:
         """Cache context information with TTL."""
         key = cache_key or context.entity_name
-        expires_at = datetime.utcnow() + self.cache_ttl
+        expires_at = datetime.now(datetime.UTC) + self.cache_ttl
 
         async with self.db_manager.get_connection() as conn:
             await conn.execute("""

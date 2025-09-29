@@ -54,20 +54,20 @@ class ProjectStatus(BaseModel):
     def increment_crawl(self) -> None:
         """Increment crawl count and update timestamp."""
         self.crawl_count += 1
-        self.last_crawl_time = datetime.utcnow()
-        self.updated_at = datetime.utcnow()
+        self.last_crawl_time = datetime.now(datetime.UTC)
+        self.updated_at = datetime.now(datetime.UTC)
 
     def mark_crawling(self) -> None:
         """Mark project as currently crawling."""
         self.status = ProjectState.CRAWLING
         self.last_error = None
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(datetime.UTC)
 
     def mark_ready(self) -> None:
         """Mark project as ready."""
         self.status = ProjectState.READY
         self.last_error = None
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(datetime.UTC)
 
     def mark_error(self, error_message: str) -> None:
         """Mark project as having an error.
@@ -77,7 +77,7 @@ class ProjectStatus(BaseModel):
         """
         self.status = ProjectState.ERROR
         self.last_error = error_message[:500]  # Limit error message length
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(datetime.UTC)
 
     def update_statistics(
         self,
@@ -98,7 +98,7 @@ class ProjectStatus(BaseModel):
             self.total_embeddings = embeddings
         if index_size is not None:
             self.index_size_mb = index_size
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(datetime.UTC)
 
     def needs_crawl(self, max_age_hours: int = 24) -> bool:
         """Check if project needs re-crawling.
@@ -116,7 +116,7 @@ class ProjectStatus(BaseModel):
             return True
 
         from datetime import timedelta
-        age = datetime.utcnow() - self.last_crawl_time
+        age = datetime.now(datetime.UTC) - self.last_crawl_time
         return age > timedelta(hours=max_age_hours)
 
     def get_health_status(self) -> str:

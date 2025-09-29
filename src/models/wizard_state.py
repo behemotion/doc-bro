@@ -109,11 +109,11 @@ class WizardState(BaseModel):
 
         # Session expires after 30 minutes of inactivity
         expiry_time = self.last_activity + timedelta(minutes=30)
-        return datetime.utcnow() > expiry_time
+        return datetime.now(datetime.UTC) > expiry_time
 
     def update_activity(self) -> None:
         """Update last activity timestamp to current time."""
-        self.last_activity = datetime.utcnow()
+        self.last_activity = datetime.now(datetime.UTC)
 
     def advance_step(self) -> bool:
         """Advance to next step if not at end."""

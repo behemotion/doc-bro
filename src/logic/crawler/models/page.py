@@ -119,7 +119,7 @@ class Page(BaseModel):
             self.charset = charset
 
         self.status = PageStatus.PROCESSED
-        self.processed_at = datetime.utcnow()
+        self.processed_at = datetime.now(datetime.UTC)
 
     def mark_crawling(self) -> None:
         """Mark page as currently being crawled."""
@@ -134,7 +134,7 @@ class Page(BaseModel):
         """Mark page as crawled."""
         self.response_code = response_code
         self.response_time_ms = response_time_ms
-        self.crawled_at = datetime.utcnow()
+        self.crawled_at = datetime.now(datetime.UTC)
 
         if error_message:
             self.error_message = error_message
@@ -150,7 +150,7 @@ class Page(BaseModel):
             raise ValueError(f"Cannot index page in status: {self.status}")
 
         self.status = PageStatus.INDEXED
-        self.indexed_at = datetime.utcnow()
+        self.indexed_at = datetime.now(datetime.UTC)
 
     def mark_failed(self, error_message: str) -> None:
         """Mark page as failed."""

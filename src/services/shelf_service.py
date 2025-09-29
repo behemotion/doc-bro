@@ -219,7 +219,7 @@ class ShelfService:
             conn = self.db._connection
             await conn.execute(
                 "UPDATE shelves SET name = ?, updated_at = ? WHERE id = ?",
-                (new_name, datetime.utcnow().isoformat(), shelf.id)
+                (new_name, datetime.now(datetime.UTC).isoformat(), shelf.id)
             )
             await conn.commit()
 
