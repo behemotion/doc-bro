@@ -9,7 +9,7 @@ class TestStatusEndpoint:
     """Validate status endpoint excludes Redis."""
 
     @pytest.mark.asyncio
-    def test_status_response_excludes_redis(self):
+    async def test_status_response_excludes_redis(self):
         """Verify status endpoint response doesn't include Redis."""
         from src.cli.main import DocBroApp
 

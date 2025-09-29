@@ -64,7 +64,7 @@ class TestShelfCommandExists:
 
         result = cli_runner.invoke(main, ['shelf', '--help'])
         assert result.exit_code == 0
-        assert 'Manage documentation shelfs' in result.output
+        assert 'Manage documentation shelves' in result.output
 
 
 class TestShelfCreateCommand:

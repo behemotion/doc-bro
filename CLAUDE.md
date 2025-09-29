@@ -553,7 +553,13 @@ For urgent debugging only, use:
 
 ## Important Instructions
 - ALWAYS check constitution.md before working on any features or making changes
+- ALWAYS reference .specify/memory/constitution.md for core architectural principles
+- ALWAYS reference .specify/memory/dependencies.md for version constraints and justifications
 - Do what has been asked; nothing more, nothing less
 - NEVER create files unless absolutely necessary for achieving your goal
 - ALWAYS prefer editing an existing file to creating a new one
 - NEVER proactively create documentation files (*.md) or README files unless explicitly requested
+
+## Core Reference Documents
+- **Constitution**: `.specify/memory/constitution.md` - Core principles and architectural standards
+- **Dependencies**: `.specify/memory/dependencies.md` - All package versions with justifications

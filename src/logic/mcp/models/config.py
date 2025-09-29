@@ -1,6 +1,7 @@
 """McpServerConfig model for MCP server configuration."""
 
-from pydantic import BaseModel, Field, validator
+from typing import Any
+from pydantic import BaseModel, Field, field_validator, model_validator
 from .server_type import McpServerType
 
 
@@ -19,37 +20,29 @@ class McpServerConfig(BaseModel):
     port: int = 0  # Will be set by validator if 0
     enabled: bool = Field(default=True)
 
-    @validator("host", always=True)
-    def set_default_host(cls, v: str, values: dict) -> str:
-        """Set default host based on server type if not specified."""
-        if not v and "server_type" in values:
-            return values["server_type"].default_host
-        return v
+    @model_validator(mode='after')
+    def set_defaults_and_validate(self) -> 'McpServerConfig':
+        """Set defaults and validate configuration."""
+        # Set default host if empty
+        if not self.host:
+            self.host = self.server_type.default_host
 
-    @validator("port", always=True)
-    def set_default_port(cls, v: int, values: dict) -> int:
-        """Set default port based on server type if not specified."""
-        if v == 0 and "server_type" in values:
-            return values["server_type"].default_port
-        return v
+        # Set default port if zero
+        if self.port == 0:
+            self.port = self.server_type.default_port
 
-    @validator("port")
-    def validate_port_range(cls, v: int) -> int:
-        """Validate port is in valid range."""
-        if v < 1024 or v > 65535:
-            raise ValueError(f"Port must be between 1024 and 65535, got {v}")
-        return v
+        # Validate port range
+        if self.port < 1024 or self.port > 65535:
+            raise ValueError(f"Port must be between 1024 and 65535, got {self.port}")
 
-    @validator("host")
-    def validate_admin_localhost(cls, v: str, values: dict) -> str:
-        """Validate that admin server is bound to localhost for security."""
+        # Validate admin server is localhost only
         if (
-            "server_type" in values
-            and values["server_type"] == McpServerType.ADMIN
-            and v not in ["127.0.0.1", "localhost"]
+            self.server_type == McpServerType.ADMIN
+            and self.host not in ["127.0.0.1", "localhost"]
         ):
             raise ValueError("Admin server must be bound to localhost (127.0.0.1) for security")
-        return v
+
+        return self
 
     @property
     def url(self) -> str:
