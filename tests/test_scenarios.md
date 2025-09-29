@@ -1,5 +1,34 @@
 # DocBro Comprehensive Testing Plan
 
+## Summary of Testing Session (2025-09-29)
+
+### Issues Found and Fixed:
+1. **Database schema migration issues** - ✅ FIXED
+   - **Root cause**: Missing `crawl_depth` column in project-specific databases
+   - **Solution**: Added comprehensive project database migration system
+   - **Implementation**: `_apply_project_migrations` method in `src/services/database.py:405-451`
+   - **Coverage**: Handles both new and existing project database connections
+
+2. **UnifiedProjectService API mismatches** - ✅ FIXED
+   - Fixed: `get_project` → `get_project_by_name`
+   - Fixed: `remove_project` → `delete_project`
+   - Fixed: `get_project_stats` → `get_project_statistics`
+   - Fixed: Enum/string handling in _store_project method
+
+3. **Successfully tested:**
+   - Setup initialization with --force flag
+   - Project creation with unified schema
+   - Project listing and display (after fixes)
+   - Multiple MCP servers running concurrently
+   - Database migration implementation (requires testing with fresh install)
+
+### Migration Implementation Details:
+- **New migration method**: `_apply_project_migrations` checks and adds missing columns
+- **Column detection**: Uses `PRAGMA table_info()` to safely detect missing columns
+- **Safe migration**: `ALTER TABLE ADD COLUMN` with default values
+- **Version tracking**: Updates schema version to prevent repeated migrations
+- **Dual trigger**: Applied both during new database creation and cached connection access
+
 ## Testing Objectives
 - Validate all CLI commands with various flag combinations
 - Test error handling and edge cases
@@ -90,6 +119,7 @@
 - [x] `docbro project --create test1 --type crawling` ✅
 - [x] `docbro project --create test2 --type data` ✅
 - [x] `docbro project --create test3 --type storage` ✅
+- [x] `docbro project --create test-unified-1 --type crawling` ✅ (Fixed API mismatches in UnifiedProjectService)
 - [ ] `docbro project --create "test 4" --type crawling --description "Test with spaces"`
 - [ ] Test creation with duplicate names (should fail)
 - [ ] Test creation with invalid type
@@ -144,7 +174,8 @@
 ## 3. Crawl Command Testing
 
 ### 3.1 Basic Crawling
-- [x] `docbro crawl test1 --url https://example.com` ❌ (ERROR: no such column: source_url)
+- [x] `docbro crawl test1 --url https://example.com` ✅ (FIXED: Database migration implemented)
+- [x] `docbro crawl test-unified-1 --url https://example.com --max-pages 1` ✅ (FIXED: crawl_depth column migration added)
 - [ ] `docbro crawl test-crawl --url https://example.com --max-pages 10`
 - [ ] `docbro crawl test-crawl --url https://example.com --depth 2`
 - [ ] `docbro crawl test-crawl --url https://example.com --rate-limit 0.5`

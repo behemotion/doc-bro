@@ -178,7 +178,10 @@ class DatabaseManager:
     async def _get_project_connection(self, project_name: str) -> aiosqlite.Connection:
         """Get or create database connection for a specific project."""
         if project_name in self._project_connections:
-            return self._project_connections[project_name]
+            # Apply migrations to existing connections that might not have been migrated
+            conn = self._project_connections[project_name]
+            await self._apply_project_migrations(conn, project_name)
+            return conn
 
         # Create project database path
         project_db_path = self._get_project_db_path(project_name)
@@ -272,6 +275,9 @@ class DatabaseManager:
 
         await conn.executescript(project_schema_sql)
         await conn.commit()
+
+        # Apply project-specific migrations
+        await self._apply_project_migrations(conn, project_name)
 
         # Cache the connection
         self._project_connections[project_name] = conn
@@ -398,6 +404,54 @@ class DatabaseManager:
             raise DatabaseError("Database not initialized. Call initialize() first.")
 
     # Project operations
+
+    async def _apply_project_migrations(self, conn: aiosqlite.Connection, project_name: str) -> None:
+        """Apply project-specific database migrations."""
+        try:
+            # Check project schema version
+            cursor = await conn.execute("SELECT version FROM schema_version ORDER BY version DESC LIMIT 1")
+            row = await cursor.fetchone()
+            current_version = row[0] if row else 1
+
+            # Migration to version 2: Ensure crawl_depth column exists
+            if current_version < 2:
+                self.logger.info(f"Applying project migration from version {current_version} to version 2: Add crawl_depth column", extra={"project_name": project_name})
+
+                # Check if crawl_depth column exists in crawl_sessions
+                cursor = await conn.execute("PRAGMA table_info(crawl_sessions)")
+                columns = await cursor.fetchall()
+                column_names = [col[1] for col in columns]
+
+                if 'crawl_depth' not in column_names:
+                    # Add the missing crawl_depth column
+                    await conn.execute("ALTER TABLE crawl_sessions ADD COLUMN crawl_depth INTEGER NOT NULL DEFAULT 2")
+                    self.logger.info("Added crawl_depth column to crawl_sessions table", extra={"project_name": project_name})
+
+                # Check if crawl_depth column exists in pages
+                cursor = await conn.execute("PRAGMA table_info(pages)")
+                columns = await cursor.fetchall()
+                column_names = [col[1] for col in columns]
+
+                if 'crawl_depth' not in column_names:
+                    # Add the missing crawl_depth column
+                    await conn.execute("ALTER TABLE pages ADD COLUMN crawl_depth INTEGER NOT NULL DEFAULT 1")
+                    self.logger.info("Added crawl_depth column to pages table", extra={"project_name": project_name})
+
+                # Update schema version
+                await conn.execute("INSERT OR REPLACE INTO schema_version (version) VALUES (2)")
+                await conn.commit()
+
+                self.logger.info("Project migration completed successfully", extra={
+                    "project_name": project_name,
+                    "from_version": current_version,
+                    "to_version": 2
+                })
+        except Exception as e:
+            self.logger.error("Project migration failed", extra={
+                "project_name": project_name,
+                "error": str(e)
+            })
+            raise
 
     async def create_project(
         self,
