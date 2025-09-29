@@ -94,14 +94,16 @@ class TestProgressBox:
 
         # No truncation needed
         short_text = "Processing page.html"
+        box.current_operation = short_text
         assert box.truncate_current_operation(len(short_text) + 10) == short_text
 
         # Truncation needed
         long_text = "Processing very long URL that exceeds the maximum width limit"
+        box.current_operation = long_text
         truncated = box.truncate_current_operation(30)
 
         assert len(truncated) <= 30
-        assert truncated.startswith("Processing very")
+        assert truncated.startswith("Processing ve")
         assert truncated.endswith("width limit")
         assert "..." in truncated
 

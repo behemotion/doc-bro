@@ -7,7 +7,7 @@ from typing import Dict, Any, Optional
 import tempfile
 from urllib.parse import urlparse
 
-from src.logic.projects.models.upload import UploadSource, SourceType
+from src.logic.projects.models.upload import UploadSource, UploadSourceType
 from src.logic.projects.upload.sources.local_source import LocalSource
 from src.logic.projects.upload.sources.ftp_source import FTPSource
 from src.logic.projects.upload.sources.sftp_source import SFTPSource
@@ -29,7 +29,7 @@ class TestUploadSourceParsing:
 
         for source_str, expected_type, expected_path in test_cases:
             source = UploadSource.parse(source_str)
-            assert source.type == SourceType(expected_type)
+            assert source.type == UploadSourceType(expected_type)
             assert source.location == expected_path
 
     def test_parse_ftp_url(self):
@@ -70,7 +70,7 @@ class TestUploadSourceParsing:
 
         for url, expected in test_cases:
             source = UploadSource.parse(url)
-            assert source.type == SourceType(expected["type"])
+            assert source.type == UploadSourceType(expected["type"])
 
             parsed = urlparse(source.location)
             assert parsed.hostname == expected["host"]
@@ -119,7 +119,7 @@ class TestUploadSourceParsing:
 
         for url, expected in test_cases:
             source = UploadSource.parse(url)
-            assert source.type == SourceType("sftp")
+            assert source.type == UploadSourceType("sftp")
 
             parsed = urlparse(source.location)
             assert parsed.hostname == expected["host"]
@@ -166,7 +166,7 @@ class TestUploadSourceParsing:
 
         for url, expected in test_cases:
             source = UploadSource.parse(url)
-            assert source.type == SourceType("smb")
+            assert source.type == UploadSourceType("smb")
 
             # Parse SMB-specific components
             if url.startswith("smb://"):
@@ -208,7 +208,7 @@ class TestUploadSourceParsing:
 
         for url, expected in test_cases:
             source = UploadSource.parse(url)
-            assert source.type == SourceType(expected["type"])
+            assert source.type == UploadSourceType(expected["type"])
 
             parsed = urlparse(source.location)
             assert parsed.hostname == expected["host"]
@@ -602,21 +602,21 @@ class TestHTTPSourceHandler:
             assert progress_updates[-1] == (total_size, total_size)
 
 
-class TestSourceTypeDetection:
+class TestUploadSourceTypeDetection:
     """Test automatic detection of source types."""
 
     def test_detect_source_type_from_string(self):
         """Test detecting source type from various input strings."""
         test_cases = [
-            ("/local/path/file.txt", SourceType.LOCAL),
-            ("./relative/path/", SourceType.LOCAL),
-            ("~/home/user/file", SourceType.LOCAL),
-            ("ftp://server.com/file", SourceType.FTP),
-            ("sftp://server.com/file", SourceType.SFTP),
-            ("smb://server/share/file", SourceType.SMB),
-            ("http://example.com/file", SourceType.HTTP),
-            ("https://example.com/file", SourceType.HTTPS),
-            ("\\\\server\\share\\file", SourceType.SMB),  # UNC path
+            ("/local/path/file.txt", UploadSourceType.LOCAL),
+            ("./relative/path/", UploadSourceType.LOCAL),
+            ("~/home/user/file", UploadSourceType.LOCAL),
+            ("ftp://server.com/file", UploadSourceType.FTP),
+            ("sftp://server.com/file", UploadSourceType.SFTP),
+            ("smb://server/share/file", UploadSourceType.SMB),
+            ("http://example.com/file", UploadSourceType.HTTP),
+            ("https://example.com/file", UploadSourceType.HTTPS),
+            ("\\\\server\\share\\file", UploadSourceType.SMB),  # UNC path
         ]
 
         for source_str, expected_type in test_cases:
@@ -635,8 +635,8 @@ class TestSourceTypeDetection:
 
         for source in ambiguous:
             # Should default to local or require explicit type
-            detected = UploadSource.detect_type(source, default=SourceType.LOCAL)
-            assert detected == SourceType.LOCAL
+            detected = UploadSource.detect_type(source, default=UploadSourceType.LOCAL)
+            assert detected == UploadSourceType.LOCAL
 
 
 if __name__ == "__main__":

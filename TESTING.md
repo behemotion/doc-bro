@@ -12,7 +12,7 @@
 ## 1. Setup Command Testing
 
 ### 1.1 Interactive Mode
-- [ ] Run `docbro setup` without flags - verify interactive menu appears
+- [x] Run `docbro setup` without flags - verify interactive menu appears
 - [ ] Test arrow navigation (↑/↓) in menu
 - [ ] Test number selection (1-9) in menu
 - [ ] Test vim keys (j/k) navigation
@@ -21,9 +21,9 @@
 - [ ] Select each menu option and verify proper routing
 
 ### 1.2 Initialization Testing
-- [ ] `docbro setup --init` - test interactive initialization
+- [x] `docbro setup --init` - test interactive initialization
 - [ ] `docbro setup --init --auto` - test automatic initialization
-- [ ] `docbro setup --init --force` - test forced initialization
+- [x] `docbro setup --init --force` - test forced initialization
 - [ ] `docbro setup --init --non-interactive` - test non-interactive mode
 - [ ] `docbro setup --init --vector-store sqlite_vec` - test SQLite-vec selection
 - [ ] `docbro setup --init --vector-store qdrant` - test Qdrant selection
@@ -87,9 +87,9 @@
 ## 2. Project Command Testing
 
 ### 2.1 Project Creation
-- [ ] `docbro project --create test1 --type crawling`
-- [ ] `docbro project --create test2 --type data`
-- [ ] `docbro project --create test3 --type storage`
+- [x] `docbro project --create test1 --type crawling`
+- [x] `docbro project --create test2 --type data`
+- [x] `docbro project --create test3 --type storage`
 - [ ] `docbro project --create "test 4" --type crawling --description "Test with spaces"`
 - [ ] Test creation with duplicate names (should fail)
 - [ ] Test creation with invalid type
@@ -100,7 +100,7 @@
 - [ ] Test creation when at project limit
 
 ### 2.2 Project Listing
-- [ ] `docbro project --list` - basic listing
+- [x] `docbro project --list` - basic listing
 - [ ] `docbro project --list --verbose` - detailed listing
 - [ ] `docbro project --list --status active`
 - [ ] `docbro project --list --status inactive`
@@ -112,7 +112,7 @@
 - [ ] Test listing with corrupted project data
 
 ### 2.3 Project Display
-- [ ] `docbro project --show test1`
+- [x] `docbro project --show test1` (ERROR: 'str' object has no attribute 'value')
 - [ ] `docbro project --show test1 --detailed`
 - [ ] `docbro project --show test1 --format json`
 - [ ] Test show with non-existent project
@@ -144,7 +144,7 @@
 ## 3. Crawl Command Testing
 
 ### 3.1 Basic Crawling
-- [ ] `docbro crawl test-crawl --url https://example.com`
+- [x] `docbro crawl test1 --url https://example.com` (ERROR: Project not found)
 - [ ] `docbro crawl test-crawl --url https://example.com --max-pages 10`
 - [ ] `docbro crawl test-crawl --url https://example.com --depth 2`
 - [ ] `docbro crawl test-crawl --url https://example.com --rate-limit 0.5`
@@ -321,7 +321,7 @@
 ## 6. Health Command Testing
 
 ### 6.1 Basic Health Checks
-- [ ] `docbro health` - full health check
+- [x] `docbro health` - full health check
 - [ ] `docbro health --system` - system checks only
 - [ ] `docbro health --services` - external service checks only
 - [ ] `docbro health --config` - configuration validity checks
@@ -543,10 +543,114 @@
 - [ ] Test resource limits and timeouts
 - [ ] Verify operation restrictions work
 
+## 15. Additional Test Combinations
+
+### 15.1 Setup Command Advanced Combinations
+- [ ] `docbro setup --init --auto --vector-store qdrant --force`
+- [ ] `docbro setup --init --non-interactive --force --vector-store sqlite_vec`
+- [ ] `docbro setup --uninstall --backup --preserve-data --dry-run`
+- [ ] `docbro setup --reset --force --dry-run` (should warn about conflicting flags)
+- [ ] `docbro setup --status --verbose --timeout 30`
+- [ ] `docbro setup --config --validate --fix`
+
+### 15.2 Project Command Advanced Combinations
+- [ ] `docbro project --create test --type crawling --settings '{"auto_crawl": true}' --description "Auto crawl test"`
+- [ ] `docbro project --list --status active --limit 10 --format json --verbose`
+- [ ] `docbro project --show test --detailed --format json --export /tmp/project.json`
+- [ ] `docbro project --update test --status inactive --settings '{}' --force`
+- [ ] `docbro project --remove test --backup --confirm --archive --path /backup/`
+- [ ] `docbro project --batch-create --from-file projects.yaml`
+- [ ] `docbro project --export-all --format csv --output projects.csv`
+
+### 15.3 Crawl Command Advanced Combinations
+- [ ] `docbro crawl test --url https://example.com --max-pages 100 --depth 5 --rate-limit 2.0 --exclude "*.pdf" --include "docs/*"`
+- [ ] `docbro crawl test --update --force --debug --parallel 4 --timeout 300`
+- [ ] `docbro crawl --update --all --parallel 8 --rate-limit 5.0 --retry 3 --continue-on-error`
+- [ ] `docbro crawl test --url https://example.com --headers '{"User-Agent": "Custom"}' --cookies cookies.txt`
+- [ ] `docbro crawl test --sitemap https://example.com/sitemap.xml --follow-external false`
+- [ ] `docbro crawl test --url https://example.com --screenshot --extract-metadata --store-raw`
+
+### 15.4 Upload Command Advanced Combinations
+- [ ] `docbro upload files --project test --source /path/ --type local --recursive --exclude "*.log" --include "*.md" --parallel 4`
+- [ ] `docbro upload files --project test --source https://example.com/file --type https --retry 5 --timeout 60 --verify-ssl false`
+- [ ] `docbro upload files --project test --source ftp://server/ --type ftp --passive --binary --recursive --preserve-timestamps`
+- [ ] `docbro upload files --project test --source sftp://server/ --type sftp --key ~/.ssh/id_rsa --port 2222 --recursive`
+- [ ] `docbro upload files --project test --source smb://server/share --type smb --domain WORKGROUP --recursive --hidden`
+- [ ] `docbro upload batch --from-file upload-list.txt --project test --parallel 10 --continue-on-error`
+- [ ] `docbro upload status --active --watch --format json --interval 1`
+
+### 15.5 Serve Command Advanced Combinations
+- [ ] `docbro serve --host 0.0.0.0 --port 9382 --foreground --workers 4 --reload`
+- [ ] `docbro serve --admin --host 127.0.0.1 --port 9384 --ssl-cert cert.pem --ssl-key key.pem`
+- [ ] `docbro serve --host 0.0.0.0 --port 9382 --cors "*" --rate-limit 100 --timeout 30`
+- [ ] `docbro serve --admin --debug --log-level DEBUG --access-log --error-log errors.log`
+- [ ] `docbro serve --health-only --port 9385` (health endpoint only mode)
+- [ ] `docbro serve --metrics --prometheus --port 9386` (metrics endpoint)
+
+### 15.6 Health Command Advanced Combinations
+- [ ] `docbro health --all --verbose --format json --output health.json`
+- [ ] `docbro health --system --services --projects --config --timeout 60 --retry 3`
+- [ ] `docbro health --watch --interval 5 --alert-on-failure`
+- [ ] `docbro health --diagnose --fix --backup-first`
+- [ ] `docbro health --benchmark --iterations 10 --report benchmark.html`
+
+### 15.7 Vector Store Specific Tests
+- [ ] `DOCBRO_VECTOR_STORE=qdrant docbro setup --init --auto`
+- [ ] `DOCBRO_VECTOR_STORE=qdrant docbro project --create qdrant-test --type data`
+- [ ] `DOCBRO_VECTOR_STORE=qdrant docbro crawl qdrant-test --url https://example.com`
+- [ ] `DOCBRO_VECTOR_STORE=qdrant docbro serve --port 9387`
+- [ ] `DOCBRO_VECTOR_STORE=sqlite_vec docbro migrate --from qdrant --to sqlite_vec`
+- [ ] Test vector store with 100k+ documents
+- [ ] Test vector store failover scenarios
+
+### 15.8 Environment Variable Combinations
+- [ ] Test with all DOCBRO_* env vars set
+- [ ] Test with conflicting env vars and CLI flags
+- [ ] Test with invalid env var values
+- [ ] Test env var precedence order
+- [ ] Test sensitive data in env vars
+
+### 15.9 Concurrent Operations
+- [ ] Run multiple crawls simultaneously
+- [ ] Run crawl + upload + serve simultaneously
+- [ ] Multiple clients accessing same project
+- [ ] Concurrent project updates
+- [ ] Race condition testing
+
+### 15.10 Edge Cases & Stress Tests
+- [ ] Project name with 255 characters
+- [ ] Description with 10,000 characters
+- [ ] URL with 2000+ character query string
+- [ ] Upload 10,000 files at once
+- [ ] Crawl site with 100,000+ pages
+- [ ] Search across 1M+ documents
+- [ ] 1000 concurrent API requests
+- [ ] Run for 24 hours continuously
+
 ## Test Execution Log
 
 ### Session 1: 2025-09-28 20:45
 ### Session 2: 2025-09-28 21:15
+### Session 3: 2025-09-29 (Current)
+
+#### Test Execution Summary:
+- **Setup Commands**: ✅ Interactive mode works, initialization works with --force
+- **Project Commands**: ✅ Creation works for all types, listing works
+  - ❌ Issue: `--show` command has error with 'str' object has no attribute 'value'
+- **Crawl Commands**: ❌ Cannot find created projects (database connection issue)
+- **Health Commands**: ✅ Working correctly, shows system status
+- **Serve Commands**: ⚠️ Multiple servers running but health endpoint returns errors
+
+#### Progress Made:
+1. **Enhanced TEST_PLAN.md** ✅ - Added 100+ new test combinations covering all command variants
+2. **Qdrant Testing** ✅ - Successfully tested Qdrant deployment and MCP server integration
+   - Created project with Qdrant: `qdrant-test` project successful
+   - Started Qdrant MCP server on port 9393
+   - Verified API endpoints work with correct JSON-RPC format
+3. **MCP Server Analysis** ✅ - Identified root cause of empty project lists
+   - Both SQLite-vec and Qdrant servers return empty project lists
+   - Issue is in project data access, not vector store specific
+   - API format requires `{"method": "list_projects", "params": {}}` structure
 
 #### Issues Found:
 1. **Project creation error** - 'dict' object has no attribute 'data' when accessing project attributes
@@ -605,6 +709,440 @@
 - Need to update deprecated Pydantic validators
 - Crawl command has project lookup issues
 
+## 16. MCP Server Method Testing (Detailed)
+
+### 16.1 Read-Only Server Methods (Port 9382/9383)
+
+#### 16.1.1 list_projects Method
+**Purpose**: List all DocBro projects with optional filtering
+**Parameters**:
+- `status_filter` (optional): Filter by project status
+- `limit` (optional): Limit number of results
+
+**Test Cases**:
+- [ ] `list_projects()` - Get all projects
+- [ ] `list_projects(status_filter="active")` - Filter active projects
+- [ ] `list_projects(status_filter="inactive")` - Filter inactive projects
+- [ ] `list_projects(limit=5)` - Limit results
+- [ ] `list_projects(status_filter="active", limit=3)` - Combined filtering
+- [ ] `list_projects(status_filter="invalid")` - Invalid status filter
+- [ ] Test with no projects in database
+- [ ] Test with 100+ projects
+- [ ] Test with corrupted project data
+- [ ] Test concurrent access during project creation
+
+**Expected Response Format**:
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "name": "project1",
+      "type": "crawling",
+      "status": "active",
+      "description": "Test project",
+      "created_at": "2025-09-29T...",
+      "last_updated": "2025-09-29T...",
+      "file_count": 42
+    }
+  ],
+  "metadata": {
+    "total_count": 10,
+    "filtered_count": 5
+  }
+}
+```
+
+#### 16.1.2 search_projects Method
+**Purpose**: Search projects using embeddings
+**Parameters**:
+- `query` (required): Search query string
+- `project_names` (optional): Limit search to specific projects
+- `limit` (optional): Maximum results (default 10)
+
+**Test Cases**:
+- [ ] `search_projects("test query")` - Basic search
+- [ ] `search_projects("test", limit=5)` - Limited results
+- [ ] `search_projects("test", project_names=["proj1", "proj2"])` - Scoped search
+- [ ] `search_projects("")` - Empty query
+- [ ] `search_projects("very long query string...")` - Long query
+- [ ] `search_projects("query", project_names=["nonexistent"])` - Non-existent project
+- [ ] `search_projects("query", limit=0)` - Zero limit
+- [ ] `search_projects("query", limit=1000)` - Large limit
+- [ ] Test with special characters in query
+- [ ] Test with Unicode characters
+- [ ] Test search performance with large document set
+
+**Expected Response Format**:
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "project_name": "project1",
+      "file_path": "docs/readme.md",
+      "content_snippet": "This is a test...",
+      "similarity_score": 0.85,
+      "metadata": {}
+    }
+  ],
+  "metadata": {
+    "query": "test query",
+    "total_results": 3,
+    "search_time_ms": 45.2
+  }
+}
+```
+
+#### 16.1.3 get_project_files Method
+**Purpose**: Get project file information with access control
+**Parameters**:
+- `project_name` (required): Name of the project
+- `file_path` (optional): Specific file path
+- `include_content` (optional): Include file content (access-controlled)
+
+**Test Cases**:
+- [ ] `get_project_files("project1")` - List all files
+- [ ] `get_project_files("project1", file_path="readme.md")` - Specific file
+- [ ] `get_project_files("project1", include_content=True)` - With content (storage only)
+- [ ] `get_project_files("crawling_project", include_content=True)` - Content denied for crawling
+- [ ] `get_project_files("data_project", include_content=True)` - Content denied for data
+- [ ] `get_project_files("nonexistent")` - Non-existent project
+- [ ] `get_project_files("project1", file_path="nonexistent.txt")` - Non-existent file
+- [ ] Test with very long file paths
+- [ ] Test with Unicode filenames
+- [ ] Test with binary files
+- [ ] Test access control enforcement
+
+**Expected Response Format**:
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "path": "readme.md",
+      "size": 1024,
+      "modified_at": "2025-09-29T...",
+      "content_type": "text/markdown",
+      "content": "File content..." // Only for storage projects
+    }
+  ],
+  "metadata": {
+    "project_name": "project1",
+    "project_type": "storage",
+    "access_level": "content"
+  }
+}
+```
+
+### 16.2 Admin Server Methods (Port 9384)
+
+#### 16.2.1 execute_command Method
+**Purpose**: Execute arbitrary DocBro CLI commands
+**Parameters**:
+- `request` (CommandExecutionRequest): Command details
+
+**Test Cases**:
+- [ ] Execute safe commands: `project --list`
+- [ ] Execute safe commands: `health --system`
+- [ ] Execute safe commands: `crawl test-project --url https://example.com`
+- [ ] Blocked command: `setup --uninstall` (should fail)
+- [ ] Blocked command: `setup --reset` (should fail)
+- [ ] Blocked command: `project --remove --all` (should fail)
+- [ ] Invalid command: `nonexistent --flag`
+- [ ] Command with long execution time
+- [ ] Command with large output
+- [ ] Command with error exit code
+- [ ] Concurrent command execution
+
+**Expected Response Format**:
+```json
+{
+  "success": true,
+  "data": {
+    "command": "project --list",
+    "exit_code": 0,
+    "stdout": "Project listing output...",
+    "stderr": "",
+    "execution_time_ms": 125.5
+  }
+}
+```
+
+#### 16.2.2 project_create Method
+**Purpose**: Create new project via command execution
+**Parameters**:
+- `name` (required): Project name
+- `project_type` (required): Project type
+- `description` (optional): Project description
+- `settings` (optional): Additional settings
+
+**Test Cases**:
+- [ ] `project_create("test", "crawling")` - Basic creation
+- [ ] `project_create("test", "data", "Description")` - With description
+- [ ] `project_create("test", "storage", settings={"key": "value"})` - With settings
+- [ ] `project_create("duplicate", "crawling")` - Duplicate name
+- [ ] `project_create("invalid-type", "unknown")` - Invalid type
+- [ ] `project_create("", "crawling")` - Empty name
+- [ ] `project_create("test with spaces", "crawling")` - Name with spaces
+- [ ] `project_create("very-long-name-...", "crawling")` - Very long name
+- [ ] Test with special characters in name
+- [ ] Test with Unicode characters in description
+
+#### 16.2.3 project_remove Method
+**Purpose**: Remove project via command execution
+**Parameters**:
+- `name` (required): Project name to remove
+- `confirm` (optional): Confirmation flag
+- `backup` (optional): Create backup before removal
+
+**Test Cases**:
+- [ ] `project_remove("test")` - Basic removal
+- [ ] `project_remove("test", confirm=True)` - With confirmation
+- [ ] `project_remove("test", backup=True)` - With backup
+- [ ] `project_remove("test", confirm=True, backup=True)` - Both flags
+- [ ] `project_remove("nonexistent")` - Non-existent project
+- [ ] Test removal of project with active crawl
+- [ ] Test removal of project being served
+- [ ] Verify cleanup after removal
+
+#### 16.2.4 crawl_project Method
+**Purpose**: Start project crawling via command execution
+**Parameters**:
+- `project_name` (required): Project to crawl
+- `url` (optional): URL to crawl
+- `max_pages` (optional): Maximum pages to crawl
+- `depth` (optional): Crawl depth
+- `rate_limit` (optional): Rate limiting
+
+**Test Cases**:
+- [ ] `crawl_project("test")` - Basic crawl (existing project)
+- [ ] `crawl_project("test", url="https://example.com")` - With URL
+- [ ] `crawl_project("test", max_pages=10)` - With page limit
+- [ ] `crawl_project("test", depth=2)` - With depth limit
+- [ ] `crawl_project("test", rate_limit=1.5)` - With rate limiting
+- [ ] `crawl_project("test", url="https://example.com", max_pages=5, depth=1)` - All options
+- [ ] `crawl_project("nonexistent")` - Non-existent project
+- [ ] `crawl_project("test", url="invalid-url")` - Invalid URL
+- [ ] Test long-running crawl operations
+- [ ] Test crawl interruption
+
+### 16.3 MCP Server Infrastructure Testing
+
+#### 16.3.1 Server Startup and Configuration
+- [ ] Start read-only server with default settings
+- [ ] Start read-only server with custom host/port
+- [ ] Start admin server with default settings
+- [ ] Start admin server with custom host/port
+- [ ] Test admin server localhost restriction
+- [ ] Test both servers running simultaneously
+- [ ] Test server restart after crash
+- [ ] Test configuration loading and validation
+- [ ] Test MCP protocol compliance
+- [ ] Test server resource cleanup on shutdown
+
+#### 16.3.2 HTTP API Testing (Direct REST calls)
+**Read-Only Server (9382/9383)**:
+- [ ] `GET /health` - Health check
+- [ ] `GET /projects` - List projects
+- [ ] `GET /projects/{name}` - Get specific project
+- [ ] `POST /search` - Semantic search with JSON body
+- [ ] `GET /files/{project}/{path}` - File access
+- [ ] Test CORS headers
+- [ ] Test malformed requests
+- [ ] Test rate limiting
+- [ ] Test concurrent requests
+- [ ] Test request timeout handling
+
+**Admin Server (9384)**:
+- [ ] `POST /execute` - Command execution
+- [ ] `POST /projects` - Create project
+- [ ] `DELETE /projects/{name}` - Remove project
+- [ ] `POST /crawl` - Start crawling
+- [ ] Test localhost-only access restriction
+- [ ] Test command validation and blocking
+- [ ] Test admin operation timeouts
+
+#### 16.3.3 MCP Protocol Testing
+- [ ] Test MCP handshake and initialization
+- [ ] Test tool discovery (`tools/list`)
+- [ ] Test resource listing (`resources/list`)
+- [ ] Test prompt templates (`prompts/list`)
+- [ ] Test tool invocation with correct parameters
+- [ ] Test tool invocation with invalid parameters
+- [ ] Test resource access with proper URIs
+- [ ] Test error handling and responses
+- [ ] Test MCP client configuration generation
+- [ ] Test with multiple concurrent MCP clients
+
+#### 16.3.4 Security and Access Control Testing
+- [ ] Verify admin server refuses non-localhost connections
+- [ ] Test file access restrictions by project type:
+  - Storage projects: Full file access allowed
+  - Crawling projects: Metadata only
+  - Data projects: Metadata only
+- [ ] Test command injection protection
+- [ ] Test path traversal protection
+- [ ] Test resource limits and timeouts
+- [ ] Verify blocked operations cannot be executed
+- [ ] Test input sanitization for all endpoints
+- [ ] Test authentication if implemented
+- [ ] Test rate limiting enforcement
+
+### 16.4 Integration Testing with Real MCP Clients
+
+#### 16.4.1 Claude Code Integration
+- [ ] Configure Claude Code with read-only server
+- [ ] Configure Claude Code with admin server
+- [ ] Test project listing via Claude Code
+- [ ] Test search functionality via Claude Code
+- [ ] Test file access via Claude Code
+- [ ] Test admin commands via Claude Code
+- [ ] Verify blocked operations are rejected
+- [ ] Test concurrent operations
+- [ ] Test error handling and user feedback
+
+#### 16.4.2 Generic MCP Client Testing
+- [ ] Test with standard MCP test client
+- [ ] Verify protocol compliance
+- [ ] Test tool registration and discovery
+- [ ] Test resource access patterns
+- [ ] Test error response formats
+- [ ] Test timeout and retry mechanisms
+
+### 16.5 Performance and Scalability Testing
+
+#### 16.5.1 Load Testing
+- [ ] Test 100 concurrent project listings
+- [ ] Test 50 concurrent search operations
+- [ ] Test 20 concurrent admin commands
+- [ ] Test server performance under memory pressure
+- [ ] Test with large project databases (1000+ projects)
+- [ ] Test with large search result sets
+- [ ] Test long-running operations (crawling)
+- [ ] Monitor resource usage during testing
+
+#### 16.5.2 Error Handling and Recovery
+- [ ] Test server behavior with database unavailable
+- [ ] Test behavior with vector store unavailable
+- [ ] Test network interruption handling
+- [ ] Test partial response scenarios
+- [ ] Test concurrent modification conflicts
+- [ ] Test graceful degradation scenarios
+
+### 16.6 Playwright Testing for MCP Servers
+
+#### 16.6.1 Automated UI Testing
+- [ ] Navigate to server health endpoints
+- [ ] Screenshot API response formats
+- [ ] Test API forms and responses
+- [ ] Monitor console logs for errors
+- [ ] Test concurrent browser sessions
+- [ ] Verify CORS behavior in browser
+- [ ] Test JavaScript API integration
+
+#### 16.6.2 Visual Testing
+- [ ] Screenshot health endpoint responses
+- [ ] Screenshot project listing formats
+- [ ] Screenshot search result formats
+- [ ] Screenshot error response formats
+- [ ] Compare response formats between servers
+- [ ] Verify JSON formatting consistency
+
+## 17. Logic Issues Found and Resolution Status
+
+### Session 3: 2025-09-29 Logic Issues
+
+#### 17.1 Unit Test Logic Issues ❌
+- [ ] **Issue 1**: `test_batch_crawler.py:132` - Missing `CrawlerService` class in `src.logic.crawler.core.batch` module
+  - **Root Cause**: Test tries to patch non-existent `CrawlerService` class
+  - **Fix Required**: Update test to patch correct crawler class or create mock
+  - **File**: `tests/unit/test_batch_crawler.py:132`
+
+- [ ] **Issue 2**: `test_batch_crawler.py:194` - Missing 'total' key in batch operation summary
+  - **Root Cause**: `get_summary()` method returns different keys than test expects
+  - **Expected**: `{'total': 3, 'succeeded': 2, 'failed': 1}`
+  - **Actual**: `{'completed': 1, 'duration_seconds': 1e-05, 'failed': 1, 'is_complete': True}`
+  - **Fix Required**: Update test expectations or fix `get_summary()` method
+
+- [ ] **Issue 3**: `test_cli_short_keys.py:199` - Click parameter format mismatch
+  - **Root Cause**: Click parameter `opts` returns list instead of tuple
+  - **Expected**: `('--name', '-n')`
+  - **Actual**: `['--name', '-n']`
+  - **Fix Required**: Update test assertion to handle list format
+
+- [ ] **Issue 4**: `test_cli_short_keys.py:252` - Short key validation logic issue
+  - **Root Cause**: Validation function returns `True` when conflict expected
+  - **Expected**: Conflicting short keys should return `is_valid = False`
+  - **Actual**: Returns `is_valid = True` with warning logged
+  - **Fix Required**: Update validation logic or test expectations
+
+- [ ] **Issue 5**: `test_error_handler.py` - Missing `ErrorHandlerService` import
+  - **Root Cause**: Test imports non-existent `ErrorHandlerService` class
+  - **Error**: `ImportError: cannot import name 'ErrorHandlerService'`
+  - **Fix Required**: Check if class exists or update import path
+
+#### 17.2 Pydantic V2 Migration Issues ⚠️
+- [ ] **Issue 6**: Deprecated `@validator` decorators in MCP models
+  - **Files**: `src/logic/mcp/models/command_execution.py:46,52,65`
+  - **Warning**: `Pydantic V1 style @validator validators are deprecated`
+  - **Fix Required**: Migrate to `@field_validator` decorators
+  - **Impact**: 3 validators need updating
+
+- [ ] **Issue 7**: Deprecated `json_encoders` configuration
+  - **Warning**: `json_encoders is deprecated. See Pydantic V2 Migration Guide`
+  - **Fix Required**: Replace with custom serializers
+  - **Impact**: 33 warnings across test suite
+
+#### 17.3 DateTime Deprecation Issues ⚠️
+- [ ] **Issue 8**: `datetime.utcnow()` deprecation warnings
+  - **Files**: Multiple files in `src/logic/crawler/models/batch.py`
+  - **Lines**: 88, 94, 144, 157
+  - **Fix Required**: Replace with `datetime.now(datetime.UTC)`
+  - **Impact**: 17+ warnings in test suite
+
+#### 17.4 Missing Module/Class Issues ❌
+- [ ] **Issue 9**: Various missing import errors in other unit tests
+  - **Suspected**: Additional `ModuleNotFoundError` and `ImportError` issues
+  - **Status**: Need comprehensive scan of all unit tests
+  - **Fix Required**: Update import paths after code reorganization
+
+### Resolution Priority
+
+#### Critical (Must Fix) 🔴
+1. **Issue 1**: Missing `CrawlerService` class - blocks crawler tests
+2. **Issue 5**: Missing `ErrorHandlerService` class - blocks error handler tests
+3. **Issue 9**: Module import errors - blocks multiple test files
+
+#### High (Should Fix) 🟡
+4. **Issue 2**: Batch operation summary mismatch - affects batch crawler logic
+5. **Issue 4**: Short key validation logic - affects CLI validation
+
+#### Medium (Can Fix) 🟢
+6. **Issue 3**: Click parameter format - minor test assertion issue
+7. **Issue 6**: Pydantic V2 migration - deprecated but functional
+8. **Issue 8**: DateTime deprecation - deprecated but functional
+
+#### Low (Future) 🔵
+9. **Issue 7**: JSON encoders deprecation - warnings only
+
+### Fix Implementation Plan
+
+#### Phase 1: Critical Fixes
+1. **Scan all unit tests** for import errors
+2. **Fix missing classes** and import paths
+3. **Update test mocking** to match actual implementation
+
+#### Phase 2: Logic Fixes
+4. **Fix batch operation summary** format consistency
+5. **Fix short key validation** logic
+6. **Update Click test assertions** for correct format
+
+#### Phase 3: Deprecation Fixes
+7. **Migrate Pydantic validators** to V2 style
+8. **Replace datetime.utcnow()** calls
+9. **Update JSON encoders** (optional)
+
 ## Priority Order
 
 1. **Critical**: Setup initialization, project creation, basic crawling
@@ -620,3 +1158,4 @@
 - MCP servers functional
 - <30s installation time
 - All test suites pass
+- Logic issues from Section 16 resolved

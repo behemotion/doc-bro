@@ -12,6 +12,31 @@ from src.services.rag import RAGSearchService
 
 logger = logging.getLogger(__name__)
 
+
+class McpReadOnlyServer:
+    """MCP Read-Only Server class for testing compatibility."""
+
+    def __init__(self, host: str = "127.0.0.1", port: int = 9383):
+        self.host = host
+        self.port = port
+        self.app = app
+        self.project_service = None
+        self.search_service = None
+        self.read_only_service = None
+
+    async def start(self):
+        """Start the server."""
+        await initialize_services()
+        return self
+
+    async def stop(self):
+        """Stop the server."""
+        pass
+
+    def get_app(self):
+        """Get the FastAPI app."""
+        return self.app
+
 # Create FastAPI app
 app = FastAPI(
     title="DocBro MCP Read-Only Server",

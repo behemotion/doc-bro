@@ -9,15 +9,12 @@ from unittest.mock import Mock, patch, AsyncMock
 from datetime import datetime
 
 from src.cli.utils.error_handler import (
-    ErrorHandlerService,
-    ErrorCategory,
-    ErrorSeverity,
-    RecoveryAction,
-    ErrorContext,
-    InstallationSnapshot,
-    SystemRequirementsError,
-    NetworkConnectivityError,
-    PermissionDeniedError,
+    CLIErrorHandler,
+    CLI_ERROR_MESSAGES,
+    ERROR_SUGGESTIONS,
+    show_error,
+    show_warning,
+    show_success,
     ServiceUnavailableError,
     ConfigurationError,
     DiskSpaceError,

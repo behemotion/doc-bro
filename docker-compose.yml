@@ -7,7 +7,7 @@ networks:
 
 services:
   docbro-memory-qdrant:
-    image: qdrant/qdrant:v1.15.1
+    image: qdrant/qdrant:v1.15.4
     container_name: docbro-memory-qdrant
     networks:
       - docbro

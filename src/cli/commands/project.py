@@ -724,8 +724,11 @@ async def _show_project_impl(name: str, detailed: bool):
 
         # Basic information
         console.print(f"\n[bold cyan]Project: {project.name}[/bold cyan]")
-        console.print(f"Type: {project.type.value}")
-        console.print(f"Status: {project.status.value}")
+        # Handle both enum and string types
+        type_value = project.type.value if hasattr(project.type, 'value') else str(project.type)
+        status_value = project.status.value if hasattr(project.status, 'value') else str(project.status)
+        console.print(f"Type: {type_value}")
+        console.print(f"Status: {status_value}")
         console.print(f"Created: {project.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
         console.print(f"Updated: {project.updated_at.strftime('%Y-%m-%d %H:%M:%S')}")
 
