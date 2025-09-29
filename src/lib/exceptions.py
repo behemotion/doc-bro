@@ -280,7 +280,7 @@ def handle_schema_compatibility(compatibility_result: Any, project_id: str, proj
                 current_version=compatibility_result.current_version,
                 project_version=compatibility_result.project_version,
                 recreation_reason="Schema version incompatibility",
-                suggested_action=f"Use 'docbro project --recreate {project_name}' to upgrade the project"
+                suggested_action=f"Recreate using the new Shelf-Box system: Create a new shelf and box, then refill with content"
             )
         elif compatibility_result.migration_required:
             raise MigrationRequiredError(
@@ -313,7 +313,7 @@ def handle_project_access(
                 project_name=project_name,
                 requested_operation=operation,
                 compatibility_status=compatibility_status,
-                suggested_action=f"Use 'docbro project --recreate {project_name}' to upgrade the project"
+                suggested_action=f"Recreate using the new Shelf-Box system: Create a new shelf and box, then refill with content"
             )
     elif compatibility_status == "migrating":
         raise ProjectAccessDeniedError(
@@ -341,21 +341,22 @@ Schema Version Information:
   Current Schema: v{current_version}
   Project Schema: v{project_version}
 
-To upgrade this project to the unified schema:
+To upgrade to the new Shelf-Box system:
 
 1. BACKUP (Recommended):
-   docbro project --export {project_name} > {project_name}-backup.json
+   Export any important data before proceeding
 
-2. RECREATE the project:
-   docbro project --recreate {project_name} --confirm
+2. RECREATE using Shelf-Box system:
+   docbro shelf create 'my-shelf'
+   docbro box create '{project_name}' --type drag  # or rag/bag as appropriate
 
-3. VERIFY the recreation was successful:
-   docbro project --show {project_name} --detailed
+3. REFILL with content:
+   docbro fill '{project_name}' --source <your-source-url-or-path>
 
-Note: Recreation will preserve your settings and metadata but will reset
-statistics and require re-crawling any documentation if this is a crawling project.
+Note: This will create a new documentation structure using the modern
+Shelf-Box system. You may need to reconfigure your content sources.
 
-For help: docbro project --help"""
+For help: docbro --help"""
 
     elif isinstance(error, MigrationRequiredError):
         project_name = error.details.get("project_name", "the project")
@@ -376,7 +377,7 @@ To migrate this project:
    docbro migrate --all
 
 3. Check migration status:
-   docbro project --show {project_name} --detailed"""
+   docbro box list  # to verify new system is working"""
         else:
             return f"""{base_message}
 
@@ -385,13 +386,14 @@ Schema Version: v{from_version} → v{to_version}
 Automatic migration is not available. Manual recreation required:
 
 1. BACKUP project settings:
-   docbro project --export {project_name} > {project_name}-backup.json
+   Export any important data before proceeding
 
-2. RECREATE the project:
-   docbro project --recreate {project_name} --confirm
+2. RECREATE using Shelf-Box system:
+   docbro shelf create 'my-shelf'
+   docbro box create '{project_name}' --type drag  # or rag/bag as appropriate
 
-3. VERIFY the recreation:
-   docbro project --show {project_name}"""
+3. REFILL with content:
+   docbro fill '{project_name}' --source <your-source-url-or-path>"""
 
     elif isinstance(error, ProjectAccessDeniedError):
         project_name = error.details.get("project_name", "the project")
@@ -405,16 +407,18 @@ Automatic migration is not available. Manual recreation required:
 Project Status: {compatibility_status.upper()}
 Blocked Operation: {operation}
 
-To enable {operation} operations on this project:
+To enable {operation} operations using the new Shelf-Box system:
 
-1. CHECK compatibility details:
-   docbro project --check-compatibility {project_name}
+1. CHECK current system status:
+   docbro health --detailed
 
-2. EXPORT current settings (recommended):
-   docbro project --export {project_name} > {project_name}-backup.json
+2. BACKUP current data (recommended):
+   Export any important data before proceeding
 
-3. RECREATE the project:
-   docbro project --recreate {project_name} --confirm
+3. RECREATE using Shelf-Box system:
+   docbro shelf create 'my-shelf'
+   docbro box create '{project_name}' --type drag  # or rag/bag as appropriate
+   docbro fill '{project_name}' --source <your-source-url-or-path>
 
 After recreation, you can resume {operation} operations."""
 
@@ -456,17 +460,19 @@ Schema Analysis:
 
 To resolve these compatibility issues:
 
-1. GET detailed compatibility report:
-   docbro project --check-compatibility {project_name}
+1. GET detailed system status:
+   docbro health --detailed
 
-2. BACKUP your project:
-   docbro project --export {project_name} > {project_name}-backup.json
+2. BACKUP your data:
+   Export any important data before proceeding
 
-3. RECREATE with unified schema:
-   docbro project --recreate {project_name} --confirm
+3. RECREATE using Shelf-Box system:
+   docbro shelf create 'my-shelf'
+   docbro box create '{project_name}' --type drag  # or rag/bag as appropriate
+   docbro fill '{project_name}' --source <your-source-url-or-path>
 
-4. RESTORE settings if needed:
-   # Review {project_name}-backup.json and manually configure if needed"""
+4. VERIFY new system is working:
+   docbro box list"""
 
         return message
 

@@ -8,12 +8,9 @@ from typing import Any, Optional
 
 import aiosqlite
 
-from ..models.compatibility_status import CompatibilityStatus
-from ..models.migration_record import ProjectMigrationRecord, MigrationOperation
 from ..models.schema_version import SchemaVersion
 from ..models.unified_project import UnifiedProject, UnifiedProjectStatus
 from ..logic.projects.models.project import ProjectType
-from .compatibility_checker import CompatibilityChecker, CompatibilityResult
 from .project_export_service import ProjectExportService
 
 
@@ -29,10 +26,6 @@ class ProjectAlreadyExistsError(Exception):
     """Raised when trying to create a project that already exists."""
     pass
 
-
-class IncompatibleProjectError(Exception):
-    """Raised when trying to modify an incompatible project."""
-    pass
 
 
 class UnifiedProjectService:
@@ -58,7 +51,6 @@ class UnifiedProjectService:
             self.db_path = db_path
 
         # Services
-        self.compatibility_checker = CompatibilityChecker()
         self.export_service = ProjectExportService()
 
         # Database connection
@@ -101,7 +93,6 @@ class UnifiedProjectService:
                 schema_version INTEGER NOT NULL DEFAULT 3,
                 type TEXT,
                 status TEXT NOT NULL,
-                compatibility_status TEXT NOT NULL DEFAULT 'compatible',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 last_crawl_at TEXT,
@@ -138,7 +129,6 @@ class UnifiedProjectService:
             "CREATE INDEX IF NOT EXISTS idx_projects_name ON projects(name)",
             "CREATE INDEX IF NOT EXISTS idx_projects_type ON projects(type)",
             "CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status)",
-            "CREATE INDEX IF NOT EXISTS idx_projects_compatibility ON projects(compatibility_status)",
             "CREATE INDEX IF NOT EXISTS idx_projects_schema_version ON projects(schema_version)",
             "CREATE INDEX IF NOT EXISTS idx_migrations_project_id ON project_migrations(project_id)",
             "CREATE INDEX IF NOT EXISTS idx_migrations_operation ON project_migrations(operation)"
@@ -246,7 +236,6 @@ class UnifiedProjectService:
         self,
         status_filter: Optional[UnifiedProjectStatus] = None,
         type_filter: Optional[ProjectType] = None,
-        compatibility_filter: Optional[CompatibilityStatus] = None,
         limit: Optional[int] = None
     ) -> list[UnifiedProject]:
         """
@@ -272,9 +261,6 @@ class UnifiedProjectService:
             query += " AND type = ?"
             params.append(type_filter.value)
 
-        if compatibility_filter:
-            query += " AND compatibility_status = ?"
-            params.append(compatibility_filter.value)
 
         query += " ORDER BY updated_at DESC"
 
@@ -316,19 +302,13 @@ class UnifiedProjectService:
 
         Raises:
             ProjectNotFoundError: If project not found
-            IncompatibleProjectError: If project is incompatible and force=False
         """
         # Get existing project
         project = await self.get_project_by_id(project_id)
         if not project:
             raise ProjectNotFoundError(f"Project with ID '{project_id}' not found")
 
-        # Check compatibility unless forced
-        if not force and not project.allows_modification():
-            raise IncompatibleProjectError(
-                f"Project '{project.name}' is incompatible with current schema. "
-                f"Use force=True or recreate the project."
-            )
+        # No compatibility checks needed anymore
 
         # Update fields
         if settings:
@@ -378,118 +358,6 @@ class UnifiedProjectService:
 
         return deleted
 
-    async def check_project_compatibility(self, project_id: str) -> CompatibilityResult:
-        """
-        Check compatibility of a specific project.
-
-        Args:
-            project_id: Project ID to check
-
-        Returns:
-            CompatibilityResult with detailed analysis
-
-        Raises:
-            ProjectNotFoundError: If project not found
-        """
-        project = await self.get_project_by_id(project_id)
-        if not project:
-            raise ProjectNotFoundError(f"Project with ID '{project_id}' not found")
-
-        return await self.compatibility_checker.check_project_compatibility(project)
-
-    async def recreate_project(
-        self,
-        project_id: str,
-        preserve_data: bool = False,
-        initiated_by_command: str = "docbro project --recreate"
-    ) -> tuple[UnifiedProject, ProjectMigrationRecord]:
-        """
-        Recreate incompatible project with unified schema.
-
-        Args:
-            project_id: Project ID to recreate
-            preserve_data: Whether to preserve crawled data (not implemented yet)
-            initiated_by_command: Command that initiated recreation
-
-        Returns:
-            Tuple of (recreated_project, migration_record)
-
-        Raises:
-            ProjectNotFoundError: If project not found
-        """
-        # Get existing project
-        old_project = await self.get_project_by_id(project_id)
-        if not old_project:
-            raise ProjectNotFoundError(f"Project with ID '{project_id}' not found")
-
-        # Create migration record
-        migration_record = ProjectMigrationRecord.create_recreation_record(
-            project_id=old_project.id,
-            project_name=old_project.name,
-            from_version=old_project.schema_version,
-            to_version=SchemaVersion.CURRENT_VERSION,
-            preserved_settings=old_project.settings.copy(),
-            preserved_metadata=old_project.metadata.copy(),
-            initiated_by_command=initiated_by_command
-        )
-
-        try:
-            # Export project for backup
-            export = await self.export_service.export_project(old_project)
-
-            # Create new project with unified schema
-            new_project = UnifiedProject(
-                id=old_project.id,  # Keep same ID
-                name=old_project.name,  # Keep same name
-                type=old_project.type,
-                status=UnifiedProjectStatus.ACTIVE,
-                settings=old_project.settings.copy(),
-                metadata=old_project.metadata.copy(),
-                source_url=old_project.source_url,
-                schema_version=SchemaVersion.CURRENT_VERSION,
-                compatibility_status=CompatibilityStatus.COMPATIBLE
-            )
-
-            # Apply any necessary settings migrations
-            migrated_settings = await self.export_service._migrate_settings(
-                new_project.settings, new_project.type
-            )
-            new_project.settings = migrated_settings
-
-            # Add default settings for missing values
-            default_settings = new_project.get_default_settings()
-            for key, value in default_settings.items():
-                if key not in new_project.settings:
-                    new_project.settings[key] = value
-
-            # Reset statistics (fresh start)
-            new_project.statistics = {}
-            new_project.last_crawl_at = None
-
-            # Store recreated project
-            await self._store_project(new_project)
-
-            # Mark migration as completed
-            migration_record.mark_completed(success=True)
-
-            # Store migration record
-            await self._store_migration_record(migration_record)
-
-            self.logger.info(
-                f"Recreated project '{old_project.name}' from schema v{old_project.schema_version} "
-                f"to v{SchemaVersion.CURRENT_VERSION}"
-            )
-
-            return new_project, migration_record
-
-        except Exception as e:
-            # Mark migration as failed
-            migration_record.mark_failed(str(e))
-            await self._store_migration_record(migration_record)
-
-            self.logger.error(f"Failed to recreate project '{old_project.name}': {e}")
-            raise
-
     async def get_project_statistics(self) -> dict[str, Any]:
         """
         Get overall project statistics.
@@ -500,8 +368,6 @@ class UnifiedProjectService:
         cursor = await self._connection.execute("""
             SELECT
                 COUNT(*) as total,
-                COUNT(CASE WHEN compatibility_status = 'compatible' THEN 1 END) as compatible,
-                COUNT(CASE WHEN compatibility_status = 'incompatible' THEN 1 END) as incompatible,
                 COUNT(CASE WHEN type = 'crawling' THEN 1 END) as crawling_projects,
                 COUNT(CASE WHEN type = 'data' THEN 1 END) as data_projects,
                 COUNT(CASE WHEN type = 'storage' THEN 1 END) as storage_projects
@@ -512,29 +378,25 @@ class UnifiedProjectService:
 
         return {
             "total_projects": row[0],
-            "compatible_projects": row[1],
-            "incompatible_projects": row[2],
-            "crawling_projects": row[3],
-            "data_projects": row[4],
-            "storage_projects": row[5],
-            "compatibility_rate": round(row[1] / row[0] * 100, 1) if row[0] > 0 else 0
+            "crawling_projects": row[1],
+            "data_projects": row[2],
+            "storage_projects": row[3]
         }
 
     async def _store_project(self, project: UnifiedProject) -> None:
         """Store project in database."""
         await self._connection.execute("""
             INSERT OR REPLACE INTO projects (
-                id, name, schema_version, type, status, compatibility_status,
+                id, name, schema_version, type, status,
                 created_at, updated_at, last_crawl_at, source_url,
                 settings_json, statistics_json, metadata_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             project.id,
             project.name,
             project.schema_version,
             project.type.value if hasattr(project.type, 'value') else project.type,
             project.status.value if hasattr(project.status, 'value') else project.status,
-            project.compatibility_status.value if hasattr(project.compatibility_status, 'value') else project.compatibility_status,
             project.created_at.isoformat(),
             project.updated_at.isoformat(),
             project.last_crawl_at.isoformat() if project.last_crawl_at else None,
@@ -545,46 +407,17 @@ class UnifiedProjectService:
         ))
         await self._connection.commit()
 
-    async def _store_migration_record(self, record: ProjectMigrationRecord) -> None:
-        """Store migration record in database."""
-        await self._connection.execute("""
-            INSERT OR REPLACE INTO project_migrations (
-                id, project_id, project_name, operation,
-                from_schema_version, to_schema_version,
-                started_at, completed_at, success, error_message,
-                preserved_settings_json, preserved_metadata_json,
-                data_size_bytes, user_initiated, initiated_by_command
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            record.id,
-            record.project_id,
-            record.project_name,
-            record.operation.value,
-            record.from_schema_version,
-            record.to_schema_version,
-            record.started_at.isoformat(),
-            record.completed_at.isoformat() if record.completed_at else None,
-            record.success,
-            record.error_message,
-            json.dumps(record.preserved_settings),
-            json.dumps(record.preserved_metadata),
-            record.data_size_bytes,
-            record.user_initiated,
-            record.initiated_by_command
-        ))
-        await self._connection.commit()
-
     async def _row_to_project(self, row) -> UnifiedProject:
         """Convert database row to UnifiedProject."""
         # Parse JSON fields
-        settings = json.loads(row[10]) if row[10] else {}
-        statistics = json.loads(row[11]) if row[11] else {}
-        metadata = json.loads(row[12]) if row[12] else {}
+        settings = json.loads(row[9]) if row[9] else {}
+        statistics = json.loads(row[10]) if row[10] else {}
+        metadata = json.loads(row[11]) if row[11] else {}
 
         # Parse datetime fields
-        created_at = datetime.fromisoformat(row[6])
-        updated_at = datetime.fromisoformat(row[7])
-        last_crawl_at = datetime.fromisoformat(row[8]) if row[8] else None
+        created_at = datetime.fromisoformat(row[5])
+        updated_at = datetime.fromisoformat(row[6])
+        last_crawl_at = datetime.fromisoformat(row[7]) if row[7] else None
 
         # Create project
         project = UnifiedProject(
@@ -593,11 +426,10 @@ class UnifiedProjectService:
             schema_version=row[2],
             type=ProjectType(row[3]) if row[3] else None,
             status=UnifiedProjectStatus(row[4]),
-            compatibility_status=CompatibilityStatus(row[5]),
             created_at=created_at,
             updated_at=updated_at,
             last_crawl_at=last_crawl_at,
-            source_url=row[9],
+            source_url=row[8],
             settings=settings,
             statistics=statistics,
             metadata=metadata

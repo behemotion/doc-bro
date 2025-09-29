@@ -19,10 +19,8 @@ from src.models import (
     Project,
     ProjectStatus,
 )
-from src.models.compatibility_status import CompatibilityStatus
-from src.models.migration_record import MigrationOperation, ProjectMigrationRecord
 from src.models.schema_version import SchemaVersion
-from src.lib.exceptions import DatabaseSchemaError, MigrationError
+from src.lib.exceptions import DatabaseSchemaError
 
 
 class DatabaseError(Exception):
@@ -42,7 +40,6 @@ class DatabaseManager:
         # Connection pool
         self._connection: aiosqlite.Connection | None = None  # Main DB connection
         self._project_connections: dict[str, aiosqlite.Connection] = {}  # Project-specific connections
-        self._migration_connection: aiosqlite.Connection | None = None  # Migration-specific connection
         self._initialized = False
 
     async def initialize(self) -> None:
@@ -54,6 +51,11 @@ class DatabaseManager:
             # Ensure database directory exists
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
+            # Run synchronous migrations first
+            from src.services.database_migrator import DatabaseMigrator
+            migrator = DatabaseMigrator(self.config)
+            migrator.run_migrations()
+
             # Create connection
             self._connection = await aiosqlite.connect(str(self.db_path))
 
@@ -63,8 +65,6 @@ class DatabaseManager:
 
             # Create schema
             await self._create_schema()
-
-            # Apply any pending migrations
 
             self._initialized = True
             self.logger.info("Database initialized", extra={
@@ -85,11 +85,6 @@ class DatabaseManager:
         for project_id, conn in self._project_connections.items():
             await conn.close()
         self._project_connections.clear()
-
-        # Close migration connection
-        if self._migration_connection:
-            await self._migration_connection.close()
-            self._migration_connection = None
 
         # Close main connection
         if self._connection:
@@ -114,7 +109,6 @@ class DatabaseManager:
             schema_version INTEGER NOT NULL DEFAULT 3,
             type TEXT NOT NULL,
             status TEXT NOT NULL DEFAULT 'active',
-            compatibility_status TEXT NOT NULL DEFAULT 'compatible',
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
             last_crawl_at TEXT,
@@ -164,36 +158,16 @@ class DatabaseManager:
 
             -- Schema compatibility
             schema_version INTEGER DEFAULT 4,
-            compatibility_status TEXT DEFAULT 'compatible',
 
             FOREIGN KEY (shelf_id) REFERENCES shelfs (id) ON DELETE CASCADE,
             UNIQUE(shelf_id, name)
         );
 
-        -- Migration records table for audit trail
-        CREATE TABLE IF NOT EXISTS project_migrations (
-            id TEXT PRIMARY KEY,
-            project_id TEXT NOT NULL,
-            project_name TEXT NOT NULL,
-            operation TEXT NOT NULL,
-            from_schema_version INTEGER NOT NULL,
-            to_schema_version INTEGER NOT NULL,
-            started_at TEXT NOT NULL,
-            completed_at TEXT,
-            success BOOLEAN DEFAULT FALSE,
-            error_message TEXT,
-            preserved_settings_json TEXT DEFAULT '{}',
-            preserved_metadata_json TEXT DEFAULT '{}',
-            data_size_bytes INTEGER DEFAULT 0,
-            user_initiated BOOLEAN DEFAULT TRUE,
-            initiated_by_command TEXT DEFAULT 'unknown'
-        );
 
         -- Indexes for performance
         CREATE INDEX IF NOT EXISTS idx_projects_name ON projects(name);
         CREATE INDEX IF NOT EXISTS idx_projects_type ON projects(type);
         CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
-        CREATE INDEX IF NOT EXISTS idx_projects_compatibility ON projects(compatibility_status);
         CREATE INDEX IF NOT EXISTS idx_projects_schema_version ON projects(schema_version);
 
         -- Shelf indexes
@@ -206,8 +180,6 @@ class DatabaseManager:
         CREATE INDEX IF NOT EXISTS idx_baskets_type ON baskets(type);
         CREATE INDEX IF NOT EXISTS idx_baskets_status ON baskets(status);
 
-        CREATE INDEX IF NOT EXISTS idx_migrations_project_id ON project_migrations(project_id);
-        CREATE INDEX IF NOT EXISTS idx_migrations_operation ON project_migrations(operation);
 
         -- Insert current schema version
         INSERT OR REPLACE INTO schema_version (version) VALUES (4);
@@ -234,10 +206,7 @@ class DatabaseManager:
     async def _get_project_connection(self, project_name: str) -> aiosqlite.Connection:
         """Get or create database connection for a specific project."""
         if project_name in self._project_connections:
-            # Apply migrations to existing connections that might not have been migrated
-            conn = self._project_connections[project_name]
-            await self._apply_project_migrations(conn, project_name)
-            return conn
+            return self._project_connections[project_name]
 
         # Create project database path
         project_db_path = self._get_project_db_path(project_name)
@@ -331,9 +300,6 @@ class DatabaseManager:
 
         await conn.executescript(project_schema_sql)
         await conn.commit()
-
-        # Apply project-specific migrations
-        await self._apply_project_migrations(conn, project_name)
 
         # Cache the connection
         self._project_connections[project_name] = conn
@@ -1273,164 +1239,6 @@ class DatabaseManager:
             metadata=metadata
         )
 
-    # Migration connection management
-
-    async def get_migration_connection(self) -> aiosqlite.Connection:
-        """Get or create a dedicated migration connection with isolation."""
-        if self._migration_connection is None:
-            self._migration_connection = await aiosqlite.connect(str(self.db_path))
-
-            # Configure migration connection with stronger isolation
-            await self._migration_connection.execute("PRAGMA foreign_keys = ON")
-            await self._migration_connection.execute("PRAGMA journal_mode = WAL")
-            await self._migration_connection.execute("PRAGMA synchronous = FULL")  # Ensure durability
-            await self._migration_connection.execute("PRAGMA temp_store = MEMORY")  # Use memory for temp tables
-            await self._migration_connection.execute("PRAGMA cache_size = -64000")  # 64MB cache
-
-            self.logger.info("Migration connection established with enhanced settings")
-
-        return self._migration_connection
-
-    async def begin_migration_transaction(self) -> aiosqlite.Connection:
-        """Begin a migration transaction with rollback capability."""
-        conn = await self.get_migration_connection()
-        await conn.execute("BEGIN IMMEDIATE")  # Immediate lock for migrations
-        self.logger.info("Migration transaction started")
-        return conn
-
-    async def commit_migration_transaction(self) -> None:
-        """Commit migration transaction."""
-        if self._migration_connection:
-            await self._migration_connection.commit()
-            self.logger.info("Migration transaction committed")
-
-    async def rollback_migration_transaction(self) -> None:
-        """Rollback migration transaction."""
-        if self._migration_connection:
-            await self._migration_connection.rollback()
-            self.logger.info("Migration transaction rolled back")
-
-    async def close_migration_connection(self) -> None:
-        """Close migration-specific connection."""
-        if self._migration_connection:
-            await self._migration_connection.close()
-            self._migration_connection = None
-            self.logger.info("Migration connection closed")
-
-    async def check_database_integrity(self) -> bool:
-        """Check database integrity before/after migrations."""
-        try:
-            conn = await self.get_migration_connection()
-
-            # Check integrity
-            cursor = await conn.execute("PRAGMA integrity_check")
-            result = await cursor.fetchone()
-
-            if result and result[0] == "ok":
-                self.logger.info("Database integrity check passed")
-                return True
-            else:
-                self.logger.error(f"Database integrity check failed: {result}")
-                return False
-
-        except Exception as e:
-            self.logger.error(f"Database integrity check error: {e}")
-            return False
-
-    async def backup_database_for_migration(self, backup_path: str) -> bool:
-        """Create a backup before migration."""
-        try:
-            # Use VACUUM INTO for atomic backup
-            conn = await self.get_migration_connection()
-            await conn.execute(f"VACUUM INTO '{backup_path}'")
-
-            self.logger.info(f"Database backup created at {backup_path}")
-            return True
-
-        except Exception as e:
-            self.logger.error(f"Database backup failed: {e}")
-            return False
-
-    async def get_migration_lock(self) -> bool:
-        """Acquire exclusive lock for migration operations."""
-        try:
-            conn = await self.get_migration_connection()
-            # Use advisory lock simulation with a migration flag table
-            await conn.execute("""
-                CREATE TABLE IF NOT EXISTS migration_lock (
-                    id INTEGER PRIMARY KEY,
-                    locked_at TEXT,
-                    locked_by TEXT
-                )
-            """)
-
-            # Try to acquire lock
-            cursor = await conn.execute("SELECT COUNT(*) FROM migration_lock")
-            count = (await cursor.fetchone())[0]
-
-            if count == 0:
-                await conn.execute("""
-                    INSERT INTO migration_lock (id, locked_at, locked_by)
-                    VALUES (1, ?, ?)
-                """, (datetime.utcnow().isoformat(), "database_manager"))
-                await conn.commit()
-                self.logger.info("Migration lock acquired")
-                return True
-            else:
-                self.logger.warning("Migration lock already held")
-                return False
-
-        except Exception as e:
-            self.logger.error(f"Failed to acquire migration lock: {e}")
-            return False
-
-    async def release_migration_lock(self) -> None:
-        """Release migration lock."""
-        try:
-            conn = await self.get_migration_connection()
-            await conn.execute("DELETE FROM migration_lock WHERE id = 1")
-            await conn.commit()
-            self.logger.info("Migration lock released")
-
-        except Exception as e:
-            self.logger.error(f"Failed to release migration lock: {e}")
-
-    async def get_migration_status(self) -> dict[str, Any]:
-        """Get current migration status."""
-        try:
-            conn = await self.get_migration_connection()
-
-            # Check if migration is in progress
-            cursor = await conn.execute("SELECT locked_at, locked_by FROM migration_lock WHERE id = 1")
-            lock_info = await cursor.fetchone()
-
-            # Get schema version
-            schema_version = await self._get_schema_version()
-
-            # Count projects by compatibility status
-            cursor = await conn.execute("""
-                SELECT compatibility_status, COUNT(*) as count
-                FROM projects
-                GROUP BY compatibility_status
-            """)
-            compatibility_counts = dict(await cursor.fetchall())
-
-            return {
-                "schema_version": schema_version,
-                "migration_in_progress": lock_info is not None,
-                "migration_locked_at": lock_info[0] if lock_info else None,
-                "migration_locked_by": lock_info[1] if lock_info else None,
-                "compatibility_counts": compatibility_counts,
-                "database_path": str(self.db_path)
-            }
-
-        except Exception as e:
-            self.logger.error(f"Failed to get migration status: {e}")
-            return {
-                "error": str(e),
-                "schema_version": 0,
-                "migration_in_progress": False
-            }
 
     async def cleanup_project(self, project_id: str) -> dict[str, Any]:
         """Clean up all project data."""
@@ -1496,3 +1304,252 @@ class DatabaseManager:
                 "error": str(e)
             })
             return {"success": False, "error": str(e)}
+
+    # Shelf operations
+
+    async def create_shelf(self, name: str, is_default: bool = False, is_deletable: bool = True) -> str:
+        """Create a new shelf."""
+        self._ensure_initialized()
+
+        shelf_id = str(uuid.uuid4())
+        now = datetime.utcnow().isoformat()
+
+        try:
+            await self._connection.execute("""
+                INSERT INTO shelves (id, name, is_default, is_deletable, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (shelf_id, name, is_default, is_deletable, now, now))
+            await self._connection.commit()
+
+            self.logger.info("Created shelf", extra={"shelf_id": shelf_id, "name": name})
+            return shelf_id
+
+        except sqlite3.IntegrityError:
+            raise DatabaseError(f"Shelf with name '{name}' already exists")
+
+    async def get_shelf(self, shelf_id: str = None, name: str = None) -> dict | None:
+        """Get shelf by ID or name."""
+        self._ensure_initialized()
+
+        if shelf_id:
+            cursor = await self._connection.execute(
+                "SELECT * FROM shelves WHERE id = ?", (shelf_id,)
+            )
+        elif name:
+            cursor = await self._connection.execute(
+                "SELECT * FROM shelves WHERE name = ?", (name,)
+            )
+        else:
+            return None
+
+        row = await cursor.fetchone()
+        if row:
+            return dict(zip([col[0] for col in cursor.description], row))
+        return None
+
+    async def list_shelves(self) -> list[dict]:
+        """List all shelves."""
+        self._ensure_initialized()
+
+        cursor = await self._connection.execute("""
+            SELECT s.*, COUNT(sb.box_id) as box_count
+            FROM shelves s
+            LEFT JOIN shelf_boxes sb ON s.id = sb.shelf_id
+            GROUP BY s.id
+            ORDER BY s.created_at DESC
+        """)
+
+        rows = await cursor.fetchall()
+        return [dict(zip([col[0] for col in cursor.description], row)) for row in rows]
+
+    async def delete_shelf(self, shelf_id: str) -> bool:
+        """Delete a shelf."""
+        self._ensure_initialized()
+
+        # Check if shelf is deletable
+        shelf = await self.get_shelf(shelf_id=shelf_id)
+        if not shelf:
+            return False
+        if not shelf['is_deletable']:
+            raise DatabaseError("Cannot delete protected shelf")
+
+        await self._connection.execute("DELETE FROM shelves WHERE id = ?", (shelf_id,))
+        await self._connection.commit()
+
+        self.logger.info("Deleted shelf", extra={"shelf_id": shelf_id})
+        return True
+
+    # Box operations
+
+    async def create_box(self, name: str, box_type: str, is_deletable: bool = True, **kwargs) -> str:
+        """Create a new box."""
+        self._ensure_initialized()
+
+        box_id = str(uuid.uuid4())
+        now = datetime.utcnow().isoformat()
+
+        try:
+            await self._connection.execute("""
+                INSERT INTO boxes (
+                    id, name, type, is_deletable, url, max_pages,
+                    rate_limit, crawl_depth, settings, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                box_id, name, box_type, is_deletable,
+                kwargs.get('url'), kwargs.get('max_pages'),
+                kwargs.get('rate_limit'), kwargs.get('crawl_depth'),
+                json.dumps(kwargs.get('settings', {})) if kwargs.get('settings') else None,
+                now, now
+            ))
+            await self._connection.commit()
+
+            self.logger.info("Created box", extra={"box_id": box_id, "name": name, "type": box_type})
+            return box_id
+
+        except sqlite3.IntegrityError:
+            raise DatabaseError(f"Box with name '{name}' already exists")
+
+    async def get_box(self, box_id: str = None, name: str = None) -> dict | None:
+        """Get box by ID or name."""
+        self._ensure_initialized()
+
+        if box_id:
+            cursor = await self._connection.execute(
+                "SELECT * FROM boxes WHERE id = ?", (box_id,)
+            )
+        elif name:
+            cursor = await self._connection.execute(
+                "SELECT * FROM boxes WHERE name = ?", (name,)
+            )
+        else:
+            return None
+
+        row = await cursor.fetchone()
+        if row:
+            return dict(zip([col[0] for col in cursor.description], row))
+        return None
+
+    async def list_boxes(self, shelf_id: str = None, box_type: str = None) -> list[dict]:
+        """List boxes, optionally filtered by shelf or type."""
+        self._ensure_initialized()
+
+        if shelf_id:
+            cursor = await self._connection.execute("""
+                SELECT b.*, sb.position, sb.added_at
+                FROM boxes b
+                JOIN shelf_boxes sb ON b.id = sb.box_id
+                WHERE sb.shelf_id = ?
+                ORDER BY sb.position, b.created_at DESC
+            """, (shelf_id,))
+        elif box_type:
+            cursor = await self._connection.execute("""
+                SELECT * FROM boxes WHERE type = ? ORDER BY created_at DESC
+            """, (box_type,))
+        else:
+            cursor = await self._connection.execute("""
+                SELECT * FROM boxes ORDER BY created_at DESC
+            """)
+
+        rows = await cursor.fetchall()
+        return [dict(zip([col[0] for col in cursor.description], row)) for row in rows]
+
+    async def delete_box(self, box_id: str) -> bool:
+        """Delete a box."""
+        self._ensure_initialized()
+
+        # Check if box is deletable
+        box = await self.get_box(box_id=box_id)
+        if not box:
+            return False
+        if not box['is_deletable']:
+            raise DatabaseError("Cannot delete protected box")
+
+        await self._connection.execute("DELETE FROM boxes WHERE id = ?", (box_id,))
+        await self._connection.commit()
+
+        self.logger.info("Deleted box", extra={"box_id": box_id})
+        return True
+
+    # Shelf-Box relationship operations
+
+    async def add_box_to_shelf(self, shelf_id: str, box_id: str, position: int = None) -> bool:
+        """Add a box to a shelf."""
+        self._ensure_initialized()
+
+        now = datetime.utcnow().isoformat()
+
+        try:
+            await self._connection.execute("""
+                INSERT INTO shelf_boxes (shelf_id, box_id, position, added_at)
+                VALUES (?, ?, ?, ?)
+            """, (shelf_id, box_id, position, now))
+            await self._connection.commit()
+
+            self.logger.info("Added box to shelf", extra={"shelf_id": shelf_id, "box_id": box_id})
+            return True
+
+        except sqlite3.IntegrityError:
+            self.logger.warning("Box already in shelf", extra={"shelf_id": shelf_id, "box_id": box_id})
+            return False
+
+    async def remove_box_from_shelf(self, shelf_id: str, box_id: str) -> bool:
+        """Remove a box from a shelf."""
+        self._ensure_initialized()
+
+        # Check if this is the last box in the shelf
+        cursor = await self._connection.execute("""
+            SELECT COUNT(*) FROM shelf_boxes WHERE shelf_id = ?
+        """, (shelf_id,))
+        count = (await cursor.fetchone())[0]
+
+        if count <= 1:
+            raise DatabaseError("Cannot remove last box from shelf")
+
+        cursor = await self._connection.execute("""
+            DELETE FROM shelf_boxes WHERE shelf_id = ? AND box_id = ?
+        """, (shelf_id, box_id))
+        await self._connection.commit()
+
+        if cursor.rowcount > 0:
+            self.logger.info("Removed box from shelf", extra={"shelf_id": shelf_id, "box_id": box_id})
+            return True
+        return False
+
+    async def get_current_shelf_id(self) -> str | None:
+        """Get the current shelf ID from global settings."""
+        self._ensure_initialized()
+
+        try:
+            cursor = await self._connection.execute(
+                "SELECT current_shelf FROM global_settings LIMIT 1"
+            )
+            row = await cursor.fetchone()
+            return row[0] if row else None
+        except sqlite3.OperationalError:
+            # Table or column might not exist
+            return None
+
+    async def set_current_shelf(self, shelf_id: str) -> bool:
+        """Set the current shelf in global settings."""
+        self._ensure_initialized()
+
+        try:
+            # First ensure global_settings exists
+            await self._connection.execute("""
+                INSERT OR IGNORE INTO global_settings (id, current_shelf)
+                VALUES (1, ?)
+            """, (shelf_id,))
+
+            # Update current shelf
+            await self._connection.execute("""
+                UPDATE global_settings SET current_shelf = ? WHERE id = 1
+            """, (shelf_id,))
+            await self._connection.commit()
+
+            self.logger.info("Set current shelf", extra={"shelf_id": shelf_id})
+            return True
+
+        except Exception as e:
+            self.logger.error("Failed to set current shelf", extra={"error": str(e)})
+            return False

@@ -7,7 +7,6 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from .compatibility_status import CompatibilityStatus
 from .schema_version import SchemaVersion
 
 # Import both project types and status enums to unify them
@@ -48,7 +47,6 @@ class UnifiedProject(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Unique project identifier")
     name: str = Field(..., min_length=1, max_length=100, description="Human-readable project name")
     schema_version: int = Field(default=SchemaVersion.CURRENT_VERSION, description="Schema version for compatibility")
-    compatibility_status: CompatibilityStatus = Field(default=CompatibilityStatus.COMPATIBLE, description="Schema compatibility status")
 
     # Type & Status (from project logic schema)
     type: Optional[ProjectType] = Field(default=None, description="Project type determining behavior")
@@ -126,20 +124,6 @@ class UnifiedProject(BaseModel):
                 cls._validate_type_specific_settings(v, project_type)
         return v
 
-    @model_validator(mode='after')
-    def validate_compatibility_status(self) -> 'UnifiedProject':
-        """Validate compatibility status matches schema version."""
-        expected_status = CompatibilityStatus.from_schema_version(
-            self.schema_version,
-            SchemaVersion.CURRENT_VERSION
-        )
-
-        # Auto-correct compatibility status if needed
-        if self.compatibility_status != expected_status:
-            # Use object.__setattr__ to avoid triggering validation again
-            object.__setattr__(self, 'compatibility_status', expected_status)
-
-        return self
 
     @model_validator(mode='after')
     def validate_statistics_consistency(self) -> 'UnifiedProject':
@@ -214,15 +198,15 @@ class UnifiedProject(BaseModel):
 
     def is_compatible(self) -> bool:
         """Check if project is compatible with current schema."""
-        return self.compatibility_status == CompatibilityStatus.COMPATIBLE
+        return True  # All projects are compatible after migration removal
 
     def allows_modification(self) -> bool:
         """Check if project allows modifications."""
-        return self.compatibility_status.allows_modification
+        return True  # All projects allow modification after migration removal
 
     def needs_recreation(self) -> bool:
         """Check if project needs recreation."""
-        return self.compatibility_status.needs_recreation
+        return False  # No projects need recreation after migration removal
 
     def is_ready_for_search(self) -> bool:
         """Check if project is ready for search operations."""
@@ -332,7 +316,6 @@ class UnifiedProject(BaseModel):
             id=crawler_project.id,
             name=crawler_project.name,
             schema_version=1,  # Crawler schema was version 1
-            compatibility_status=CompatibilityStatus.INCOMPATIBLE,  # Old schema
             type=ProjectType.CRAWLING,  # Infer type from crawler project
             status=unified_status,
             created_at=crawler_project.created_at,
@@ -361,7 +344,6 @@ class UnifiedProject(BaseModel):
             id=logic_project.id,
             name=logic_project.name,
             schema_version=2,  # Logic schema was version 2
-            compatibility_status=CompatibilityStatus.INCOMPATIBLE,  # Old schema
             type=logic_project.type,
             status=unified_status,
             created_at=logic_project.created_at,
@@ -382,7 +364,6 @@ class UnifiedProject(BaseModel):
             'name': self.name,
             'type': self.type.value if self.type else None,
             'status': self.status.value,
-            'compatibility_status': self.compatibility_status.value,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat(),
             'page_count': page_count,
@@ -394,7 +375,6 @@ class UnifiedProject(BaseModel):
             "id": self.id,
             "name": self.name,
             "schema_version": self.schema_version,
-            "compatibility_status": self.compatibility_status.value,
             "type": self.type.value if self.type else None,
             "status": self.status.value,
             "created_at": self.created_at.isoformat(),
@@ -430,11 +410,10 @@ class UnifiedProject(BaseModel):
     def __str__(self) -> str:
         """String representation of project."""
         type_str = self.type.value if self.type else "unknown"
-        return f"UnifiedProject(name='{self.name}', type={type_str}, status={self.status.value}, compatibility={self.compatibility_status.value})"
+        return f"UnifiedProject(name='{self.name}', type={type_str}, status={self.status.value})"
 
     def __repr__(self) -> str:
         """Detailed string representation."""
         type_str = self.type.value if self.type else "unknown"
         return (f"UnifiedProject(id='{self.id}', name='{self.name}', type={type_str}, "
-                f"status={self.status.value}, schema_v{self.schema_version}, "
-                f"compatibility={self.compatibility_status.value})")
+                f"status={self.status.value}, schema_v{self.schema_version})")

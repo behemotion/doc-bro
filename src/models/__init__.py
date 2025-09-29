@@ -29,11 +29,17 @@ from .service_config import (
 )
 from .system_requirements import SystemRequirements
 from .vector_store_types import VectorStoreProvider
-# Unified schema models
-from .compatibility_status import CompatibilityStatus
+# Shelf-Box Rhyme System models
+from .box_type import BoxType
+from .box import Box
+from .shelf import Shelf
+from .shelf_box import ShelfBox
 from .schema_version import SchemaVersion
-from .migration_record import ProjectMigrationRecord, MigrationOperation
-from .unified_project import UnifiedProject, UnifiedProjectStatus
+
+# Rebuild Pydantic models to resolve forward references
+Box.model_rebuild()
+Shelf.model_rebuild()
+ShelfBox.model_rebuild()
 
 __all__ = [
     "Project",
@@ -59,11 +65,10 @@ __all__ = [
     "ServiceName",
     "ServiceStatusType",
     "VectorStoreProvider",
-    # Unified schema models
-    "CompatibilityStatus",
+    # Shelf-Box Rhyme System models
+    "BoxType",
+    "Box",
+    "Shelf",
+    "ShelfBox",
     "SchemaVersion",
-    "ProjectMigrationRecord",
-    "MigrationOperation",
-    "UnifiedProject",
-    "UnifiedProjectStatus",
 ]

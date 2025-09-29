@@ -1,19 +1,24 @@
-"""Service for managing shelfs (collections of baskets)."""
+"""Service for managing shelves in the Shelf-Box Rhyme System."""
 
-import json
 import logging
 from datetime import datetime
 from typing import List, Optional
-from uuid import uuid4
 
 from src.models.shelf import Shelf, ShelfExistsError, ShelfNotFoundError, ShelfValidationError
-from src.services.database import DatabaseManager
+from src.models.box_type import BoxType
+from src.services.database import DatabaseManager, DatabaseError
+from src.core.lib_logger import get_component_logger
 
-logger = logging.getLogger(__name__)
+logger = get_component_logger("shelf_service")
 
 
 class ShelfService:
-    """Service for managing shelfs."""
+    """
+    Service for managing shelves (collections of boxes).
+
+    Provides CRUD operations for shelves and implements protection rules
+    such as preventing deletion of the default shelf.
+    """
 
     def __init__(self, database: Optional[DatabaseManager] = None):
         """Initialize shelf service."""
@@ -24,401 +29,310 @@ class ShelfService:
         if not self.db._initialized:
             await self.db.initialize()
 
-    def _get_connection(self):
-        """Get the database connection."""
-        return self.db._connection
-
     async def create_shelf(
         self,
         name: str,
         description: Optional[str] = None,
-        set_current: bool = False,
-        force: bool = False
+        set_current: bool = False
     ) -> Shelf:
-        """Create a new shelf.
+        """
+        Create a new shelf with auto-generated default box.
 
         Args:
             name: Name of the shelf
-            description: Optional description
+            description: Optional description for metadata
             set_current: Whether to set as current shelf
-            force: Force creation even if shelf exists
 
         Returns:
-            Created shelf
+            Created shelf model
 
         Raises:
-            ShelfExistsError: If shelf already exists and force is False
-            ShelfValidationError: If shelf validation fails
+            ShelfExistsError: If shelf with same name already exists
+            ShelfValidationError: If shelf name is invalid
         """
         await self.initialize()
 
-        # Check if shelf exists
-        existing = await self.get_shelf_by_name(name)
-        if existing and not force:
-            raise ShelfExistsError(f"Shelf '{name}' already exists")
+        try:
+            # Validate shelf name using model
+            shelf_model = Shelf(name=name)
 
-        if existing and force:
-            # Remove existing shelf
-            await self.remove_shelf(existing.id, force=True)
+            # Create shelf in database
+            shelf_id = await self.db.create_shelf(name)
 
-        # Create shelf model
-        shelf = Shelf(
-            id=f"shelf-{uuid4().hex[:12]}",
-            name=name,
-            is_current=set_current
-        )
+            # Create default box for this shelf
+            default_box_name = f"{name}_box"
+            box_id = await self.db.create_box(default_box_name, BoxType.RAG.value)
 
-        if description:
-            shelf.add_metadata("description", description)
+            # Add box to shelf
+            await self.db.add_box_to_shelf(shelf_id, box_id)
 
-        # If setting as current, unset other shelfs
-        if set_current:
-            await self._unset_all_current()
+            # Set as current if requested
+            if set_current:
+                await self.db.set_current_shelf(shelf_id)
 
-        # Insert into database
-        async with self._get_connection().execute(
-            """
-            INSERT INTO shelfs (id, name, created_at, updated_at, is_current, metadata_json)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (
-                shelf.id,
-                shelf.name,
-                shelf.created_at.isoformat(),
-                shelf.updated_at.isoformat(),
-                shelf.is_current,
-                json.dumps(shelf.metadata)
-            )
-        ) as cursor:
-            await self._get_connection().commit()
+            # Get created shelf with box count
+            shelf_data = await self.db.get_shelf(shelf_id=shelf_id)
+            if shelf_data:
+                shelf_data['box_count'] = 1  # We just added one box
+                return Shelf.model_validate(shelf_data)
 
-        logger.info(f"Created shelf: {shelf.name} (id={shelf.id})")
-        return shelf
+            raise ShelfNotFoundError(f"Failed to retrieve created shelf: {name}")
 
-    async def get_shelf(self, shelf_id: str) -> Optional[Shelf]:
-        """Get shelf by ID.
-
-        Args:
-            shelf_id: Shelf ID
-
-        Returns:
-            Shelf if found, None otherwise
-        """
-        await self.initialize()
-
-        async with self._get_connection().execute(
-            """
-            SELECT id, name, created_at, updated_at, is_current, metadata_json
-            FROM shelfs
-            WHERE id = ?
-            """,
-            (shelf_id,)
-        ) as cursor:
-            row = await cursor.fetchone()
-
-        if not row:
-            return None
-
-        # Get basket count
-        async with self._get_connection().execute(
-            "SELECT COUNT(*) FROM baskets WHERE shelf_id = ?",
-            (shelf_id,)
-        ) as cursor:
-            count_row = await cursor.fetchone()
-            basket_count = count_row[0] if count_row else 0
-
-        return self._row_to_shelf(row, basket_count)
+        except DatabaseError as e:
+            if "already exists" in str(e):
+                raise ShelfExistsError(f"Shelf with name '{name}' already exists")
+            raise
 
     async def get_shelf_by_name(self, name: str) -> Optional[Shelf]:
-        """Get shelf by name.
+        """
+        Get shelf by name.
 
         Args:
-            name: Shelf name
+            name: Name of the shelf
 
         Returns:
-            Shelf if found, None otherwise
+            Shelf model or None if not found
         """
         await self.initialize()
 
-        async with self._get_connection().execute(
-            """
-            SELECT id, name, created_at, updated_at, is_current, metadata_json
-            FROM shelfs
-            WHERE name = ?
-            """,
-            (name,)
-        ) as cursor:
-            row = await cursor.fetchone()
+        shelf_data = await self.db.get_shelf(name=name)
+        if shelf_data:
+            # Get box count for this shelf
+            boxes = await self.db.list_boxes(shelf_id=shelf_data['id'])
+            shelf_data['box_count'] = len(boxes)
+            return Shelf.model_validate(shelf_data)
 
-        if not row:
-            return None
+        return None
 
-        shelf_id = row[0]
-
-        # Get basket count
-        async with self._get_connection().execute(
-            "SELECT COUNT(*) FROM baskets WHERE shelf_id = ?",
-            (shelf_id,)
-        ) as cursor:
-            count_row = await cursor.fetchone()
-            basket_count = count_row[0] if count_row else 0
-
-        return self._row_to_shelf(row, basket_count)
-
-    async def list_shelfs(
-        self,
-        verbose: bool = False,
-        current_only: bool = False,
-        limit: Optional[int] = None
-    ) -> List[Shelf]:
-        """List all shelfs.
+    async def get_shelf_by_id(self, shelf_id: str) -> Optional[Shelf]:
+        """
+        Get shelf by ID.
 
         Args:
-            verbose: Include detailed information
-            current_only: Only return current shelf
-            limit: Maximum number of shelfs to return
+            shelf_id: ID of the shelf
 
         Returns:
-            List of shelfs
+            Shelf model or None if not found
         """
         await self.initialize()
 
-        query = "SELECT id, name, created_at, updated_at, is_current, metadata_json FROM shelfs"
-        params = []
+        shelf_data = await self.db.get_shelf(shelf_id=shelf_id)
+        if shelf_data:
+            # Get box count for this shelf
+            boxes = await self.db.list_boxes(shelf_id=shelf_data['id'])
+            shelf_data['box_count'] = len(boxes)
+            return Shelf.model_validate(shelf_data)
 
-        if current_only:
-            query += " WHERE is_current = 1"
+        return None
 
-        query += " ORDER BY created_at DESC"
+    async def list_shelves(self) -> List[Shelf]:
+        """
+        List all shelves.
 
-        if limit:
-            query += " LIMIT ?"
-            params.append(limit)
+        Returns:
+            List of shelf models with box counts
+        """
+        await self.initialize()
 
-        async with self._get_connection().execute(query, params) as cursor:
-            rows = await cursor.fetchall()
+        shelves_data = await self.db.list_shelves()
+        shelves = []
 
-        shelfs = []
-        for row in rows:
-            shelf_id = row[0]
+        for shelf_data in shelves_data:
+            # Box count is already included in the query
+            shelves.append(Shelf.model_validate(shelf_data))
 
-            # Get basket count for each shelf
-            async with self._get_connection().execute(
-                "SELECT COUNT(*) FROM baskets WHERE shelf_id = ?",
-                (shelf_id,)
-            ) as count_cursor:
-                count_row = await count_cursor.fetchone()
-                basket_count = count_row[0] if count_row else 0
-
-            shelf = self._row_to_shelf(row, basket_count)
-
-            if verbose:
-                # Load baskets for verbose mode
-                async with self._get_connection().execute(
-                    "SELECT id, name, type, status FROM baskets WHERE shelf_id = ?",
-                    (shelf_id,)
-                ) as basket_cursor:
-                    basket_rows = await basket_cursor.fetchall()
-                    shelf.baskets = [
-                        {"id": b[0], "name": b[1], "type": b[2], "status": b[3]}
-                        for b in basket_rows
-                    ]
-
-            shelfs.append(shelf)
-
-        return shelfs
+        return shelves
 
     async def get_current_shelf(self) -> Optional[Shelf]:
-        """Get the current active shelf.
+        """
+        Get the current active shelf.
 
         Returns:
-            Current shelf if set, None otherwise
+            Current shelf model or None if no current shelf set
         """
         await self.initialize()
 
-        async with self._get_connection().execute(
-            """
-            SELECT id, name, created_at, updated_at, is_current, metadata_json
-            FROM shelfs
-            WHERE is_current = 1
-            LIMIT 1
-            """
-        ) as cursor:
-            row = await cursor.fetchone()
+        current_shelf_id = await self.db.get_current_shelf_id()
+        if current_shelf_id:
+            return await self.get_shelf_by_id(current_shelf_id)
 
-        if not row:
-            return None
+        return None
 
-        shelf_id = row[0]
-
-        # Get basket count
-        async with self._get_connection().execute(
-            "SELECT COUNT(*) FROM baskets WHERE shelf_id = ?",
-            (shelf_id,)
-        ) as cursor:
-            count_row = await cursor.fetchone()
-            basket_count = count_row[0] if count_row else 0
-
-        return self._row_to_shelf(row, basket_count)
-
-    async def set_current_shelf(self, shelf_id: str) -> Shelf:
-        """Set a shelf as current.
+    async def set_current_shelf(self, name: str) -> Shelf:
+        """
+        Set the current active shelf.
 
         Args:
-            shelf_id: Shelf ID to set as current
+            name: Name of the shelf to set as current
 
         Returns:
-            Updated shelf
+            Updated shelf model
 
         Raises:
             ShelfNotFoundError: If shelf not found
         """
         await self.initialize()
 
-        shelf = await self.get_shelf(shelf_id)
+        shelf = await self.get_shelf_by_name(name)
         if not shelf:
-            raise ShelfNotFoundError(f"Shelf with ID '{shelf_id}' not found")
+            raise ShelfNotFoundError(f"Shelf '{name}' not found")
 
-        # Unset all current shelfs
-        await self._unset_all_current()
-
-        # Set this shelf as current
-        async with self._get_connection().execute(
-            "UPDATE shelfs SET is_current = 1, updated_at = ? WHERE id = ?",
-            (datetime.utcnow().isoformat(), shelf_id)
-        ):
-            await self._get_connection().commit()
-
-        shelf.set_current()
-        logger.info(f"Set current shelf: {shelf.name} (id={shelf.id})")
-        return shelf
-
-    async def update_shelf(
-        self,
-        shelf_id: str,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
-        metadata: Optional[dict] = None
-    ) -> Shelf:
-        """Update a shelf.
-
-        Args:
-            shelf_id: Shelf ID
-            name: New name
-            description: New description
-            metadata: Additional metadata to merge
-
-        Returns:
-            Updated shelf
-
-        Raises:
-            ShelfNotFoundError: If shelf not found
-        """
-        await self.initialize()
-
-        shelf = await self.get_shelf(shelf_id)
-        if not shelf:
-            raise ShelfNotFoundError(f"Shelf with ID '{shelf_id}' not found")
-
-        updates = []
-        params = []
-
-        if name:
-            # Validate new name
-            test_shelf = Shelf(name=name)  # This will validate
-            updates.append("name = ?")
-            params.append(name)
-            shelf.name = name
-
-        if description is not None:
-            shelf.add_metadata("description", description)
-
-        if metadata:
-            for key, value in metadata.items():
-                shelf.add_metadata(key, value)
-
-        if updates or description is not None or metadata:
-            updates.append("metadata_json = ?")
-            params.append(json.dumps(shelf.metadata))
-            updates.append("updated_at = ?")
-            params.append(datetime.utcnow().isoformat())
-            params.append(shelf_id)
-
-            query = f"UPDATE shelfs SET {', '.join(updates)} WHERE id = ?"
-            async with self._get_connection().execute(query, params):
-                await self._get_connection().commit()
-
-            logger.info(f"Updated shelf: {shelf.name} (id={shelf.id})")
+        success = await self.db.set_current_shelf(shelf.id)
+        if not success:
+            raise DatabaseError(f"Failed to set current shelf: {name}")
 
         return shelf
 
-    async def remove_shelf(
-        self,
-        shelf_id: str,
-        force: bool = False,
-        backup: bool = True
-    ) -> bool:
-        """Remove a shelf.
+    async def rename_shelf(self, old_name: str, new_name: str) -> Shelf:
+        """
+        Rename a shelf.
 
         Args:
-            shelf_id: Shelf ID
-            force: Force removal even if shelf has baskets
-            backup: Create backup before removal
+            old_name: Current name of the shelf
+            new_name: New name for the shelf
 
         Returns:
-            True if removed
+            Updated shelf model
 
         Raises:
             ShelfNotFoundError: If shelf not found
-            ValueError: If shelf has baskets and force is False
+            ShelfExistsError: If new name already exists
+            ShelfValidationError: If new name is invalid
         """
         await self.initialize()
 
-        shelf = await self.get_shelf(shelf_id)
-        if not shelf:
-            raise ShelfNotFoundError(f"Shelf with ID '{shelf_id}' not found")
+        # Validate new name
+        Shelf(name=new_name)  # This will raise if invalid
 
-        # Check for baskets
-        if shelf.basket_count > 0 and not force:
-            raise ValueError(
-                f"Shelf '{shelf.name}' has {shelf.basket_count} baskets. "
-                "Use force=True to remove anyway."
+        # Check if old shelf exists
+        shelf = await self.get_shelf_by_name(old_name)
+        if not shelf:
+            raise ShelfNotFoundError(f"Shelf '{old_name}' not found")
+
+        # Check if new name already exists
+        existing = await self.get_shelf_by_name(new_name)
+        if existing:
+            raise ShelfExistsError(f"Shelf with name '{new_name}' already exists")
+
+        # Update in database
+        try:
+            conn = self.db._connection
+            await conn.execute(
+                "UPDATE shelves SET name = ?, updated_at = ? WHERE id = ?",
+                (new_name, datetime.utcnow().isoformat(), shelf.id)
             )
+            await conn.commit()
 
-        if backup:
-            # TODO: Implement backup functionality
-            logger.info(f"Creating backup of shelf: {shelf.name}")
+            # Return updated shelf
+            return await self.get_shelf_by_id(shelf.id)
 
-        # Delete shelf (cascade will delete baskets)
-        async with self._get_connection().execute(
-            "DELETE FROM shelfs WHERE id = ?",
-            (shelf_id,)
-        ):
-            await self._get_connection().commit()
+        except Exception as e:
+            raise DatabaseError(f"Failed to rename shelf: {e}")
 
-        logger.info(f"Removed shelf: {shelf.name} (id={shelf.id})")
+    async def delete_shelf(self, name: str, force: bool = False) -> bool:
+        """
+        Delete a shelf.
+
+        Implements protection rules:
+        - Cannot delete default shelf
+        - Cannot delete if only shelf exists (to be implemented)
+
+        Args:
+            name: Name of the shelf to delete
+            force: Force deletion (currently not used for protected items)
+
+        Returns:
+            True if deleted successfully
+
+        Raises:
+            ShelfNotFoundError: If shelf not found
+            DatabaseError: If shelf is protected or other error
+        """
+        await self.initialize()
+
+        shelf = await self.get_shelf_by_name(name)
+        if not shelf:
+            raise ShelfNotFoundError(f"Shelf '{name}' not found")
+
+        # Protection rule: cannot delete default shelf
+        if shelf.is_default:
+            raise DatabaseError("Cannot delete default shelf")
+
+        # Delete from database
+        success = await self.db.delete_shelf(shelf.id)
+        if not success:
+            raise DatabaseError(f"Failed to delete shelf: {name}")
+
+        logger.info(f"Deleted shelf: {name}")
         return True
 
-    async def _unset_all_current(self) -> None:
-        """Unset current flag on all shelfs."""
-        async with self._get_connection().execute(
-            "UPDATE shelfs SET is_current = 0, updated_at = ? WHERE is_current = 1",
-            (datetime.utcnow().isoformat(),)
-        ):
-            await self._get_connection().commit()
+    async def ensure_current_shelf(self) -> Shelf:
+        """
+        Ensure there is a current shelf set.
 
-    def _row_to_shelf(self, row: tuple, basket_count: int = 0) -> Shelf:
-        """Convert database row to Shelf model."""
-        return Shelf(
-            id=row[0],
-            name=row[1],
-            created_at=datetime.fromisoformat(row[2]),
-            updated_at=datetime.fromisoformat(row[3]),
-            is_current=bool(row[4]),
-            metadata=json.loads(row[5]) if row[5] else {},
-            basket_count=basket_count
-        )
+        If no current shelf is set, sets the default shelf as current.
+        If no default shelf exists, creates one.
 
-    async def close(self) -> None:
-        """Close database connection."""
-        await self.db.close()
+        Returns:
+            Current shelf model
+        """
+        await self.initialize()
+
+        current = await self.get_current_shelf()
+        if current:
+            return current
+
+        # Look for default shelf
+        shelves = await self.list_shelves()
+        default_shelf = None
+        for shelf in shelves:
+            if shelf.is_default:
+                default_shelf = shelf
+                break
+
+        if default_shelf:
+            await self.db.set_current_shelf(default_shelf.id)
+            return default_shelf
+
+        # If no default shelf exists, something is wrong
+        # This should have been created during migration
+        raise DatabaseError("No default shelf found in system")
+
+    async def get_shelf_stats(self, name: str) -> dict:
+        """
+        Get statistics for a shelf.
+
+        Args:
+            name: Name of the shelf
+
+        Returns:
+            Dictionary with shelf statistics
+
+        Raises:
+            ShelfNotFoundError: If shelf not found
+        """
+        await self.initialize()
+
+        shelf = await self.get_shelf_by_name(name)
+        if not shelf:
+            raise ShelfNotFoundError(f"Shelf '{name}' not found")
+
+        # Get boxes in this shelf
+        boxes = await self.db.list_boxes(shelf_id=shelf.id)
+
+        # Count by type
+        type_counts = {'drag': 0, 'rag': 0, 'bag': 0}
+        for box in boxes:
+            box_type = box.get('type', 'unknown')
+            if box_type in type_counts:
+                type_counts[box_type] += 1
+
+        return {
+            'name': shelf.name,
+            'id': shelf.id,
+            'is_default': shelf.is_default,
+            'box_count': len(boxes),
+            'box_types': type_counts,
+            'created_at': shelf.created_at,
+            'updated_at': shelf.updated_at
+        }

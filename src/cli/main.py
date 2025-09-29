@@ -222,18 +222,18 @@ def main(ctx: click.Context, config_file: str | None, debug: bool, quiet: bool,
     \b
     QUICK START:
       docbro setup                                  # Interactive setup wizard
-      docbro project --create myproject --type crawling
-      docbro crawl myproject
+      docbro shelf create 'my docs'                 # Create shelf (collection)
+      docbro box create 'python-docs' --type drag  # Create box (documentation unit)
+      docbro fill 'python-docs' --source 'https://docs.python.org'  # Fill box with content
       docbro serve                                  # Start MCP server for AI assistants
 
     \b
-    PROJECT MANAGEMENT:
-      docbro project                                # Interactive project menu
-      docbro project --list                         # List all projects
-      docbro project --create <name> --type <type>  # Create project
-      docbro project --remove myproject             # Remove project
-      docbro project --show myproject               # Show project details
-      docbro upload                                 # Upload files to projects
+    SHELF-BOX SYSTEM:
+      docbro shelf create <name>                    # Create documentation shelf
+      docbro shelf list                             # List all shelves
+      docbro box create <name> --type <type>        # Create box (drag/rag/bag)
+      docbro box list                               # List all boxes
+      docbro fill <box> --source <url/path>        # Fill box with content
       docbro health                                 # Check system health
 
     \b
@@ -292,10 +292,11 @@ def main(ctx: click.Context, config_file: str | None, debug: bool, quiet: bool,
                     result = await wizard_service.run_installation(request)
                     if result.success:
                         console.print("\n✅ [bold green]Setup completed successfully![/bold green]")
-                        console.print("\n[cyan]Quick start:[/cyan]")
-                        console.print("  1. Create project: [cyan]docbro project --create myproject --type crawling[/cyan]")
-                        console.print("  2. Crawl docs:    [cyan]docbro crawl myproject[/cyan]")
-                        console.print("  3. Start server:  [cyan]docbro serve[/cyan]")
+                        console.print("\n[cyan]Quick start with shelf-box system:[/cyan]")
+                        console.print("  1. Create shelf:  [cyan]docbro shelf create 'my docs'[/cyan]")
+                        console.print("  2. Create box:    [cyan]docbro box create 'python-docs' --type drag[/cyan]")
+                        console.print("  3. Fill box:      [cyan]docbro fill 'python-docs' --source 'https://docs.python.org'[/cyan]")
+                        console.print("  4. Start server:  [cyan]docbro serve[/cyan]")
                         console.print("\n[dim]For more options: docbro --help[/dim]")
                     else:
                         console.print(f"\n❌ Setup failed: {result.error}")
@@ -309,10 +310,13 @@ def main(ctx: click.Context, config_file: str | None, debug: bool, quiet: bool,
 
         # Show concise help
         console.print(f"DocBro v{__version__} - Documentation Crawler & Search Tool\n")
-        console.print("[cyan]Common commands:[/cyan]")
+        console.print("[cyan]Shelf-Box Commands:[/cyan]")
+        console.print("  docbro shelf create <name>    Create documentation shelf")
+        console.print("  docbro shelf list             List shelves")
+        console.print("  docbro box create <name> --type <type>  Create box (drag/rag/bag)")
+        console.print("  docbro fill <box> --source <url>        Fill box with content")
+        console.print("\n[cyan]System Commands:[/cyan]")
         console.print("  docbro setup                  Interactive setup wizard")
-        console.print("  docbro project                Manage projects (--create/--list/--remove)")
-        console.print("  docbro crawl <name>           Crawl documentation")
         console.print("  docbro serve                  Start MCP server")
         console.print("  docbro health                 Check service health")
         console.print("  docbro --help                 Show all commands")
@@ -320,13 +324,12 @@ def main(ctx: click.Context, config_file: str | None, debug: bool, quiet: bool,
 
 
 # Import and register all commands
-from src.cli.commands.crawl import crawl
 from src.cli.commands.health import health
-from src.cli.commands.project import project
 from src.cli.commands.serve import serve
 from src.cli.commands.setup import setup
-from src.cli.commands.shelf import shelf_group
-from src.cli.commands.upload import upload
+from src.cli.commands.shelf import shelf
+from src.cli.commands.box import box
+from src.cli.commands.fill import fill
 
 # Legacy commands removed - functionality moved to unified health command
 
@@ -340,10 +343,9 @@ except ImportError:
     pass
 
 # Add commands to main group
-main.add_command(project)
-main.add_command(shelf_group)
-main.add_command(crawl)
-main.add_command(upload)
+main.add_command(shelf)
+main.add_command(box)
+main.add_command(fill)
 main.add_command(serve)
 main.add_command(health)
 main.add_command(setup)

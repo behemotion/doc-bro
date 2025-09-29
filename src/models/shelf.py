@@ -1,11 +1,14 @@
-"""Shelf model for organizing baskets (projects) into collections."""
+"""Shelf model for the Shelf-Box Rhyme System."""
 
+import uuid
 from datetime import datetime
-from typing import Optional, ClassVar
-from uuid import uuid4
+from typing import Optional, ClassVar, List, TYPE_CHECKING
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing_extensions import Self
+
+if TYPE_CHECKING:
+    from src.models.box import Box
 
 
 class ShelfValidationError(Exception):
@@ -24,23 +27,24 @@ class ShelfNotFoundError(Exception):
 
 
 class Shelf(BaseModel):
-    """Shelf model representing a collection of baskets."""
+    """
+    Shelf model representing a collection of boxes.
+
+    Shelves organize boxes (documentation units) into logical collections.
+    Each shelf can contain multiple boxes, and boxes can belong to multiple shelves.
+    """
 
     # Core fields
-    id: str = Field(default_factory=lambda: f"shelf-{uuid4().hex[:12]}")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str = Field(..., min_length=1, max_length=100)
+    is_default: bool = Field(default=False, description="Whether this is the default shelf")
+    is_deletable: bool = Field(default=True, description="Whether this shelf can be deleted")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
-    # Status fields
-    is_current: bool = Field(default=False, description="Whether this is the current active shelf")
-
-    # Metadata
-    metadata: dict = Field(default_factory=dict, description="Additional shelf metadata")
-
     # Related data (populated when needed)
-    baskets: list = Field(default_factory=list, description="List of baskets in this shelf")
-    basket_count: int = Field(default=0, description="Number of baskets in this shelf")
+    boxes: List['Box'] = Field(default_factory=list, description="List of boxes in this shelf")
+    box_count: int = Field(default=0, description="Number of boxes in this shelf")
 
     # Constants
     MAX_NAME_LENGTH: ClassVar[int] = 100
@@ -79,20 +83,20 @@ class Shelf(BaseModel):
             self.updated_at = self.created_at
         return self
 
-    def to_dict(self, include_baskets: bool = False) -> dict:
+    def to_dict(self, include_boxes: bool = False) -> dict:
         """Convert shelf to dictionary representation."""
         data = {
             "id": self.id,
             "name": self.name,
+            "is_default": self.is_default,
+            "is_deletable": self.is_deletable,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
-            "is_current": self.is_current,
-            "basket_count": self.basket_count,
-            "metadata": self.metadata
+            "box_count": self.box_count
         }
 
-        if include_baskets:
-            data["baskets"] = self.baskets
+        if include_boxes:
+            data["boxes"] = self.boxes
 
         return data
 
@@ -100,35 +104,24 @@ class Shelf(BaseModel):
         """Get a brief summary of the shelf."""
         return {
             "name": self.name,
-            "is_current": self.is_current,
-            "basket_count": self.basket_count,
+            "is_default": self.is_default,
+            "box_count": self.box_count,
             "created_at": self.created_at.isoformat()
         }
 
-    def add_metadata(self, key: str, value: any) -> None:
-        """Add or update metadata."""
-        self.metadata[key] = value
-        self.updated_at = datetime.utcnow()
-
-    def get_metadata(self, key: str, default: any = None) -> any:
-        """Get metadata value."""
-        return self.metadata.get(key, default)
-
-    def set_current(self) -> None:
-        """Mark this shelf as current."""
-        self.is_current = True
-        self.updated_at = datetime.utcnow()
-
-    def unset_current(self) -> None:
-        """Unmark this shelf as current."""
-        self.is_current = False
-        self.updated_at = datetime.utcnow()
-
     def __str__(self) -> str:
         """String representation."""
-        current = " (current)" if self.is_current else ""
-        return f"Shelf: {self.name}{current} [{self.basket_count} baskets]"
+        default_marker = " (default)" if self.is_default else ""
+        deletable = "" if self.is_deletable else " (protected)"
+        return f"Shelf: {self.name}{default_marker}{deletable} [{self.box_count} boxes]"
 
     def __repr__(self) -> str:
         """Developer representation."""
-        return f"Shelf(id='{self.id}', name='{self.name}', is_current={self.is_current}, basket_count={self.basket_count})"
+        return f"Shelf(id='{self.id}', name='{self.name}', is_default={self.is_default}, box_count={self.box_count})"
+
+    class Config:
+        """Pydantic configuration."""
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+        from_attributes = True

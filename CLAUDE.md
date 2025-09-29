@@ -5,13 +5,15 @@
 **IMPORTANT:** This file must be updated every time new functional changes are implemented. Keep the content under 40,000 characters by removing outdated details when adding new content.
 
 ## Project Overview
-DocBro is a documentation crawler and search tool with RAG capabilities and MCP server integration. Features single-command UV installation with unified setup operations.
+DocBro is a documentation crawler and search tool with RAG capabilities and MCP server integration. Features single-command UV installation with unified setup operations and the new Shelf-Box Rhyme System for intuitive documentation organization.
 
 ## Implementation Status
-✅ **100% Complete** - Installation Process Reorganization + Unified Setup Command + Full Vector Store Support
+✅ **100% Complete** - Installation Process Reorganization + Unified Setup Command + Full Vector Store Support + Shelf-Box Rhyme System
 
 ### Core Components
 - **UV Installation** - Single command: `uv tool install git+https://github.com/behemotion/doc-bro`
+- **Shelf-Box Rhyme System** - Intuitive document organization: Shelves (collections) contain Boxes (drag/rag/bag types)
+- **Unified Fill Command** - Type-based routing: drag→crawler, rag→uploader, bag→storage
 - **Unified Setup System** - All operations under `docbro setup` with flag-based routing
 - **Universal Arrow Navigation** - Consistent keyboard navigation across all CLI interfaces
 - **Interactive Menu** - Rich-based UI for guided setup when no flags provided
@@ -71,8 +73,9 @@ uv tool install git+https://github.com/behemotion/doc-bro
 
 # Commands available after installation
 docbro setup              # Unified setup command (interactive or flag-based)
-docbro project            # Project management (interactive or flag-based)
-docbro crawl              # Documentation crawling
+docbro shelf              # Manage documentation shelves (collections)
+docbro box                # Manage documentation boxes (drag/rag/bag)
+docbro fill               # Fill boxes with content (unified routing)
 docbro serve              # MCP server for AI assistants
 docbro health             # System health checks
 ```
@@ -90,22 +93,29 @@ docbro health             # System health checks
 
 ### Core Commands
 ```bash
-# Project Management
-docbro project --create <name> --type <type> [--description "text"]
-docbro project --list [--status active] [--limit 10] [--verbose]
-docbro project --show <name> [--detailed]
-docbro project --remove <name> [--confirm] [--backup]
-docbro project --update <name> [--settings '{}'] [--description "text"]
+# Shelf Management (Collections)
+docbro shelf create <name> [--description "text"] [--set-current]
+docbro shelf list [--verbose] [--current-only] [--limit 10]
+docbro shelf current [<name>]                   # Get or set current shelf
+docbro shelf rename <old_name> <new_name>       # Rename shelf
+docbro shelf delete <name> [--force] [--no-backup]
 
-# Documentation Crawling
-docbro crawl <name> [--url "url"] [--max-pages 100] [--rate-limit 1.0] [--depth 3]
-docbro crawl --update <name>           # Re-crawl existing project
-docbro crawl --update --all            # Update all projects
+# Box Management (Documentation Units)
+docbro box create <name> --type <drag|rag|bag> [--shelf <name>] [--description "text"]
+docbro box list [--shelf <name>] [--type <type>] [--verbose] [--limit 10]
+docbro box add <box_name> --to-shelf <shelf_name>    # Add box to shelf
+docbro box remove <box_name> --from-shelf <shelf_name>    # Remove box from shelf
+docbro box rename <old_name> <new_name>         # Rename box
+docbro box delete <name> [--force]              # Delete box
 
-# File Upload
-docbro upload                          # Interactive upload menu
-docbro upload files --project <name> --source <path/url> --type <type>
-docbro upload status [--project <name>] [--active]     # Check upload status
+# Unified Fill Command (Type-Based Routing)
+docbro fill <box_name> --source <url_or_path> [--shelf <name>]
+# Drag boxes (websites): --max-pages, --rate-limit, --depth
+# Rag boxes (documents): --chunk-size, --overlap
+# Bag boxes (files): --recursive, --pattern
+
+# Documentation Management
+# All documentation management is now handled through the unified Shelf-Box Rhyme System
 
 # Unified Setup & Configuration
 docbro setup                           # Interactive menu

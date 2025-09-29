@@ -47,6 +47,9 @@ class GlobalSettings(BaseModel):
     mcp_port: int = Field(default=9382)
     mcp_auth_token: str | None = Field(default=None)
 
+    # Shelf-Box System
+    current_shelf: str | None = Field(default=None, description="Current active shelf ID")
+
     # MCP Server Configurations (structured approach)
     mcp_server_configs: Dict[str, Dict[str, Any]] = Field(
         default_factory=lambda: {

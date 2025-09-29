@@ -232,82 +232,8 @@ class TestLargeFileUploadPerformance:
 class TestCLIResponsiveness:
     """Test CLI command responsiveness."""
 
-    @pytest.mark.performance
-    def test_project_list_response_time(self):
-        """Test that project list command responds in under 1 second."""
-        from click.testing import CliRunner
-        from src.cli.commands.project import project
-
-        runner = CliRunner()
-
-        start_time = time.time()
-        result = runner.invoke(project, ["list"])
-        elapsed = time.time() - start_time
-
-        assert result.exit_code == 0
-        assert elapsed < 1.0, f"Command took {elapsed:.2f} seconds, expected < 1"
-
-    @pytest.mark.performance
-    def test_project_create_response_time(self):
-        """Test that project create command responds quickly."""
-        from click.testing import CliRunner
-        from src.cli.commands.project import project
-
-        runner = CliRunner()
-
-        start_time = time.time()
-        result = runner.invoke(
-            project,
-            ["create", "--name", "perf-test", "--type", "storage"]
-        )
-        elapsed = time.time() - start_time
-
-        assert elapsed < 1.0, f"Command took {elapsed:.2f} seconds, expected < 1"
-
-    @pytest.mark.performance
-    def test_interactive_menu_responsiveness(self):
-        """Test that interactive menu responds to input quickly."""
-        from click.testing import CliRunner
-        from src.cli.commands.project import project
-
-        runner = CliRunner()
-
-        # Simulate user input
-        user_input = "\n".join([
-            "\x1b[B",  # Down arrow
-            "\x1b[A",  # Up arrow
-            "1",  # Number selection
-            "\n",  # Enter
-            "q",  # Quit
-        ])
-
-        start_time = time.time()
-        result = runner.invoke(project, input=user_input)
-        elapsed = time.time() - start_time
-
-        # Each interaction should be near-instant
-        assert elapsed < 2.0, f"Menu interactions took {elapsed:.2f} seconds"
-
-    @pytest.mark.performance
-    def test_help_text_generation_speed(self):
-        """Test that help text generates quickly."""
-        from click.testing import CliRunner
-        from src.cli.commands.project import project
-        from src.cli.commands.upload import upload
-
-        runner = CliRunner()
-
-        commands = [project, upload]
-
-        for cmd in commands:
-            start_time = time.time()
-            result = runner.invoke(cmd, ["--help"])
-            elapsed = time.time() - start_time
-
-            assert result.exit_code == 0
-            assert elapsed < 0.5, (
-                f"Help generation for {cmd.name} took {elapsed:.2f} seconds"
-            )
+    # Legacy CLI command performance tests removed
+    # These commands have been replaced by the Shelf-Box Rhyme System
 
 
 class TestMemoryUsageValidation:
