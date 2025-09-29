@@ -8,6 +8,9 @@ from src.logic.mcp.models.response import McpResponse
 from src.logic.mcp.models.command_execution import CommandExecutionRequest, AllowedCommand
 from src.logic.mcp.services.admin import AdminMcpService
 from src.logic.mcp.services.command_executor import CommandExecutor
+from src.logic.mcp.services.shelf_mcp_service import ShelfMcpService
+from src.models.shelf import ShelfNotFoundError, ShelfExistsError
+from src.models.box import BoxNotFoundError, BoxExistsError
 
 logger = logging.getLogger(__name__)
 
@@ -21,19 +24,25 @@ app = FastAPI(
 # Services
 command_executor = None
 admin_service = None
+shelf_mcp_service = None
 
 
-def initialize_services():
+async def initialize_services():
     """Initialize services for the admin server."""
-    global command_executor, admin_service
+    global command_executor, admin_service, shelf_mcp_service
     command_executor = CommandExecutor()
     admin_service = AdminMcpService(command_executor)
+
+    # Initialize shelf MCP service
+    shelf_mcp_service = ShelfMcpService()
+    await shelf_mcp_service.initialize()
+    logger.info("ShelfMcpService initialized for admin server")
 
 
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup."""
-    initialize_services()
+    await initialize_services()
     logger.info("Admin MCP server started")
 
 
@@ -83,6 +92,216 @@ async def project_create(request: Request):
     except Exception as e:
         logger.error(f"Error creating project: {e}")
         error_response = McpResponse.error_response(f"Project creation failed: {str(e)}")
+        return JSONResponse(content=error_response.to_dict(), status_code=500)
+
+
+@app.post("/mcp/v1/create_shelf")
+async def create_shelf(request: Request):
+    """Create a new shelf via admin MCP."""
+    try:
+        body = await request.json()
+        method = body.get("method")
+        params = body.get("params", {})
+
+        if method != "create_shelf":
+            raise HTTPException(status_code=400, detail="Invalid method")
+
+        # Extract parameters
+        name = params.get("name")
+        if not name:
+            raise HTTPException(status_code=422, detail="name parameter is required")
+
+        description = params.get("description")
+        set_current = params.get("set_current", False)
+        force = params.get("force", False)
+
+        # Call service
+        result = await shelf_mcp_service.create_shelf_admin(
+            name=name,
+            description=description,
+            set_current=set_current,
+            force=force
+        )
+
+        response = McpResponse.success_response(data=result)
+        return JSONResponse(content=response.to_dict())
+
+    except ShelfExistsError as e:
+        error_response = McpResponse.error_response(
+            error="shelf_exists",
+            data={"message": str(e)}
+        )
+        return JSONResponse(content=error_response.to_dict(), status_code=400)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating shelf: {e}")
+        error_response = McpResponse.error_response(f"Internal server error: {str(e)}")
+        return JSONResponse(content=error_response.to_dict(), status_code=500)
+
+
+@app.post("/mcp/v1/add_basket")
+async def add_basket(request: Request):
+    """Add a basket (box) to a shelf via admin MCP."""
+    try:
+        body = await request.json()
+        method = body.get("method")
+        params = body.get("params", {})
+
+        if method != "add_basket":
+            raise HTTPException(status_code=400, detail="Invalid method")
+
+        # Extract parameters
+        shelf_name = params.get("shelf_name")
+        basket_name = params.get("basket_name")
+        if not shelf_name or not basket_name:
+            raise HTTPException(status_code=422, detail="shelf_name and basket_name are required")
+
+        basket_type = params.get("basket_type", "data")
+        description = params.get("description")
+        force = params.get("force", False)
+
+        # Call service
+        result = await shelf_mcp_service.add_basket_admin(
+            shelf_name=shelf_name,
+            basket_name=basket_name,
+            basket_type=basket_type,
+            description=description,
+            force=force
+        )
+
+        response = McpResponse.success_response(data=result)
+        return JSONResponse(content=response.to_dict())
+
+    except ShelfNotFoundError as e:
+        error_response = McpResponse.error_response(
+            error="shelf_not_found",
+            data={"message": str(e)}
+        )
+        return JSONResponse(content=error_response.to_dict(), status_code=404)
+    except BoxExistsError as e:
+        error_response = McpResponse.error_response(
+            error="basket_exists",
+            data={"message": str(e)}
+        )
+        return JSONResponse(content=error_response.to_dict(), status_code=400)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding basket: {e}")
+        error_response = McpResponse.error_response(f"Internal server error: {str(e)}")
+        return JSONResponse(content=error_response.to_dict(), status_code=500)
+
+
+@app.post("/mcp/v1/remove_basket")
+async def remove_basket(request: Request):
+    """Remove a basket from a shelf via admin MCP."""
+    try:
+        body = await request.json()
+        method = body.get("method")
+        params = body.get("params", {})
+
+        if method != "remove_basket":
+            raise HTTPException(status_code=400, detail="Invalid method")
+
+        # Extract parameters
+        shelf_name = params.get("shelf_name")
+        basket_name = params.get("basket_name")
+        if not shelf_name or not basket_name:
+            raise HTTPException(status_code=422, detail="shelf_name and basket_name are required")
+
+        confirm = params.get("confirm", False)
+        backup = params.get("backup", True)
+
+        # Call service
+        result = await shelf_mcp_service.remove_basket_admin(
+            shelf_name=shelf_name,
+            basket_name=basket_name,
+            confirm=confirm,
+            backup=backup
+        )
+
+        response = McpResponse.success_response(data=result)
+        return JSONResponse(content=response.to_dict())
+
+    except ShelfNotFoundError as e:
+        error_response = McpResponse.error_response(
+            error="shelf_not_found",
+            data={"message": str(e)}
+        )
+        return JSONResponse(content=error_response.to_dict(), status_code=404)
+    except BoxNotFoundError as e:
+        error_response = McpResponse.error_response(
+            error="basket_not_found",
+            data={"message": str(e)}
+        )
+        return JSONResponse(content=error_response.to_dict(), status_code=404)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error removing basket: {e}")
+        error_response = McpResponse.error_response(f"Internal server error: {str(e)}")
+        return JSONResponse(content=error_response.to_dict(), status_code=500)
+
+
+@app.post("/mcp/v1/set_current_shelf")
+async def set_current_shelf(request: Request):
+    """Set current shelf via admin MCP."""
+    try:
+        body = await request.json()
+        method = body.get("method")
+        params = body.get("params", {})
+
+        if method != "set_current_shelf":
+            raise HTTPException(status_code=400, detail="Invalid method")
+
+        # Extract parameters
+        shelf_name = params.get("shelf_name")
+        if not shelf_name:
+            raise HTTPException(status_code=422, detail="shelf_name parameter is required")
+
+        # Call service
+        result = await shelf_mcp_service.set_current_shelf_admin(shelf_name)
+
+        response = McpResponse.success_response(data=result)
+        return JSONResponse(content=response.to_dict())
+
+    except ShelfNotFoundError as e:
+        error_response = McpResponse.error_response(
+            error="shelf_not_found",
+            data={"message": str(e)}
+        )
+        return JSONResponse(content=error_response.to_dict(), status_code=404)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error setting current shelf: {e}")
+        error_response = McpResponse.error_response(f"Internal server error: {str(e)}")
+        return JSONResponse(content=error_response.to_dict(), status_code=500)
+
+
+@app.post("/mcp/v1/delete_shelf")
+async def delete_shelf(request: Request):
+    """Delete shelf endpoint - PROHIBITED via MCP for security."""
+    try:
+        body = await request.json()
+
+        # Always return prohibited response
+        error_response = McpResponse.error_response(
+            error="operation_prohibited",
+            data={
+                "message": "Shelf deletion is prohibited via MCP admin for security reasons",
+                "details": {
+                    "allowed_methods": ["CLI only"],
+                    "alternative": "docbro shelf --remove <name> --force"
+                }
+            }
+        )
+        return JSONResponse(content=error_response.to_dict(), status_code=403)
+
+    except Exception as e:
+        logger.error(f"Error in delete_shelf: {e}")
+        error_response = McpResponse.error_response(f"Internal server error: {str(e)}")
         return JSONResponse(content=error_response.to_dict(), status_code=500)
 
 
