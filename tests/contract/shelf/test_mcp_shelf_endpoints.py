@@ -9,7 +9,8 @@ import json
 from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi.testclient import TestClient
 
-from src.logic.mcp.core.read_only_server import app
+from src.logic.mcp.core.read_only_server import app as read_only_app
+from src.logic.mcp.core.admin_server import app as admin_app
 from src.logic.mcp.services.shelf_mcp_service import ShelfMcpService
 
 pytestmark = [pytest.mark.contract, pytest.mark.asyncio]
@@ -23,13 +24,37 @@ class TestMcpReadOnlyShelfEndpoints:
         """Create a mock ShelfMcpService."""
         service = AsyncMock(spec=ShelfMcpService)
 
-        # Default mock response for list_shelfs
+        # Default mock responses for all methods
         service.list_shelfs.return_value = {
             "shelves": [],
             "metadata": {
                 "total_shelfs": 0,
                 "current_shelf": None,
                 "total_baskets": 0
+            }
+        }
+
+        service.get_shelf_structure.return_value = {
+            "shelf": {
+                "name": "documentation",
+                "created_at": "2025-09-30T00:00:00Z",
+                "updated_at": "2025-09-30T00:00:00Z",
+                "is_current": True
+            },
+            "baskets": [],
+            "summary": {
+                "total_baskets": 0,
+                "total_files": 0,
+                "total_size_bytes": 0
+            }
+        }
+
+        service.get_current_shelf.return_value = {
+            "current_shelf": None,
+            "available_shelfs": [],
+            "context": {
+                "session_id": "test-session",
+                "last_context_update": "2025-09-30T00:00:00Z"
             }
         }
 
@@ -40,7 +65,7 @@ class TestMcpReadOnlyShelfEndpoints:
         """Create TestClient with mocked services."""
         # Patch the shelf_mcp_service at module level
         with patch('src.logic.mcp.core.read_only_server.shelf_mcp_service', mock_shelf_service):
-            yield TestClient(app)
+            yield TestClient(read_only_app)
 
     @pytest.mark.contract
     def test_list_shelfs_endpoint_exists(self, client: TestClient) -> None:
@@ -337,6 +362,25 @@ class TestMcpReadOnlyShelfEndpoints:
 class TestMcpAdminShelfEndpoints:
     """Contract tests for admin MCP server shelf management endpoints."""
 
+    @pytest.fixture
+    def mock_shelf_service(self):
+        """Create a mock ShelfMcpService for admin tests."""
+        service = AsyncMock(spec=ShelfMcpService)
+
+        # Default mock responses
+        service.list_shelfs.return_value = {
+            "shelves": [],
+            "metadata": {"total_shelfs": 0, "current_shelf": None, "total_baskets": 0}
+        }
+
+        return service
+
+    @pytest.fixture
+    def client(self, mock_shelf_service):
+        """Create TestClient with mocked services for admin tests."""
+        with patch('src.logic.mcp.core.admin_server.shelf_mcp_service', mock_shelf_service):
+            yield TestClient(admin_app)
+
     @pytest.mark.contract
     def test_create_shelf_endpoint(self, client: TestClient) -> None:
         """Test create_shelf admin endpoint."""
@@ -605,6 +649,22 @@ class TestMcpAdminShelfEndpoints:
 class TestMcpShelfEndpointErrorHandling:
     """Contract tests for error handling across shelf endpoints."""
 
+    @pytest.fixture
+    def mock_shelf_service(self):
+        """Create a mock ShelfMcpService."""
+        service = AsyncMock(spec=ShelfMcpService)
+        service.list_shelfs.return_value = {
+            "shelves": [],
+            "metadata": {"total_shelfs": 0, "current_shelf": None, "total_baskets": 0}
+        }
+        return service
+
+    @pytest.fixture
+    def client(self, mock_shelf_service):
+        """Create TestClient with mocked services."""
+        with patch('src.logic.mcp.core.read_only_server.shelf_mcp_service', mock_shelf_service):
+            yield TestClient(read_only_app)
+
     @pytest.mark.contract
     def test_shelf_not_found_error(self, client: TestClient) -> None:
         """Test shelf_not_found error response format."""
@@ -681,6 +741,22 @@ class TestMcpShelfEndpointErrorHandling:
 
 class TestMcpShelfBackwardCompatibility:
     """Contract tests for backward compatibility with existing MCP endpoints."""
+
+    @pytest.fixture
+    def mock_shelf_service(self):
+        """Create a mock ShelfMcpService."""
+        service = AsyncMock(spec=ShelfMcpService)
+        service.list_shelfs.return_value = {
+            "shelves": [],
+            "metadata": {"total_shelfs": 0, "current_shelf": None, "total_baskets": 0}
+        }
+        return service
+
+    @pytest.fixture
+    def client(self, mock_shelf_service):
+        """Create TestClient with mocked services."""
+        with patch('src.logic.mcp.core.read_only_server.shelf_mcp_service', mock_shelf_service):
+            yield TestClient(read_only_app)
 
     @pytest.mark.contract
     def test_legacy_list_projects_still_works(self, client: TestClient) -> None:
