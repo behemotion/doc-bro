@@ -1,6 +1,6 @@
 """BatchOperation model for batch crawl tracking."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from typing import Any
 from uuid import uuid4
 
@@ -85,13 +85,13 @@ class BatchOperation(BaseModel):
         if self.current_index == 0 or len(self.projects) == 0:
             return
 
-        elapsed = datetime.now(datetime.UTC) - self.start_time
+        elapsed = datetime.now(timezone.utc) - self.start_time
         avg_time_per_project = elapsed / self.current_index
         remaining_projects = len(self.projects) - self.current_index
 
         if remaining_projects > 0:
             estimated_remaining = avg_time_per_project * remaining_projects
-            self.estimated_completion = datetime.now(datetime.UTC) + estimated_remaining
+            self.estimated_completion = datetime.now(timezone.utc) + estimated_remaining
 
     def is_complete(self) -> bool:
         """Check if batch operation is complete.
@@ -141,7 +141,7 @@ class BatchOperation(BaseModel):
         Returns:
             Duration as timedelta
         """
-        end = self.end_time or datetime.now(datetime.UTC)
+        end = self.end_time or datetime.now(timezone.utc)
         return end - self.start_time
 
     def get_duration_seconds(self) -> float:
@@ -154,7 +154,7 @@ class BatchOperation(BaseModel):
 
     def complete(self) -> None:
         """Mark the batch operation as complete."""
-        self.end_time = datetime.now(datetime.UTC)
+        self.end_time = datetime.now(timezone.utc)
         self.estimated_completion = None
 
     def get_summary(self) -> dict[str, Any]:

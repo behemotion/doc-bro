@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from src.models.project_status import ProjectStatus
@@ -387,7 +387,7 @@ class BatchCrawler:
                 "project": project,
                 "error": error_msg,
                 "type": "CRAWL_FAILED",
-                "timestamp": datetime.now(datetime.UTC).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             })
 
         return errors

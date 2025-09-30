@@ -1,6 +1,6 @@
 """Service information model."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 from pydantic import BaseModel, Field, field_validator
@@ -88,20 +88,20 @@ class ServiceInfo(BaseModel):
         """Mark service as available."""
         self.status = ServiceStatus.AVAILABLE
         self.error = None
-        self.last_check = datetime.now(datetime.UTC)
+        self.last_check = datetime.now(timezone.utc)
         if version:
             self.version = version
 
     def mark_unavailable(self, error: str | None = None) -> None:
         """Mark service as unavailable."""
         self.status = ServiceStatus.UNAVAILABLE
-        self.last_check = datetime.now(datetime.UTC)
+        self.last_check = datetime.now(timezone.utc)
         if error:
             self.error = error
 
     def needs_recheck(self, max_age_seconds: int = 300) -> bool:
         """Check if service status needs to be rechecked."""
-        age = (datetime.now(datetime.UTC) - self.last_check).total_seconds()
+        age = (datetime.now(timezone.utc) - self.last_check).total_seconds()
         return age > max_age_seconds
 
     def to_display_dict(self) -> dict[str, str]:

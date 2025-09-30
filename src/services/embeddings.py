@@ -3,6 +3,7 @@
 import asyncio
 import hashlib
 import json
+from collections import OrderedDict
 from typing import Any
 
 import httpx
@@ -28,10 +29,12 @@ class EmbeddingService:
         self._client: httpx.AsyncClient | None = None
         self._initialized = False
 
-        # Embedding cache
-        self._cache: dict[str, list[float]] = {}
+        # LRU Embedding cache with 10K limit (~80MB)
+        self._cache: OrderedDict[str, list[float]] = OrderedDict()
+        self._cache_max_size = 10000
         self._cache_hits = 0
         self._cache_misses = 0
+        self._cache_evictions = 0
 
         # Model information
         self.model_info = {}
@@ -208,11 +211,13 @@ class EmbeddingService:
 
         model = model or self.config.embedding_model
 
-        # Check cache first
+        # Check cache first (LRU: move to end on access)
         if use_cache:
             cache_key = self._get_cache_key(text, model)
             if cache_key in self._cache:
                 self._cache_hits += 1
+                # Move to end (most recently used)
+                self._cache.move_to_end(cache_key)
                 self.logger.debug("Cache hit for embedding", extra={
                     "text_length": len(text),
                     "model": model
@@ -241,9 +246,20 @@ class EmbeddingService:
             if not embedding:
                 raise EmbeddingError("No embedding returned from Ollama")
 
-            # Cache the result
+            # Cache the result with LRU eviction
             if use_cache:
                 cache_key = self._get_cache_key(text, model)
+
+                # Evict oldest entry if at capacity
+                if len(self._cache) >= self._cache_max_size:
+                    # Remove oldest (first) item
+                    self._cache.popitem(last=False)
+                    self._cache_evictions += 1
+                    self.logger.debug("LRU cache eviction", extra={
+                        "cache_size": len(self._cache),
+                        "max_size": self._cache_max_size
+                    })
+
                 self._cache[cache_key] = embedding
                 self._cache_misses += 1
 
@@ -401,12 +417,18 @@ class EmbeddingService:
         total_requests = self._cache_hits + self._cache_misses
         hit_rate = (self._cache_hits / total_requests) * 100 if total_requests > 0 else 0
 
+        # Estimate memory usage: ~8KB per embedding (1024 dimensions × 8 bytes/float)
+        memory_usage_mb = (len(self._cache) * 8) / 1024
+
         return {
             "cache_size": len(self._cache),
+            "max_size": self._cache_max_size,
             "cache_hits": self._cache_hits,
             "cache_misses": self._cache_misses,
+            "evictions": self._cache_evictions,
             "hit_rate_percent": round(hit_rate, 2),
-            "total_requests": total_requests
+            "total_requests": total_requests,
+            "memory_usage_mb": round(memory_usage_mb, 2)
         }
 
     def clear_cache(self) -> int:

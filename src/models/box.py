@@ -55,6 +55,14 @@ class Box(BaseModel):
     MAX_NAME_LENGTH: ClassVar[int] = 100
     RESERVED_NAMES: ClassVar[set[str]] = {"default", "system", "temp", "tmp", "test"}
 
+    @field_validator("type", mode="before")
+    @classmethod
+    def validate_type(cls, v):
+        """Convert string to BoxType enum if needed."""
+        if isinstance(v, str):
+            return BoxType.from_string(v)
+        return v
+
     @field_validator("name")
     @classmethod
     def validate_name(cls, v: str) -> str:
@@ -101,10 +109,9 @@ class Box(BaseModel):
     @model_validator(mode="after")
     def validate_type_specific_fields(self) -> Self:
         """Validate fields based on box type."""
-        if self.type == BoxType.DRAG:
-            # Drag boxes should have URL for crawling
-            if not self.url:
-                raise BoxValidationError("Drag boxes require a URL")
+        # Note: URL requirement for drag boxes is enforced at fill/crawl operation level,
+        # not at box creation level. This allows the Shelf-Box Rhyme System pattern:
+        # create empty box → fill later with content.
 
         # Update timestamp
         if self.updated_at < self.created_at:
@@ -198,5 +205,5 @@ class Box(BaseModel):
 
     model_config = {
         "from_attributes": True,
-        "use_enum_values": True
+        "use_enum_values": False  # Keep enum objects, not string values
     }

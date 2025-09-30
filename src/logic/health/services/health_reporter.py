@@ -91,8 +91,14 @@ class HealthReporter:
             summary = report.summary
             console.print(f"({summary.healthy_count}/{summary.total_checks} checks passed)")
 
-            # Execution time
-            console.print(f"Execution Time: {report.total_execution_time:.1f} seconds")
+            # Execution time (show appropriate precision)
+            exec_time = report.total_execution_time
+            if exec_time < 0.01:
+                console.print(f"Execution Time: {exec_time * 1000:.1f} ms")
+            elif exec_time < 1.0:
+                console.print(f"Execution Time: {exec_time:.2f} seconds")
+            else:
+                console.print(f"Execution Time: {exec_time:.1f} seconds")
 
             # Timeout warning if applicable
             if report.timeout_occurred:
@@ -145,7 +151,12 @@ class HealthReporter:
                     if check.resolution:
                         console.print(f"     [yellow]Resolution: {check.resolution}[/yellow]")
 
-                    console.print(f"     [dim]Execution time: {check.execution_time:.2f}s[/dim]")
+                    # Individual check execution time (show appropriate precision)
+                    check_time = check.execution_time
+                    if check_time < 0.01:
+                        console.print(f"     [dim]Execution time: {check_time * 1000:.1f}ms[/dim]")
+                    else:
+                        console.print(f"     [dim]Execution time: {check_time:.2f}s[/dim]")
                     console.print()
 
             # Overall summary
@@ -157,7 +168,15 @@ class HealthReporter:
             console.print(f"Errors: {report.summary.error_count}")
             console.print(f"Unavailable: {report.summary.unavailable_count}")
             console.print(f"Success Rate: {report.summary.success_rate:.1f}%")
-            console.print(f"Total Execution Time: {report.total_execution_time:.1f}s")
+
+            # Total execution time (show appropriate precision)
+            exec_time = report.total_execution_time
+            if exec_time < 0.01:
+                console.print(f"Total Execution Time: {exec_time * 1000:.1f}ms")
+            elif exec_time < 1.0:
+                console.print(f"Total Execution Time: {exec_time:.2f}s")
+            else:
+                console.print(f"Total Execution Time: {exec_time:.1f}s")
 
             if report.timeout_occurred:
                 console.print("[yellow]⚠️ Some checks timed out during execution[/yellow]")

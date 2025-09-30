@@ -2,7 +2,7 @@
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -574,7 +574,7 @@ class ProjectRepository:
                 WHERE id = ?
             """, (
                 new_status.value,
-                datetime.now(datetime.UTC).isoformat(),
+                datetime.now(timezone.utc).isoformat(),
                 project_id
             ))
 

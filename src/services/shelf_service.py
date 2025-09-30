@@ -1,7 +1,7 @@
 """Service for managing shelves in the Shelf-Box Rhyme System."""
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from src.models.shelf import Shelf, ShelfExistsError, ShelfNotFoundError, ShelfValidationError
@@ -219,7 +219,7 @@ class ShelfService:
             conn = self.db._connection
             await conn.execute(
                 "UPDATE shelves SET name = ?, updated_at = ? WHERE id = ?",
-                (new_name, datetime.now(datetime.UTC).isoformat(), shelf.id)
+                (new_name, datetime.now(timezone.utc).isoformat(), shelf.id)
             )
             await conn.commit()
 

@@ -7,8 +7,7 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 
-import platformdirs
-
+from src.lib.paths import get_docbro_cache_dir, get_docbro_config_dir, get_docbro_data_dir
 from src.models.installation import InstallationContext, PackageMetadata, ServiceStatus
 
 logger = logging.getLogger(__name__)
@@ -43,21 +42,21 @@ class ConfigService:
     def config_dir(self) -> Path:
         """Get XDG-compliant configuration directory."""
         if self._config_dir is None:
-            self._config_dir = Path(platformdirs.user_config_dir(self.app_name))
+            self._config_dir = get_docbro_config_dir()
         return self._config_dir
 
     @property
     def data_dir(self) -> Path:
         """Get XDG-compliant data directory."""
         if self._data_dir is None:
-            self._data_dir = Path(platformdirs.user_data_dir(self.app_name))
+            self._data_dir = get_docbro_data_dir()
         return self._data_dir
 
     @property
     def cache_dir(self) -> Path:
         """Get XDG-compliant cache directory."""
         if self._cache_dir is None:
-            self._cache_dir = Path(platformdirs.user_cache_dir(self.app_name))
+            self._cache_dir = get_docbro_cache_dir()
         return self._cache_dir
 
     @property

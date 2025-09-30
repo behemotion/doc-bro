@@ -1,7 +1,7 @@
 """Page data model."""
 
 import hashlib
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 from urllib.parse import urlparse
@@ -116,7 +116,7 @@ class Page(BaseModel):
             self.charset = charset
 
         self.status = PageStatus.PROCESSED
-        self.processed_at = datetime.now(datetime.UTC)
+        self.processed_at = datetime.now(timezone.utc)
 
     def mark_crawling(self) -> None:
         """Mark page as currently being crawled."""
@@ -131,7 +131,7 @@ class Page(BaseModel):
         """Mark page as crawled."""
         self.response_code = response_code
         self.response_time_ms = response_time_ms
-        self.crawled_at = datetime.now(datetime.UTC)
+        self.crawled_at = datetime.now(timezone.utc)
 
         if error_message:
             self.error_message = error_message
@@ -147,7 +147,7 @@ class Page(BaseModel):
             raise ValueError(f"Cannot index page in status: {self.status}")
 
         self.status = PageStatus.INDEXED
-        self.indexed_at = datetime.now(datetime.UTC)
+        self.indexed_at = datetime.now(timezone.utc)
 
     def mark_failed(self, error_message: str) -> None:
         """Mark page as failed."""

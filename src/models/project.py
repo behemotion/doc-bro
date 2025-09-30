@@ -1,6 +1,6 @@
 """Project data model."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
@@ -82,14 +82,14 @@ class Project(BaseModel):
     def update_status(self, new_status: ProjectStatus) -> None:
         """Update project status and timestamp."""
         self.status = new_status
-        self.updated_at = datetime.now(datetime.UTC)
+        self.updated_at = datetime.now(timezone.utc)
 
     def update_statistics(self, **stats) -> None:
         """Update project statistics."""
         for key, value in stats.items():
             if hasattr(self, key):
                 setattr(self, key, value)
-        self.updated_at = datetime.now(datetime.UTC)
+        self.updated_at = datetime.now(timezone.utc)
 
     def is_ready_for_search(self) -> bool:
         """Check if project is ready for search operations."""
@@ -100,7 +100,7 @@ class Project(BaseModel):
         if not self.last_crawl_at:
             return True
 
-        age = datetime.now(datetime.UTC) - self.last_crawl_at
+        age = datetime.now(timezone.utc) - self.last_crawl_at
         return age.total_seconds() > (max_age_hours * 3600)
 
     def to_dict(self) -> dict[str, Any]:

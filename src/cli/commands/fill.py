@@ -49,12 +49,11 @@ def fill(
     """Add content to a box (unified crawl/upload)."""
 
     async def _fill():
+        fill_service = FillService()
+        box_service = BoxService()
+        shelf_service = ShelfService()
+        context_service = ContextService()
         try:
-            fill_service = FillService()
-            box_service = BoxService()
-            shelf_service = ShelfService()
-            context_service = ContextService()
-
             # Ensure current shelf context if not specified
             target_shelf = shelf
             if not target_shelf:
@@ -173,6 +172,10 @@ def fill(
         except Exception as e:
             console.print(f"[red]Failed to fill box: {e}[/red]")
             raise click.Abort()
+        finally:
+            # Ensure database connections are closed
+            await box_service.db.cleanup()
+            await shelf_service.db.cleanup()
 
     asyncio.run(_fill())
 

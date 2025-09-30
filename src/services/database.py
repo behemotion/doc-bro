@@ -3,7 +3,7 @@
 import json
 import sqlite3
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +31,9 @@ class DatabaseError(Exception):
 class DatabaseManager:
     """Manages SQLite database operations for DocBro."""
 
+    # Class-level cache to avoid repeated migration checks
+    _migrations_checked: dict[str, bool] = {}
+
     def __init__(self, config: DocBroConfig | None = None):
         """Initialize database manager."""
         self.config = config or DocBroConfig()
@@ -51,10 +54,13 @@ class DatabaseManager:
             # Ensure database directory exists
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Run synchronous migrations first
-            from src.services.database_migrator import DatabaseMigrator
-            migrator = DatabaseMigrator(self.config)
-            migrator.run_migrations()
+            # Run synchronous migrations first (but only once per database path)
+            db_path_str = str(self.db_path)
+            if db_path_str not in DatabaseManager._migrations_checked:
+                from src.services.database_migrator import DatabaseMigrator
+                migrator = DatabaseMigrator(self.config)
+                migrator.run_migrations()
+                DatabaseManager._migrations_checked[db_path_str] = True
 
             # Create connection
             self._connection = await aiosqlite.connect(str(self.db_path))
@@ -350,7 +356,7 @@ class DatabaseManager:
         self._ensure_initialized()
 
         project_id = str(uuid.uuid4())
-        now = datetime.now(datetime.UTC)
+        now = datetime.now(timezone.utc)
 
         project = Project(
             id=project_id,
@@ -477,7 +483,7 @@ class DatabaseManager:
         """Update project status."""
         self._ensure_initialized()
 
-        now = datetime.now(datetime.UTC)
+        now = datetime.now(timezone.utc)
         await self._connection.execute("""
             UPDATE projects SET status = ?, updated_at = ?
             WHERE id = ?
@@ -547,7 +553,7 @@ class DatabaseManager:
 
         # Always update the updated_at timestamp
         update_fields.append("updated_at = ?")
-        update_params.append(datetime.now(datetime.UTC).isoformat())
+        update_params.append(datetime.now(timezone.utc).isoformat())
         update_params.append(project_id)
 
         sql = f"UPDATE projects SET {', '.join(update_fields)} WHERE id = ?"
@@ -590,7 +596,7 @@ class DatabaseManager:
             successful_pages,
             failed_pages,
             last_crawl_at.isoformat(),
-            datetime.now(datetime.UTC).isoformat(),
+            datetime.now(timezone.utc).isoformat(),
             project_id
         ))
 
@@ -635,7 +641,7 @@ class DatabaseManager:
             raise DatabaseError(f"Project {project_id} not found")
 
         session_id = str(uuid.uuid4())
-        now = datetime.now(datetime.UTC)
+        now = datetime.now(timezone.utc)
 
         session = CrawlSession(
             id=session_id,
@@ -881,7 +887,7 @@ class DatabaseManager:
                 WHERE project_id = ? AND status IN ({})
             """.format(','.join('?' * len(incomplete_statuses))),
             [CrawlStatus.FAILED.value, "Session interrupted - cleaned up for new crawl",
-             datetime.now(datetime.UTC).isoformat(), project_id] + incomplete_statuses)
+             datetime.now(timezone.utc).isoformat(), project_id] + incomplete_statuses)
 
         pages_reset = 0
         if reset_pages:
@@ -900,7 +906,7 @@ class DatabaseManager:
                         outbound_links = NULL, internal_links = NULL, external_links = NULL,
                         updated_at = ?
                     WHERE project_id = ?
-                """, (PageStatus.DISCOVERED.value, datetime.now(datetime.UTC).isoformat(), project_id))
+                """, (PageStatus.DISCOVERED.value, datetime.now(timezone.utc).isoformat(), project_id))
 
         await project_conn.commit()
 
@@ -935,7 +941,7 @@ class DatabaseManager:
             raise DatabaseError(f"Project {project_id} not found")
 
         page_id = str(uuid.uuid4())
-        now = datetime.now(datetime.UTC)
+        now = datetime.now(timezone.utc)
 
         page = Page(
             id=page_id,
@@ -1328,7 +1334,7 @@ class DatabaseManager:
         self._ensure_initialized()
 
         shelf_id = str(uuid.uuid4())
-        now = datetime.now(datetime.UTC).isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         try:
             await self._connection.execute("""
@@ -1402,7 +1408,7 @@ class DatabaseManager:
         self._ensure_initialized()
 
         box_id = str(uuid.uuid4())
-        now = datetime.now(datetime.UTC).isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         try:
             await self._connection.execute("""
@@ -1450,7 +1456,18 @@ class DatabaseManager:
         """List boxes, optionally filtered by shelf or type."""
         self._ensure_initialized()
 
-        if shelf_id:
+        # Handle all combinations of filters
+        if shelf_id and box_type:
+            # Both filters: shelf AND type
+            cursor = await self._connection.execute("""
+                SELECT b.*, sb.position, sb.added_at
+                FROM boxes b
+                JOIN shelf_boxes sb ON b.id = sb.box_id
+                WHERE sb.shelf_id = ? AND b.type = ?
+                ORDER BY sb.position, b.created_at DESC
+            """, (shelf_id, box_type))
+        elif shelf_id:
+            # Only shelf filter
             cursor = await self._connection.execute("""
                 SELECT b.*, sb.position, sb.added_at
                 FROM boxes b
@@ -1459,10 +1476,12 @@ class DatabaseManager:
                 ORDER BY sb.position, b.created_at DESC
             """, (shelf_id,))
         elif box_type:
+            # Only type filter
             cursor = await self._connection.execute("""
                 SELECT * FROM boxes WHERE type = ? ORDER BY created_at DESC
             """, (box_type,))
         else:
+            # No filters: all boxes
             cursor = await self._connection.execute("""
                 SELECT * FROM boxes ORDER BY created_at DESC
             """)
@@ -1493,7 +1512,7 @@ class DatabaseManager:
         """Add a box to a shelf."""
         self._ensure_initialized()
 
-        now = datetime.now(datetime.UTC).isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         try:
             await self._connection.execute("""

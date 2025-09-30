@@ -36,12 +36,12 @@ def inspect(name: Optional[str] = None, shelf: Optional[str] = None, init: bool 
     """Display box information or prompt creation if not found."""
 
     async def _inspect():
+        box_service = BoxService()
         try:
             context_service = ContextService()
 
             if not name:
                 # List all boxes with status
-                box_service = BoxService()
                 boxes = await box_service.list_boxes(shelf_name=shelf)
 
                 if not boxes:
@@ -129,6 +129,8 @@ def inspect(name: Optional[str] = None, shelf: Optional[str] = None, init: bool 
         except Exception as e:
             logger.error(f"Error inspecting box: {e}")
             console.print(f"[red]Error: {e}[/red]")
+        finally:
+            await box_service.db.cleanup()
 
     asyncio.run(_inspect())
 
@@ -146,7 +148,10 @@ async def _create_box_with_wizard(name: str, box_type: str, shelf: Optional[str]
             if current:
                 target_shelf = current.name
             else:
-                console.print("[red]No current shelf set. Please specify --shelf or set current shelf[/red]")
+                console.print("[red]No current shelf set.[/red]")
+                console.print("Either:")
+                console.print("  1. Specify a shelf: [cyan]--shelf <shelf>[/cyan]")
+                console.print("  2. Set current shelf: [cyan]docbro shelf current <shelf>[/cyan]")
                 return
 
         box = await box_service.create_box(
@@ -193,10 +198,9 @@ def create(name: str, box_type: str, shelf: Optional[str] = None, description: O
     """Create a new box."""
 
     async def _create():
+        box_service = BoxService()
+        shelf_service = ShelfService()
         try:
-            box_service = BoxService()
-            shelf_service = ShelfService()
-
             # Ensure we have a current shelf if none specified
             target_shelf = shelf
             if not target_shelf:
@@ -204,7 +208,10 @@ def create(name: str, box_type: str, shelf: Optional[str] = None, description: O
                 if current:
                     target_shelf = current.name
                 else:
-                    console.print("[red]No current shelf set. Please specify --shelf or set current shelf[/red]")
+                    console.print("[red]No current shelf set.[/red]")
+                    console.print("Either:")
+                    console.print("  1. Specify a shelf: [cyan]docbro box create <name> --type <type> --shelf <shelf>[/cyan]")
+                    console.print("  2. Set current shelf: [cyan]docbro shelf current <shelf>[/cyan]")
                     raise click.Abort()
 
             # Create the box
@@ -242,6 +249,9 @@ def create(name: str, box_type: str, shelf: Optional[str] = None, description: O
         except Exception as e:
             console.print(f"[red]Failed to create box: {e}[/red]")
             raise click.Abort()
+        finally:
+            await box_service.db.cleanup()
+            await shelf_service.db.cleanup()
 
     asyncio.run(_create())
 
@@ -255,10 +265,9 @@ def list(shelf: Optional[str] = None, box_type: Optional[str] = None, verbose: b
     """List boxes."""
 
     async def _list():
+        box_service = BoxService()
+        shelf_service = ShelfService()
         try:
-            box_service = BoxService()
-            shelf_service = ShelfService()
-
             # If no shelf specified, try current shelf
             filter_shelf = shelf
             if not filter_shelf:
@@ -326,6 +335,9 @@ def list(shelf: Optional[str] = None, box_type: Optional[str] = None, verbose: b
         except Exception as e:
             console.print(f"[red]Failed to list boxes: {e}[/red]")
             raise click.Abort()
+        finally:
+            await box_service.db.cleanup()
+            await shelf_service.db.cleanup()
 
     asyncio.run(_list())
 
@@ -337,9 +349,8 @@ def add(box: str, to_shelf: str):
     """Add box to shelf."""
 
     async def _add():
+        box_service = BoxService()
         try:
-            box_service = BoxService()
-
             success = await box_service.add_box_to_shelf(box, to_shelf)
             if success:
                 console.print(f"[green]Added box '{box}' to shelf '{to_shelf}'[/green]")
@@ -358,6 +369,8 @@ def add(box: str, to_shelf: str):
         except Exception as e:
             console.print(f"[red]Failed to add box: {e}[/red]")
             raise click.Abort()
+        finally:
+            await box_service.db.cleanup()
 
     asyncio.run(_add())
 
@@ -369,9 +382,8 @@ def remove(box: str, from_shelf: str):
     """Remove box from shelf."""
 
     async def _remove():
+        box_service = BoxService()
         try:
-            box_service = BoxService()
-
             success = await box_service.remove_box_from_shelf(box, from_shelf)
             if success:
                 console.print(f"[green]Removed box '{box}' from shelf '{from_shelf}'[/green]")
@@ -390,6 +402,8 @@ def remove(box: str, from_shelf: str):
         except Exception as e:
             console.print(f"[red]Failed to remove box: {e}[/red]")
             raise click.Abort()
+        finally:
+            await box_service.db.cleanup()
 
     asyncio.run(_remove())
 
@@ -401,9 +415,8 @@ def rename(old_name: str, new_name: str):
     """Rename a box."""
 
     async def _rename():
+        box_service = BoxService()
         try:
-            box_service = BoxService()
-
             box = await box_service.rename_box(old_name, new_name)
             console.print(f"[green]Renamed box '{old_name}' to '{new_name}'[/green]")
 
@@ -419,6 +432,8 @@ def rename(old_name: str, new_name: str):
         except Exception as e:
             console.print(f"[red]Failed to rename box: {e}[/red]")
             raise click.Abort()
+        finally:
+            await box_service.db.cleanup()
 
     asyncio.run(_rename())
 
@@ -430,9 +445,8 @@ def delete(name: str, force: bool = False):
     """Delete a box."""
 
     async def _delete():
+        box_service = BoxService()
         try:
-            box_service = BoxService()
-
             # Get box info first
             box = await box_service.get_box_by_name(name)
             if not box:
@@ -472,5 +486,7 @@ def delete(name: str, force: bool = False):
         except Exception as e:
             console.print(f"[red]Failed to delete box: {e}[/red]")
             raise click.Abort()
+        finally:
+            await box_service.db.cleanup()
 
     asyncio.run(_delete())

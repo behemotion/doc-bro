@@ -2,7 +2,7 @@
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -269,7 +269,7 @@ class ProjectExportService:
             )
 
         # Check export age
-        age_days = (datetime.now(datetime.UTC) - export.exported_at).days
+        age_days = (datetime.now(timezone.utc) - export.exported_at).days
         if age_days > 30:
             warnings.append(f"Export is {age_days} days old - settings may be outdated")
 
@@ -446,7 +446,7 @@ class ProjectExportService:
 
         batch_data = {
             "batch_export_version": "1.0",
-            "created_at": datetime.now(datetime.UTC).isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "total_projects": len(projects),
             "docbro_version": await self._get_docbro_version(),
             "projects": exports
@@ -454,7 +454,7 @@ class ProjectExportService:
 
         # Determine output path
         if output_path is None:
-            timestamp = datetime.now(datetime.UTC).strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
             output_path = Path.cwd() / f"docbro_projects_batch_{timestamp}.json"
 
         # Write batch export

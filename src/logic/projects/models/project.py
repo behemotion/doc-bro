@@ -1,7 +1,7 @@
 """Project entity model with type definitions and validation."""
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
@@ -128,7 +128,7 @@ class Project(BaseModel):
     def update_status(self, status: ProjectStatus) -> None:
         """Update project status and timestamp."""
         self.status = status
-        self.updated_at = datetime.now(datetime.UTC)
+        self.updated_at = datetime.now(timezone.utc)
 
     def update_settings(self, new_settings: dict[str, Any]) -> None:
         """Update project settings with validation."""
@@ -140,7 +140,7 @@ class Project(BaseModel):
 
         # Update if validation passes
         self.settings = merged_settings
-        self.updated_at = datetime.now(datetime.UTC)
+        self.updated_at = datetime.now(timezone.utc)
 
     def get_project_directory(self) -> str:
         """Get project-specific directory path."""
