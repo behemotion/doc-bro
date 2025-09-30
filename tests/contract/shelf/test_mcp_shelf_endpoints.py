@@ -68,20 +68,45 @@ class TestMcpReadOnlyShelfEndpoints:
         mock_read_only_service = AsyncMock()
 
         async def mock_list_projects(**kwargs):
-            return McpResponse.success_response(data=[{
+            project = {
                 "id": "test-id",
                 "name": "test-project",
                 "status": "ready",
                 "type": "crawling",
                 "created_at": "2025-09-30T00:00:00Z"
-            }])
+            }
+            # Add shelf context fields if requested
+            if kwargs.get("include_shelf_context"):
+                project.update({
+                    "shelf_name": kwargs.get("shelf_name", "documentation"),
+                    "basket_type": "crawling",
+                    "hierarchy_path": "documentation/test-project"
+                })
+            return McpResponse.success_response(data=[project])
 
         async def mock_search(**kwargs):
-            return McpResponse.success_response(data=[{
+            result = {
                 "file_path": "/test/file.md",
                 "content_snippet": "test content",
                 "similarity_score": 0.95
-            }])
+            }
+            # Add shelf context fields if requested
+            if kwargs.get("include_shelf_context"):
+                result.update({
+                    "shelf_name": "documentation",
+                    "basket_name": "test-project",
+                    "hierarchy_path": "documentation/test-project"
+                })
+
+            metadata = {}
+            if kwargs.get("include_shelf_context"):
+                metadata = {
+                    "shelf_breakdown": {"documentation": 1},
+                    "basket_breakdown": {"crawling": 1},
+                    "search_scope": "filtered"
+                }
+
+            return McpResponse.success_response(data=[result], metadata=metadata)
 
         mock_read_only_service.list_projects.side_effect = mock_list_projects
         mock_read_only_service.search_projects.side_effect = mock_search
@@ -844,20 +869,22 @@ class TestMcpShelfBackwardCompatibility:
         mock_read_only_service = AsyncMock()
 
         async def mock_list_projects(**kwargs):
-            return McpResponse.success_response(data=[{
+            project = {
                 "id": "test-id",
                 "name": "test-project",
                 "status": "ready",
                 "type": "crawling",
                 "created_at": "2025-09-30T00:00:00Z"
-            }])
+            }
+            return McpResponse.success_response(data=[project])
 
         async def mock_search(**kwargs):
-            return McpResponse.success_response(data=[{
+            result = {
                 "file_path": "/test/file.md",
                 "content_snippet": "test content",
                 "similarity_score": 0.95
-            }])
+            }
+            return McpResponse.success_response(data=[result])
 
         mock_read_only_service.list_projects.side_effect = mock_list_projects
         mock_read_only_service.search_projects.side_effect = mock_search
