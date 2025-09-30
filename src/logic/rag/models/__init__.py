@@ -1,6 +1,7 @@
 """RAG data models."""
 
 from src.logic.rag.models.chunk import Chunk
+from src.logic.rag.models.document import Document
 from src.logic.rag.models.search_result import SearchResult, RerankSignals
 from src.logic.rag.models.strategy_config import (
     SearchStrategy,
@@ -13,6 +14,7 @@ from src.logic.rag.models.strategy_config import (
 
 __all__ = [
     "Chunk",
+    "Document",
     "SearchResult",
     "RerankSignals",
     "SearchStrategy",
