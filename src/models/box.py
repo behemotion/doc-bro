@@ -1,7 +1,7 @@
 """Box model for the Shelf-Box Rhyme System."""
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, ClassVar
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -39,8 +39,8 @@ class Box(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     type: BoxType = Field(..., description="Box type (drag/rag/bag)")
     is_deletable: bool = Field(default=True, description="Whether this box can be deleted")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Type-specific fields (for drag boxes - website crawling)
     url: Optional[str] = Field(None, description="Source URL for drag boxes")
@@ -114,10 +114,12 @@ class Box(BaseModel):
 
     def to_dict(self, include_type_fields: bool = True) -> Dict[str, Any]:
         """Convert box to dictionary representation."""
+        # Note: self.type is already a string due to use_enum_values=True
+        box_type = self.type if isinstance(self.type, str) else self.type.value
         data = {
             "id": self.id,
             "name": self.name,
-            "type": self.type.value,
+            "type": box_type,
             "is_deletable": self.is_deletable,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
@@ -140,35 +142,41 @@ class Box(BaseModel):
 
     def to_summary(self) -> Dict[str, Any]:
         """Get a brief summary of the box."""
+        box_type = self.type if isinstance(self.type, str) else self.type.value
         return {
             "name": self.name,
-            "type": self.type.value,
+            "type": box_type,
             "is_deletable": self.is_deletable,
             "created_at": self.created_at.isoformat()
         }
 
     def get_type_description(self) -> str:
         """Get human-readable description of the box type."""
-        return self.type.get_description()
+        # Handle both string and enum types
+        if isinstance(self.type, str):
+            box_type_enum = BoxType(self.type)
+        else:
+            box_type_enum = self.type
+        return box_type_enum.get_description()
 
     def is_drag_box(self) -> bool:
         """Check if this is a drag (crawling) box."""
-        return self.type == BoxType.DRAG
+        return self.type == BoxType.DRAG.value or self.type == BoxType.DRAG
 
     def is_rag_box(self) -> bool:
         """Check if this is a rag (document import) box."""
-        return self.type == BoxType.RAG
+        return self.type == BoxType.RAG.value or self.type == BoxType.RAG
 
     def is_bag_box(self) -> bool:
         """Check if this is a bag (storage) box."""
-        return self.type == BoxType.BAG
+        return self.type == BoxType.BAG.value or self.type == BoxType.BAG
 
     def update_settings(self, settings: Dict[str, Any]) -> None:
         """Update box settings and timestamp."""
         if not self.settings:
             self.settings = {}
         self.settings.update(settings)
-        self.updated_at = datetime.now(datetime.UTC)
+        self.updated_at = datetime.now(timezone.utc)
 
     def get_setting(self, key: str, default: Any = None) -> Any:
         """Get a specific setting value."""
@@ -178,13 +186,15 @@ class Box(BaseModel):
 
     def __str__(self) -> str:
         """String representation."""
+        box_type = self.type if isinstance(self.type, str) else self.type.value
         protected = "" if self.is_deletable else " (protected)"
         url_info = f" -> {self.url}" if self.url else ""
-        return f"Box: {self.name} ({self.type.value}){protected}{url_info}"
+        return f"Box: {self.name} ({box_type}){protected}{url_info}"
 
     def __repr__(self) -> str:
         """Developer representation."""
-        return f"Box(id='{self.id}', name='{self.name}', type='{self.type.value}', is_deletable={self.is_deletable})"
+        box_type = self.type if isinstance(self.type, str) else self.type.value
+        return f"Box(id='{self.id}', name='{self.name}', type='{box_type}', is_deletable={self.is_deletable})"
 
     model_config = {
         "from_attributes": True,
