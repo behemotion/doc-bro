@@ -14,6 +14,8 @@ from src.logic.rag.models.chunk import Chunk
 from src.logic.rag.models.document import Document
 from src.logic.rag.models.search_result import SearchResult
 from src.logic.rag.models.strategy_config import ChunkStrategy, SearchStrategy
+from src.logic.rag.strategies.fusion_retrieval import FusionRetrieval
+from src.logic.rag.strategies.query_transformer import QueryTransformer
 from src.services.embeddings import EmbeddingError, EmbeddingService
 from src.services.vector_store import VectorStoreError, VectorStoreService
 
@@ -40,8 +42,10 @@ class RAGSearchService:
         self.logger = get_component_logger("rag")
 
         # Initialize new services
-        self.chunking_service = ChunkingService()
+        self.chunking_service = ChunkingService(embedding_service)
         self.reranking_service = RerankingService()
+        self.query_transformer = QueryTransformer()
+        self.fusion_retrieval = FusionRetrieval()
 
         # Search configuration
         self.default_limit = 10
@@ -94,31 +98,20 @@ class RAGSearchService:
                     )
                     return cached_results
 
-            # Execute search based on strategy
-            if strategy == SearchStrategy.SEMANTIC:
-                results = await self._semantic_search(
-                    query, collection_name, limit, score_threshold, filters
-                )
-            elif strategy == SearchStrategy.HYBRID:
-                results = await self._hybrid_search(
-                    query, collection_name, limit, score_threshold, filters
-                )
-            elif strategy == SearchStrategy.ADVANCED:
-                # PHASE 1: Parallel sub-query execution
-                results = await self._advanced_search_parallel(
-                    query, collection_name, limit, score_threshold, filters
-                )
-            elif strategy == SearchStrategy.FUSION:
-                # PHASE 2: Fusion retrieval (placeholder)
-                results = await self._semantic_search(
-                    query, collection_name, limit, score_threshold, filters
+            # PHASE 2: Query transformation
+            if transform_query:
+                results = await self._search_with_query_transformation(
+                    query, collection_name, limit, strategy, score_threshold, filters, rerank
                 )
             else:
-                raise RAGError(f"Unknown search strategy: {strategy}")
+                # Execute search based on strategy (normal path)
+                results = await self._execute_search_strategy(
+                    query, collection_name, limit, strategy, score_threshold, filters
+                )
 
-            # PHASE 1: Fast reranking
-            if rerank and len(results) > 1:
-                results = await self.reranking_service.rerank(query, results)
+                # PHASE 1: Fast reranking
+                if rerank and len(results) > 1:
+                    results = await self.reranking_service.rerank(query, results)
 
             # Cache results
             self._query_cache[cache_key] = (results, datetime.now())
@@ -142,6 +135,152 @@ class RAGSearchService:
                 extra={"query": query[:50], "strategy": strategy.value, "error": str(e)},
             )
             raise RAGError(f"Search failed: {e}")
+
+    async def _execute_search_strategy(
+        self,
+        query: str,
+        collection_name: str,
+        limit: int,
+        strategy: SearchStrategy,
+        score_threshold: float | None,
+        filters: dict[str, Any] | None,
+    ) -> list[SearchResult]:
+        """Execute search with specified strategy (internal).
+
+        Args:
+            query: Search query
+            collection_name: Collection to search
+            limit: Max results
+            strategy: Search strategy
+            score_threshold: Min score
+            filters: Metadata filters
+
+        Returns:
+            List of search results
+        """
+        # Execute search based on strategy
+        if strategy == SearchStrategy.SEMANTIC:
+            results = await self._semantic_search(
+                query, collection_name, limit, score_threshold, filters
+            )
+        elif strategy == SearchStrategy.HYBRID:
+            results = await self._hybrid_search(
+                query, collection_name, limit, score_threshold, filters
+            )
+        elif strategy == SearchStrategy.ADVANCED:
+            # PHASE 1: Parallel sub-query execution
+            results = await self._advanced_search_parallel(
+                query, collection_name, limit, score_threshold, filters
+            )
+        elif strategy == SearchStrategy.FUSION:
+            # PHASE 2: Fusion retrieval
+            results = await self.fusion_retrieval.fuse_results(
+                query=query,
+                collection_name=collection_name,
+                search_executor=self,
+                limit=limit,
+            )
+        else:
+            raise RAGError(f"Unknown search strategy: {strategy}")
+
+        return results
+
+    async def _search_with_query_transformation(
+        self,
+        query: str,
+        collection_name: str,
+        limit: int,
+        strategy: SearchStrategy,
+        score_threshold: float | None,
+        filters: dict[str, Any] | None,
+        rerank: bool,
+    ) -> list[SearchResult]:
+        """Execute search with query transformation (Phase 2).
+
+        Generates multiple query variations and executes them in parallel,
+        then fuses results using reciprocal rank fusion.
+
+        Args:
+            query: Original query
+            collection_name: Collection to search
+            limit: Max results per query
+            strategy: Search strategy
+            score_threshold: Min score
+            filters: Metadata filters
+            rerank: Enable reranking
+
+        Returns:
+            Fused results from all query variations
+        """
+        # Generate query variations
+        query_variations = await self.query_transformer.transform_query(query)
+
+        self.logger.info(
+            f"Generated {len(query_variations)} query variations",
+            extra={"original": query[:50], "variations_count": len(query_variations)},
+        )
+
+        # Execute searches in parallel for all variations
+        search_tasks = [
+            self._execute_search_strategy(
+                variation, collection_name, limit, strategy, score_threshold, filters
+            )
+            for variation in query_variations
+        ]
+
+        all_results_lists = await asyncio.gather(*search_tasks, return_exceptions=True)
+
+        # Collect successful results
+        all_results: list[SearchResult] = []
+        for i, results in enumerate(all_results_lists):
+            if isinstance(results, Exception):
+                self.logger.warning(
+                    f"Query variation {i} failed: {results}",
+                    extra={"variation": query_variations[i][:50]},
+                )
+                continue
+            all_results.extend(results)
+
+        # Remove duplicates and fuse by document ID (simple RRF)
+        fused_results = self._fuse_results_simple(all_results, limit)
+
+        # Apply reranking if requested
+        if rerank and len(fused_results) > 1:
+            fused_results = await self.reranking_service.rerank(query, fused_results)
+
+        return fused_results
+
+    def _fuse_results_simple(
+        self, results: list[SearchResult], limit: int
+    ) -> list[SearchResult]:
+        """Simple result fusion by averaging scores for duplicate documents.
+
+        Args:
+            results: All search results from variations
+            limit: Max results to return
+
+        Returns:
+            Fused and deduplicated results
+        """
+        # Group by document ID
+        doc_results: dict[str, list[SearchResult]] = {}
+        for result in results:
+            if result.id not in doc_results:
+                doc_results[result.id] = []
+            doc_results[result.id].append(result)
+
+        # Fuse by averaging scores
+        fused = []
+        for doc_id, doc_result_list in doc_results.items():
+            # Take first result and average scores
+            avg_score = sum(r.score for r in doc_result_list) / len(doc_result_list)
+            fused_result = doc_result_list[0]
+            fused_result.score = avg_score
+            fused.append(fused_result)
+
+        # Sort by fused score and limit
+        fused.sort(key=lambda r: r.score, reverse=True)
+        return fused[:limit]
 
     async def _semantic_search(
         self,

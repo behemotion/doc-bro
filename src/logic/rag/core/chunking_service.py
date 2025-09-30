@@ -1,19 +1,33 @@
 """Chunking service for RAG operations."""
 
+import asyncio
 import re
 import uuid
 from datetime import datetime
 
 from bs4 import BeautifulSoup
 
+from src.lib.lib_logger import get_logger
 from src.logic.rag.models.chunk import Chunk
 from src.logic.rag.models.document import Document
 from src.logic.rag.models.strategy_config import ChunkStrategy
 from src.logic.rag.utils.contextual_headers import add_contextual_header
+from src.services.embeddings import EmbeddingService
+
+logger = get_logger(__name__)
 
 
 class ChunkingService:
     """Service for chunking documents with multiple strategies."""
+
+    def __init__(self, embedding_service: EmbeddingService | None = None):
+        """Initialize chunking service.
+
+        Args:
+            embedding_service: Optional embedding service for semantic chunking
+        """
+        self.embedding_service = embedding_service
+        self._semantic_chunker = None
 
     async def chunk_document(
         self,
@@ -58,8 +72,10 @@ class ChunkingService:
                 document, chunk_size, overlap
             )
         elif strategy == ChunkStrategy.SEMANTIC:
-            # Semantic chunking not yet implemented - fallback
-            chunks = await self._chunk_character(document, chunk_size, overlap)
+            # Try semantic chunking with fallback
+            chunks = await self._chunk_semantic_with_fallback(
+                document, chunk_size, overlap
+            )
         else:
             raise ValueError(f"Unknown chunking strategy: {strategy}")
 
@@ -156,3 +172,54 @@ class ChunkingService:
         except Exception:
             # If HTML parsing fails, return empty hierarchy
             return []
+
+    async def _chunk_semantic_with_fallback(
+        self, document: Document, chunk_size: int, overlap: int
+    ) -> list[Chunk]:
+        """Semantic chunking with fallback to character chunking.
+
+        Args:
+            document: Document to chunk
+            chunk_size: Maximum chunk size
+            overlap: Overlap for fallback
+
+        Returns:
+            List of chunks (semantic or character-based on fallback)
+        """
+        # Check if we have embedding service
+        if not self.embedding_service:
+            logger.warning(
+                "No embedding service available - falling back to character chunking"
+            )
+            return await self._chunk_character(document, chunk_size, overlap)
+
+        # Initialize semantic chunker if needed
+        if not self._semantic_chunker:
+            from src.logic.rag.strategies.semantic_chunker import SemanticChunker
+            from src.logic.rag.models.strategy_config import SemanticChunkingConfig
+
+            self._semantic_chunker = SemanticChunker(
+                self.embedding_service, SemanticChunkingConfig()
+            )
+
+        try:
+            # Try semantic chunking
+            chunks = await self._semantic_chunker.chunk_document(document, chunk_size, overlap)
+            logger.info(
+                f"Semantic chunking succeeded for document {document.id}: {len(chunks)} chunks"
+            )
+            return chunks
+
+        except asyncio.TimeoutError:
+            # Timeout - fall back to character chunking
+            logger.warning(
+                f"Semantic chunking timeout for document {document.id} - falling back to character chunking"
+            )
+            return await self._chunk_character(document, chunk_size, overlap)
+
+        except Exception as e:
+            # Other errors - fall back to character chunking
+            logger.error(
+                f"Semantic chunking error for document {document.id}: {e} - falling back to character chunking"
+            )
+            return await self._chunk_character(document, chunk_size, overlap)
