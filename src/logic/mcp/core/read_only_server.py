@@ -9,7 +9,7 @@ from src.logic.mcp.models.response import McpResponse
 from src.logic.mcp.services.read_only import ReadOnlyMcpService
 from src.logic.mcp.services.shelf_mcp_service import ShelfMcpService
 from src.logic.projects.core.project_manager import ProjectManager
-from src.services.rag import RAGSearchService
+from src.logic.rag.core.search_service import RAGSearchService
 from src.models.shelf import ShelfNotFoundError
 
 logger = logging.getLogger(__name__)
@@ -60,7 +60,7 @@ async def initialize_services():
 
     # Initialize services with proper dependencies
     from src.logic.projects.core.project_manager import ProjectManager
-    from src.services.rag import RAGSearchService
+    from src.logic.rag.core.search_service import RAGSearchService
     from src.services.vector_store_factory import VectorStoreFactory
     from src.services.embeddings import EmbeddingService
     from src.core.config import get_config

@@ -30,7 +30,7 @@ from src.services.decision_handler import (
 from src.services.embeddings import EmbeddingService
 from src.services.installation_start import InstallationStartService
 from src.services.installation_status import InstallationStatusService
-from src.services.rag import RAGSearchService
+from src.logic.rag.core.search_service import RAGSearchService
 from src.services.service_endpoints import create_service_endpoints_router
 from src.services.vector_store_factory import VectorStoreFactory
 

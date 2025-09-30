@@ -19,7 +19,7 @@ from src.core.lib_logger import get_component_logger, setup_logging
 from src.logic.crawler.core.crawler import DocumentationCrawler
 from src.services.database import DatabaseManager
 from src.services.embeddings import EmbeddingService
-from src.services.rag import RAGSearchService
+from src.logic.rag.core.search_service import RAGSearchService
 from src.services.vector_store import VectorStoreService
 from src.version import __version__
 

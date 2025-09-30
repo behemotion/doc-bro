@@ -7,7 +7,7 @@ from datetime import datetime
 from src.logic.mcp.models.response import McpResponse
 from src.logic.mcp.models.file_access import FileAccessRequest, ProjectType, FileAccessType
 from src.logic.projects.core.project_manager import ProjectManager
-from src.services.rag import RAGSearchService
+from src.logic.rag.core.search_service import RAGSearchService
 
 logger = logging.getLogger(__name__)
 
