@@ -35,6 +35,10 @@ class CommandContext(BaseModel):
         default=None,
         description="Brief description of current content"
     )
+    box_type: Optional[Literal["drag", "rag", "bag"]] = Field(
+        default=None,
+        description="Box type (drag/rag/bag) - only applicable for box entities"
+    )
 
     @model_validator(mode='after')
     def validate_command_context(self) -> 'CommandContext':

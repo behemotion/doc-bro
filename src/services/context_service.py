@@ -147,7 +147,8 @@ class ContextService:
                 is_empty=is_empty,
                 configuration_state=config_state,
                 last_modified=datetime.fromisoformat(updated_at),
-                content_summary=f"Type: {box_type}" + (", has content" if not is_empty else ", empty")
+                content_summary=f"Type: {box_type}" + (", has content" if not is_empty else ", empty"),
+                box_type=box_type
             )
         else:
             # Box doesn't exist
