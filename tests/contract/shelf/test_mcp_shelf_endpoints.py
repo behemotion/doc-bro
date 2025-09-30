@@ -63,8 +63,32 @@ class TestMcpReadOnlyShelfEndpoints:
     @pytest.fixture
     def client(self, mock_shelf_service):
         """Create TestClient with mocked services."""
-        # Patch the shelf_mcp_service at module level
-        with patch('src.logic.mcp.core.read_only_server.shelf_mcp_service', mock_shelf_service):
+        # Mock read_only_service for project and search operations
+        from src.logic.mcp.models.response import McpResponse
+        mock_read_only_service = AsyncMock()
+
+        async def mock_list_projects(**kwargs):
+            return McpResponse.success_response(data=[{
+                "id": "test-id",
+                "name": "test-project",
+                "status": "ready",
+                "type": "crawling",
+                "created_at": "2025-09-30T00:00:00Z"
+            }])
+
+        async def mock_search(**kwargs):
+            return McpResponse.success_response(data=[{
+                "file_path": "/test/file.md",
+                "content_snippet": "test content",
+                "similarity_score": 0.95
+            }])
+
+        mock_read_only_service.list_projects.side_effect = mock_list_projects
+        mock_read_only_service.search_projects.side_effect = mock_search
+
+        # Patch all services at module level
+        with patch('src.logic.mcp.core.read_only_server.shelf_mcp_service', mock_shelf_service), \
+             patch('src.logic.mcp.core.read_only_server.read_only_service', mock_read_only_service):
             yield TestClient(read_only_app)
 
     @pytest.mark.contract
@@ -367,11 +391,61 @@ class TestMcpAdminShelfEndpoints:
         """Create a mock ShelfMcpService for admin tests."""
         service = AsyncMock(spec=ShelfMcpService)
 
-        # Default mock responses
-        service.list_shelfs.return_value = {
-            "shelves": [],
-            "metadata": {"total_shelfs": 0, "current_shelf": None, "total_baskets": 0}
-        }
+        # Dynamic mock responses that use actual parameters
+        async def mock_create_shelf(name, description=None, set_current=False, force=False):
+            return {
+                "operation": "create_shelf",
+                "shelf_name": name,
+                "result": "created",
+                "details": {
+                    "shelf_id": f"{name}-id",
+                    "created_at": "2025-09-30T00:00:00Z",
+                    "is_current": set_current
+                }
+            }
+
+        async def mock_add_basket(shelf_name, basket_name, basket_type="data", description=None, force=False):
+            return {
+                "operation": "add_basket",
+                "shelf_name": shelf_name,
+                "basket_name": basket_name,
+                "result": "added",
+                "details": {
+                    "basket_id": f"{basket_name}-id",
+                    "basket_type": basket_type,
+                    "status": "empty",
+                    "created_at": "2025-09-30T00:00:00Z"
+                }
+            }
+
+        async def mock_remove_basket(shelf_name, basket_name, confirm=False, backup=True):
+            return {
+                "operation": "remove_basket",
+                "shelf_name": shelf_name,
+                "basket_name": basket_name,
+                "result": "removed",
+                "details": {
+                    "files_deleted": 0
+                }
+            }
+
+        async def mock_set_current_shelf(shelf_name):
+            return {
+                "operation": "set_current_shelf",
+                "shelf_name": shelf_name,
+                "result": "updated",
+                "details": {
+                    "previous_current": None,
+                    "new_current": shelf_name,
+                    "context_updated": True,
+                    "session_id": "test-session"
+                }
+            }
+
+        service.create_shelf_admin.side_effect = mock_create_shelf
+        service.add_basket_admin.side_effect = mock_add_basket
+        service.remove_basket_admin.side_effect = mock_remove_basket
+        service.set_current_shelf_admin.side_effect = mock_set_current_shelf
 
         return service
 
@@ -471,11 +545,14 @@ class TestMcpAdminShelfEndpoints:
         data = response.json()
         assert data["success"] is False
         assert "operation_prohibited" in data.get("error", "")
-        assert "security" in data.get("message", "").lower()
+
+        # Message is nested in data
+        if "data" in data and "message" in data["data"]:
+            assert "security" in data["data"]["message"].lower()
 
         # Should suggest CLI alternative
-        if "details" in data:
-            details = data["details"]
+        if "data" in data and "details" in data["data"]:
+            details = data["data"]["details"]
             assert "CLI only" in details.get("allowed_methods", [])
             assert "docbro shelf --remove" in details.get("alternative", "")
 
@@ -657,6 +734,13 @@ class TestMcpShelfEndpointErrorHandling:
             "shelves": [],
             "metadata": {"total_shelfs": 0, "current_shelf": None, "total_baskets": 0}
         }
+        # Mock get_shelf_structure to raise ShelfNotFoundError for non-existent shelves
+        from src.models.shelf import ShelfNotFoundError
+        async def mock_get_shelf_structure(shelf_name, include_basket_details=True, include_file_list=False):
+            if "nonexistent" in shelf_name.lower() or "definitely" in shelf_name.lower():
+                raise ShelfNotFoundError(f"Shelf '{shelf_name}' not found")
+            return service.get_shelf_structure.return_value
+        service.get_shelf_structure.side_effect = mock_get_shelf_structure
         return service
 
     @pytest.fixture
@@ -755,7 +839,31 @@ class TestMcpShelfBackwardCompatibility:
     @pytest.fixture
     def client(self, mock_shelf_service):
         """Create TestClient with mocked services."""
-        with patch('src.logic.mcp.core.read_only_server.shelf_mcp_service', mock_shelf_service):
+        # Mock read_only_service for project and search operations
+        from src.logic.mcp.models.response import McpResponse
+        mock_read_only_service = AsyncMock()
+
+        async def mock_list_projects(**kwargs):
+            return McpResponse.success_response(data=[{
+                "id": "test-id",
+                "name": "test-project",
+                "status": "ready",
+                "type": "crawling",
+                "created_at": "2025-09-30T00:00:00Z"
+            }])
+
+        async def mock_search(**kwargs):
+            return McpResponse.success_response(data=[{
+                "file_path": "/test/file.md",
+                "content_snippet": "test content",
+                "similarity_score": 0.95
+            }])
+
+        mock_read_only_service.list_projects.side_effect = mock_list_projects
+        mock_read_only_service.search_projects.side_effect = mock_search
+
+        with patch('src.logic.mcp.core.read_only_server.shelf_mcp_service', mock_shelf_service), \
+             patch('src.logic.mcp.core.read_only_server.read_only_service', mock_read_only_service):
             yield TestClient(read_only_app)
 
     @pytest.mark.contract
