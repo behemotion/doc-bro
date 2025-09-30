@@ -139,11 +139,6 @@ class SetupConfiguration(BaseModel):
 
         return cls(**data)
 
-    class Config:
-        """Pydantic configuration."""
-
-        use_enum_values = False  # Keep enums as enums
-        json_encoders = {
-            datetime: lambda v: v.isoformat() + "Z",
-            Path: str
-        }
+    model_config = {
+        "use_enum_values": False  # Keep enums as enums
+    }

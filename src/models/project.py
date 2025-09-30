@@ -47,10 +47,7 @@ class Project(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict(
-        use_enum_values=True,
-        json_encoders={
-            datetime: lambda v: v.isoformat()
-        }
+        use_enum_values=True
     )
 
     @field_validator('name')

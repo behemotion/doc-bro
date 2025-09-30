@@ -13,12 +13,7 @@ class InstallationContext(BaseModel):
 
     model_config = ConfigDict(
         str_strip_whitespace=True,
-        validate_assignment=True,
-        json_encoders={
-            Path: str,
-            datetime: lambda v: v.isoformat()
-        }
-    )
+        validate_assignment=True)
 
     install_method: str = Field(..., description="Installation method")
     install_date: datetime = Field(..., description="When DocBro was installed")
@@ -309,11 +304,7 @@ class CriticalDecisionPoint(BaseModel):
 
     model_config = ConfigDict(
         str_strip_whitespace=True,
-        validate_assignment=True,
-        json_encoders={
-            datetime: lambda v: v.isoformat()
-        }
-    )
+        validate_assignment=True)
 
     decision_id: str = Field(..., description="Unique decision identifier")
     decision_type: Literal["install_location", "service_port", "data_directory"] = Field(

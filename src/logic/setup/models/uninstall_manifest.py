@@ -173,10 +173,6 @@ class UninstallManifest(BaseModel):
             backup_location=self.backup_location
         )
 
-    class Config:
-        """Pydantic configuration."""
-
-        arbitrary_types_allowed = True
-        json_encoders = {
-            Path: str
-        }
+    model_config = {
+        "arbitrary_types_allowed": True
+    }

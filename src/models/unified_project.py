@@ -72,10 +72,7 @@ class UnifiedProject(BaseModel):
     model_config = ConfigDict(
         use_enum_values=True,
         validate_assignment=True,
-        arbitrary_types_allowed=True,
-        json_encoders={
-            datetime: lambda v: v.isoformat()
-        }
+        arbitrary_types_allowed=True
     )
 
     @field_validator('name')

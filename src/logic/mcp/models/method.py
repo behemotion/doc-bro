@@ -1,7 +1,7 @@
 """McpMethodDefinition model for MCP method metadata and validation."""
 
 from typing import Dict, Any
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from .server_type import McpServerType
 
 
@@ -20,7 +20,8 @@ class McpMethodDefinition(BaseModel):
     parameters: Dict[str, Any] = Field(default_factory=dict)
     server_type: McpServerType
 
-    @validator("name")
+    @field_validator("name")
+    @classmethod
     def validate_method_name(cls, v: str) -> str:
         """Validate method name follows MCP conventions."""
         if not v.replace("_", "").isalnum():
@@ -33,7 +34,8 @@ class McpMethodDefinition(BaseModel):
 
         return v
 
-    @validator("parameters")
+    @field_validator("parameters")
+    @classmethod
     def validate_json_schema(cls, v: Dict[str, Any]) -> Dict[str, Any]:
         """Validate that parameters form a valid JSON schema."""
         if not isinstance(v, dict):

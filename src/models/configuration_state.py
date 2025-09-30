@@ -58,8 +58,4 @@ class ConfigurationState(BaseModel):
         """Check if entity needs setup or migration."""
         return not self.is_configured or self.needs_migration
 
-    class Config:
-        """Pydantic configuration."""
-        json_encoders = {
-            datetime: lambda v: v.isoformat() if v else None
-        }
+    model_config = {}

@@ -48,11 +48,7 @@ class QueryResult(BaseModel):
     # Additional metadata
     metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat()
-        }
-    )
+    model_config = ConfigDict()
 
     @field_validator('url')
     @classmethod
@@ -219,11 +215,7 @@ class QueryResponse(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     cache_hit: bool = Field(default=False, description="Whether result was cached")
 
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat()
-        }
-    )
+    model_config = ConfigDict()
 
     def get_high_quality_results(self, min_score: float = 0.7) -> list[QueryResult]:
         """Get only high quality results."""

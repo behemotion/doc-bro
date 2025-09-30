@@ -107,9 +107,4 @@ class SQLiteVecConfiguration(BaseModel):
 
         return conn_str
 
-    class Config:
-        """Pydantic configuration."""
-
-        json_encoders = {
-            Path: str
-        }
+    model_config = {}

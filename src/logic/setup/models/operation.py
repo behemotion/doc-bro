@@ -128,9 +128,4 @@ class SetupOperation(BaseModel):
         """Add a user selection to the operation."""
         self.user_selections[key] = value
 
-    class Config:
-        """Pydantic configuration."""
-
-        json_encoders = {
-            datetime: lambda v: v.isoformat() + "Z"
-        }
+    model_config = {}

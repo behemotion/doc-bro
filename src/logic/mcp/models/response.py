@@ -1,7 +1,7 @@
 """McpResponse model for standardized MCP operation responses."""
 
 from typing import Any, Dict, Optional
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ValidationInfo
 
 
 class McpResponse(BaseModel):
@@ -19,10 +19,11 @@ class McpResponse(BaseModel):
     error: Optional[str] = Field(default=None)
     metadata: Optional[Dict[str, Any]] = Field(default=None)
 
-    @validator("error")
-    def validate_error_with_success(cls, v: Optional[str], values: Dict[str, Any]) -> Optional[str]:
+    @field_validator("error")
+    @classmethod
+    def validate_error_with_success(cls, v: Optional[str], info: ValidationInfo) -> Optional[str]:
         """Validate that error is provided when success is False."""
-        success = values.get("success", True)
+        success = info.data.get("success", True) if info.data else True
 
         if not success and not v:
             raise ValueError("Error message must be provided when success is False")

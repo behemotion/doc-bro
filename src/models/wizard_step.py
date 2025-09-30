@@ -155,8 +155,4 @@ class WizardStep(BaseModel):
 
         return True, ""
 
-    class Config:
-        """Pydantic configuration."""
-        json_encoders = {
-            list: lambda v: v if isinstance(v, list) else None
-        }
+    model_config = {}

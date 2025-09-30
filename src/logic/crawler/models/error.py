@@ -118,8 +118,4 @@ class ErrorEntry(BaseModel):
 
         return " | ".join(parts)
 
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat()
-        }
-    )
+    model_config = ConfigDict()

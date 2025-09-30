@@ -160,9 +160,4 @@ class ServiceInfo(BaseModel):
 
         return instructions.get(self.name)
 
-    class Config:
-        """Pydantic configuration."""
-
-        json_encoders = {
-            datetime: lambda v: v.isoformat() + "Z"
-        }
+    model_config = {}

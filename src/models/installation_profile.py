@@ -98,13 +98,7 @@ class InstallationProfile(BaseModel):
 
     model_config = ConfigDict(
         str_strip_whitespace=True,
-        validate_assignment=True,
-        json_encoders={
-            Path: str,
-            datetime: lambda v: v.isoformat(),
-            UUID: str
-        }
-    )
+        validate_assignment=True)
 
     # Core identification and metadata
     id: UUID = Field(default_factory=uuid4, description="Unique identifier for installation session")

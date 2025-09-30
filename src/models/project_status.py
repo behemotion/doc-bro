@@ -153,8 +153,4 @@ class ProjectStatus(BaseModel):
             "index_size_mb": round(self.index_size_mb, 2)
         }
 
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat()
-        }
-    )
+    model_config = ConfigDict()

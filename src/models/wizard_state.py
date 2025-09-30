@@ -128,8 +128,4 @@ class WizardState(BaseModel):
         self.is_complete = True
         self.update_activity()
 
-    class Config:
-        """Pydantic configuration."""
-        json_encoders = {
-            datetime: lambda v: v.isoformat() if v else None
-        }
+    model_config = {}

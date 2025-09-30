@@ -101,9 +101,4 @@ class FlagDefinition(BaseModel):
 
         return "\n".join(help_parts)
 
-    class Config:
-        """Pydantic configuration."""
-        json_encoders = {
-            # Encode choices list as JSON string for database storage
-            list: lambda v: v if isinstance(v, list) else None
-        }
+    model_config = {}

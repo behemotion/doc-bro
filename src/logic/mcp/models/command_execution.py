@@ -1,7 +1,7 @@
 """CommandExecutionRequest model for executing DocBro CLI commands via admin server."""
 
 from typing import List, Dict, Any, Optional
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from enum import Enum
 
 
@@ -43,13 +43,15 @@ class CommandExecutionRequest(BaseModel):
     # Internal state tracking
     state: CommandState = Field(default=CommandState.CREATED, exclude=True)
 
-    @validator("command")
+    @field_validator("command")
+    @classmethod
     def validate_allowed_command(cls, v: AllowedCommand) -> AllowedCommand:
         """Validate that only allowed commands can be executed."""
         # 'serve' command is intentionally excluded to prevent recursion
         return v
 
-    @validator("arguments")
+    @field_validator("arguments")
+    @classmethod
     def validate_arguments(cls, v: List[str]) -> List[str]:
         """Validate command arguments for basic security."""
         for arg in v:
@@ -62,7 +64,8 @@ class CommandExecutionRequest(BaseModel):
 
         return v
 
-    @validator("options")
+    @field_validator("options")
+    @classmethod
     def validate_options(cls, v: Dict[str, Any]) -> Dict[str, Any]:
         """Validate command options."""
         # Ensure all option keys are valid strings

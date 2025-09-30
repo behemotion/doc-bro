@@ -56,10 +56,7 @@ class CrawlSession(BaseModel):
     archived: bool = Field(default=False, description="Whether session is archived")
 
     model_config = ConfigDict(
-        use_enum_values=True,
-        json_encoders={
-            datetime: lambda v: v.isoformat()
-        }
+        use_enum_values=True
     )
 
     @field_validator('rate_limit')

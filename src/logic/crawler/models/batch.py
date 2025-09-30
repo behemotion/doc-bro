@@ -218,8 +218,4 @@ class BatchOperation(BaseModel):
             self.continue_on_error or len(self.failed) == 0
         )
 
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat()
-        }
-    )
+    model_config = ConfigDict()

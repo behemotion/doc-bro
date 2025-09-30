@@ -186,10 +186,7 @@ class Box(BaseModel):
         """Developer representation."""
         return f"Box(id='{self.id}', name='{self.name}', type='{self.type.value}', is_deletable={self.is_deletable})"
 
-    class Config:
-        """Pydantic configuration."""
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
-        from_attributes = True
-        use_enum_values = True
+    model_config = {
+        "from_attributes": True,
+        "use_enum_values": True
+    }

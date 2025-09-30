@@ -58,8 +58,4 @@ class CommandContext(BaseModel):
         pattern = r'^[a-zA-Z0-9_-]+$'
         return bool(re.match(pattern, name))
 
-    class Config:
-        """Pydantic configuration."""
-        json_encoders = {
-            datetime: lambda v: v.isoformat() if v else None
-        }
+    model_config = {}

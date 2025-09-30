@@ -14,7 +14,7 @@ from .setup_types import (
     MCPClientConfig,
     SetupMode,
     SetupStatus,
-    VectorStorageConfig,
+    VectorStorageConfig
 )
 
 
@@ -62,12 +62,7 @@ class SetupConfiguration(BaseModel):
     )
 
     model_config = ConfigDict(
-        use_enum_values=True,
-        json_encoders={
-            datetime: lambda v: v.isoformat(),
-            UUID: str
-        }
-    )
+        use_enum_values=True)
 
     @field_validator('setup_id')
     @classmethod
