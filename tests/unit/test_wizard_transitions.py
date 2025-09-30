@@ -1,6 +1,7 @@
 """Unit tests for wizard state transitions (T055)."""
 
 import pytest
+import pytest_asyncio
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
@@ -20,10 +21,17 @@ class TestWizardStateTransitions:
         """Generate test wizard ID."""
         return str(uuid4())
 
-    @pytest.fixture
-    def wizard_orchestrator(self):
+    @pytest_asyncio.fixture
+    async def wizard_orchestrator(self):
         """Create WizardOrchestrator instance for testing."""
-        return WizardOrchestrator()
+        orchestrator = WizardOrchestrator()
+        # Clean up all existing sessions from previous tests
+        if not orchestrator.db_manager._initialized:
+            await orchestrator.db_manager.initialize()
+        async with orchestrator.db_manager._connection.execute("DELETE FROM wizard_states"):
+            pass
+        await orchestrator.db_manager._connection.commit()
+        return orchestrator
 
     def test_wizard_state_initialization(self, wizard_id):
         """Test creating new wizard state."""
