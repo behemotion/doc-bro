@@ -12,6 +12,13 @@ from src.logic.mcp.services.shelf_mcp_service import ShelfMcpService
 from src.models.shelf import ShelfNotFoundError, ShelfExistsError
 from src.models.box import BoxNotFoundError, BoxExistsError
 
+# MCP Protocol imports
+from src.logic.mcp.protocol.handler import ProtocolHandler
+from src.logic.mcp.protocol.transport import HttpTransport
+from src.logic.mcp.protocol.capabilities import ServerCapabilities
+from src.logic.mcp.services.tools_service import ToolsService
+from src.logic.mcp.services.resources_service import ResourcesService
+
 logger = logging.getLogger(__name__)
 
 # Create FastAPI app
@@ -26,10 +33,18 @@ command_executor = None
 admin_service = None
 shelf_mcp_service = None
 
+# MCP Protocol components
+protocol_handler = None
+http_transport = None
+tools_service = None
+resources_service = None
+
 
 async def initialize_services():
     """Initialize services for the admin server."""
     global command_executor, admin_service, shelf_mcp_service
+    global protocol_handler, http_transport, tools_service, resources_service
+
     command_executor = CommandExecutor()
     admin_service = AdminMcpService(command_executor)
 
@@ -37,6 +52,28 @@ async def initialize_services():
     shelf_mcp_service = ShelfMcpService()
     await shelf_mcp_service.initialize()
     logger.info("ShelfMcpService initialized for admin server")
+
+    # Initialize MCP protocol components
+    capabilities = ServerCapabilities.default_admin()
+    protocol_handler = ProtocolHandler(
+        server_name="docbro-admin",
+        server_version="1.0.0",
+        capabilities=capabilities,
+    )
+    http_transport = HttpTransport(protocol_handler)
+
+    # Initialize MCP services (admin mode enabled)
+    tools_service = ToolsService(is_admin=True)  # Admin with full command access
+    resources_service = ResourcesService()
+
+    # Register MCP protocol methods
+    protocol_handler.register_method("tools/list", tools_service.handle_tools_list)
+    protocol_handler.register_method("tools/call", tools_service.handle_tools_call)
+    protocol_handler.register_method("resources/list", resources_service.handle_resources_list)
+    protocol_handler.register_method("resources/read", resources_service.handle_resources_read)
+    protocol_handler.register_method("resources/templates/list", resources_service.handle_resources_templates_list)
+
+    logger.info("MCP protocol layer initialized for admin server with full tool access")
 
 
 @app.on_event("startup")
@@ -303,6 +340,25 @@ async def delete_shelf(request: Request):
         logger.error(f"Error in delete_shelf: {e}")
         error_response = McpResponse.error_response(f"Internal server error: {str(e)}")
         return JSONResponse(content=error_response.to_dict(), status_code=500)
+
+
+@app.post("/mcp")
+async def mcp_protocol_endpoint(request: Request):
+    """
+    MCP protocol endpoint for JSON-RPC 2.0 messages.
+
+    This endpoint implements the Model Context Protocol specification.
+    All MCP-compliant clients should use this endpoint for admin operations.
+    """
+    global http_transport
+
+    if http_transport is None:
+        error_response = McpResponse.error_response("MCP protocol not initialized")
+        return JSONResponse(content=error_response.to_dict(), status_code=500)
+
+    # Handle request using protocol transport layer
+    response = await http_transport.handle_http_request(request)
+    return response
 
 
 @app.get("/mcp/v1/health")
