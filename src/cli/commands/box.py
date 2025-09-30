@@ -146,7 +146,10 @@ async def _create_box_with_wizard(name: str, box_type: str, shelf: Optional[str]
             if current:
                 target_shelf = current.name
             else:
-                console.print("[red]No current shelf set. Please specify --shelf or set current shelf[/red]")
+                console.print("[red]No current shelf set.[/red]")
+                console.print("Either:")
+                console.print("  1. Specify a shelf: [cyan]--shelf <shelf>[/cyan]")
+                console.print("  2. Set current shelf: [cyan]docbro shelf current <shelf>[/cyan]")
                 return
 
         box = await box_service.create_box(
@@ -204,7 +207,10 @@ def create(name: str, box_type: str, shelf: Optional[str] = None, description: O
                 if current:
                     target_shelf = current.name
                 else:
-                    console.print("[red]No current shelf set. Please specify --shelf or set current shelf[/red]")
+                    console.print("[red]No current shelf set.[/red]")
+                    console.print("Either:")
+                    console.print("  1. Specify a shelf: [cyan]docbro box create <name> --type <type> --shelf <shelf>[/cyan]")
+                    console.print("  2. Set current shelf: [cyan]docbro shelf current <shelf>[/cyan]")
                     raise click.Abort()
 
             # Create the box
