@@ -11,12 +11,14 @@ class McpResponse(BaseModel):
         success: Operation success indicator
         data: Response data (varies by method)
         error: Error message if success is False
+        message: Human-readable message (especially for errors)
         metadata: Additional response metadata
     """
 
     success: bool
     data: Any = Field(default=None)
     error: Optional[str] = Field(default=None)
+    message: Optional[str] = Field(default=None)
     metadata: Optional[Dict[str, Any]] = Field(default=None)
 
     @field_validator("error")
@@ -50,6 +52,7 @@ class McpResponse(BaseModel):
     def error_response(
         cls,
         error: str,
+        message: Optional[str] = None,
         data: Any = None,
         metadata: Optional[Dict[str, Any]] = None
     ) -> "McpResponse":
@@ -57,6 +60,7 @@ class McpResponse(BaseModel):
         return cls(
             success=False,
             error=error,
+            message=message,
             data=data,
             metadata=metadata
         )
@@ -70,6 +74,9 @@ class McpResponse(BaseModel):
 
         if self.error is not None:
             result["error"] = self.error
+
+        if self.message is not None:
+            result["message"] = self.message
 
         if self.metadata is not None:
             result["metadata"] = self.metadata

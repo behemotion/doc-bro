@@ -7,6 +7,14 @@
 ## Project Overview
 DocBro is a documentation crawler and search tool with RAG capabilities and MCP server integration. Features single-command UV installation with unified setup operations and the new Shelf-Box Rhyme System for intuitive documentation organization.
 
+### Documentation File Rules:
+1. **Documentation files (*.md)** → `./md/` (ONLY create .md files in this directory unless explicitly specified otherwise)
+2. **ALL .md files MUST be created in `./md/` directory** (unless user explicitly specifies a different location or file path is defined in CLAUDE.md)
+3. When user asks to access/read a .md file without a full path:
+   - First look in `./md/` directory
+   - Only search elsewhere if not found in `./md/`
+4. Exception: Root-level files like README.md, CLAUDE.md, constitution.md stay in their designated locations
+
 ## Implementation Status
 ✅ **100% Complete** - Installation Process Reorganization + Unified Setup Command + Full Vector Store Support + Shelf-Box Rhyme System + Context-Aware Commands
 

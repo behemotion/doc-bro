@@ -115,6 +115,8 @@ async def list_projects(request: Request):
         # Extract parameters
         status_filter = params.get("status_filter")
         limit = params.get("limit")
+        shelf_name = params.get("shelf_name")
+        include_shelf_context = params.get("include_shelf_context", False)
 
         # Validate limit
         if limit is not None and (limit < 1 or limit > 100):
@@ -123,7 +125,9 @@ async def list_projects(request: Request):
         # Call service
         response = await read_only_service.list_projects(
             status_filter=status_filter,
-            limit=limit
+            limit=limit,
+            shelf_name=shelf_name,
+            include_shelf_context=include_shelf_context
         )
 
         return JSONResponse(content=response.to_dict())
@@ -154,6 +158,9 @@ async def search_projects(request: Request):
             raise HTTPException(status_code=422, detail="Query parameter is required")
 
         project_names = params.get("project_names")
+        shelf_names = params.get("shelf_names")
+        basket_types = params.get("basket_types")
+        include_shelf_context = params.get("include_shelf_context", False)
         limit = params.get("limit", 10)
 
         # Validate limit
@@ -164,6 +171,9 @@ async def search_projects(request: Request):
         response = await read_only_service.search_projects(
             query=query,
             project_names=project_names,
+            shelf_names=shelf_names,
+            basket_types=basket_types,
+            include_shelf_context=include_shelf_context,
             limit=limit
         )
 
@@ -291,7 +301,8 @@ async def get_shelf_structure(request: Request):
     except ShelfNotFoundError as e:
         error_response = McpResponse.error_response(
             error="shelf_not_found",
-            data={"message": str(e)}
+            message=str(e),
+            data={"details": {"error_code": "shelf_not_found"}}
         )
         return JSONResponse(content=error_response.to_dict(), status_code=404)
     except HTTPException:

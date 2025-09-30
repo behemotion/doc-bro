@@ -23,7 +23,9 @@ class ReadOnlyMcpService:
     async def list_projects(
         self,
         status_filter: Optional[str] = None,
-        limit: Optional[int] = None
+        limit: Optional[int] = None,
+        shelf_name: Optional[str] = None,
+        include_shelf_context: bool = False
     ) -> McpResponse:
         """List all DocBro projects with optional filtering."""
         try:
@@ -76,6 +78,9 @@ class ReadOnlyMcpService:
         self,
         query: str,
         project_names: Optional[List[str]] = None,
+        shelf_names: Optional[List[str]] = None,
+        basket_types: Optional[List[str]] = None,
+        include_shelf_context: bool = False,
         limit: int = 10
     ) -> McpResponse:
         """Search projects using embeddings."""
