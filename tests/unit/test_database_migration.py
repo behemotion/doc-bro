@@ -2,6 +2,7 @@
 
 import pytest
 import sqlite3
+import uuid
 from pathlib import Path
 import tempfile
 from unittest.mock import patch
@@ -19,15 +20,14 @@ class TestDatabaseMigration:
         self.temp_db.close()
         self.db_path = Path(self.temp_db.name)
 
-        # Create config with test database path
-        self.config = DocBroConfig()
-        self.config.database_path = self.db_path
-
-        self.migrator = DatabaseMigrator(self.config)
+        # Create migrator with mocked config
+        with patch.object(DocBroConfig, 'database_path', self.db_path):
+            self.config = DocBroConfig()
+            self.migrator = DatabaseMigrator(self.config)
 
     def teardown_method(self):
         """Clean up test database."""
-        if self.db_path.exists():
+        if hasattr(self, 'db_path') and self.db_path.exists():
             self.db_path.unlink()
 
     def test_get_current_version_no_table(self):
@@ -155,9 +155,9 @@ class TestDatabaseMigration:
 
         conn = sqlite3.connect(self.db_path)
 
-        # Check that we're at version 5
+        # Check that we're at version 6 (current schema version)
         version = self.migrator.get_current_version(conn)
-        assert version == 5
+        assert version == 6
 
         # Check that default data exists
         cursor = conn.execute("SELECT COUNT(*) FROM shelves")
@@ -227,25 +227,34 @@ class TestDatabaseMigration:
 
         self.migrator.migrate_to_version_5(conn)
 
-        # Get default shelf and box IDs
-        shelf_cursor = conn.execute("SELECT id FROM shelves LIMIT 1")
-        shelf_id = shelf_cursor.fetchone()[0]
+        # Create a new shelf and box for testing (avoiding default data relationships)
+        test_shelf_id = str(uuid.uuid4())
+        test_box_id = str(uuid.uuid4())
 
-        box_cursor = conn.execute("SELECT id FROM boxes LIMIT 1")
-        box_id = box_cursor.fetchone()[0]
+        conn.execute("""
+            INSERT INTO shelves (id, name, created_at, updated_at)
+            VALUES (?, 'test-shelf-fk', datetime('now'), datetime('now'))
+        """, (test_shelf_id,))
+
+        conn.execute("""
+            INSERT INTO boxes (id, name, type, created_at, updated_at)
+            VALUES (?, 'test-box-fk', 'drag', datetime('now'), datetime('now'))
+        """, (test_box_id,))
+
+        conn.commit()
 
         # Valid relationship should work
         conn.execute("""
             INSERT INTO shelf_boxes (shelf_id, box_id, added_at)
             VALUES (?, ?, datetime('now'))
-        """, (shelf_id, box_id))
+        """, (test_shelf_id, test_box_id))
 
         # Invalid shelf_id should fail
         with pytest.raises(sqlite3.IntegrityError):
             conn.execute("""
                 INSERT INTO shelf_boxes (shelf_id, box_id, added_at)
                 VALUES ('nonexistent', ?, datetime('now'))
-            """, (box_id,))
+            """, (test_box_id,))
 
         conn.close()
 
