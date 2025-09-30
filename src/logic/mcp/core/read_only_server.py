@@ -12,6 +12,13 @@ from src.logic.projects.core.project_manager import ProjectManager
 from src.logic.rag.core.search_service import RAGSearchService
 from src.models.shelf import ShelfNotFoundError
 
+# MCP Protocol imports
+from src.logic.mcp.protocol.handler import ProtocolHandler
+from src.logic.mcp.protocol.transport import HttpTransport
+from src.logic.mcp.protocol.capabilities import ServerCapabilities
+from src.logic.mcp.services.tools_service import ToolsService
+from src.logic.mcp.services.resources_service import ResourcesService
+
 logger = logging.getLogger(__name__)
 
 
@@ -53,10 +60,17 @@ search_service = None   # Will be injected
 read_only_service = None  # Will be injected
 shelf_mcp_service = None  # Will be injected
 
+# MCP Protocol components
+protocol_handler = None  # Will be initialized
+http_transport = None  # Will be initialized
+tools_service = None  # Will be initialized
+resources_service = None  # Will be initialized
+
 
 async def initialize_services():
     """Initialize services for the read-only server."""
     global project_service, search_service, read_only_service, shelf_mcp_service
+    global protocol_handler, http_transport, tools_service, resources_service
 
     # Initialize services with proper dependencies
     from src.logic.projects.core.project_manager import ProjectManager
@@ -91,6 +105,28 @@ async def initialize_services():
     shelf_mcp_service = ShelfMcpService()
     await shelf_mcp_service.initialize()
     logger.info("ShelfMcpService initialized")
+
+    # Initialize MCP protocol components
+    capabilities = ServerCapabilities.default_read_only()
+    protocol_handler = ProtocolHandler(
+        server_name="docbro",
+        server_version="1.0.0",
+        capabilities=capabilities,
+    )
+    http_transport = HttpTransport(protocol_handler)
+
+    # Initialize MCP services
+    tools_service = ToolsService(is_admin=False)  # Read-only
+    resources_service = ResourcesService()
+
+    # Register MCP protocol methods
+    protocol_handler.register_method("tools/list", tools_service.handle_tools_list)
+    protocol_handler.register_method("tools/call", tools_service.handle_tools_call)
+    protocol_handler.register_method("resources/list", resources_service.handle_resources_list)
+    protocol_handler.register_method("resources/read", resources_service.handle_resources_read)
+    protocol_handler.register_method("resources/templates/list", resources_service.handle_resources_templates_list)
+
+    logger.info("MCP protocol layer initialized with tools and resources endpoints")
 
 
 @app.on_event("startup")
@@ -335,6 +371,25 @@ async def get_current_shelf(request: Request):
         logger.error(f"Error in get_current_shelf: {e}")
         error_response = McpResponse.error_response(f"Internal server error: {str(e)}")
         return JSONResponse(content=error_response.to_dict(), status_code=500)
+
+
+@app.post("/mcp")
+async def mcp_protocol_endpoint(request: Request):
+    """
+    MCP protocol endpoint for JSON-RPC 2.0 messages.
+
+    This endpoint implements the Model Context Protocol specification.
+    All MCP-compliant clients should use this endpoint.
+    """
+    global http_transport
+
+    if http_transport is None:
+        error_response = McpResponse.error_response("MCP protocol not initialized")
+        return JSONResponse(content=error_response.to_dict(), status_code=500)
+
+    # Handle request using protocol transport layer
+    response = await http_transport.handle_http_request(request)
+    return response
 
 
 @app.get("/mcp/v1/health")
