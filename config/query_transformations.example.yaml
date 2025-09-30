@@ -1,0 +1,80 @@
+# Query Transformation Synonym Dictionary
+#
+# This file defines domain-specific synonyms for query expansion.
+# Used by QueryTransformer for improving search recall.
+#
+# Format:
+#   term: [synonym1, synonym2, ...]
+#
+# Place your custom version at: ~/.config/docbro/query_transformations.yaml
+
+# Container & Orchestration
+docker: [container, containerization, docker-engine, moby]
+container: [docker, pod, containerization]
+kubernetes: [k8s, orchestration, container-orchestration]
+pod: [container, workload]
+
+# Installation & Setup
+install: [setup, installation, deploy, configure, bootstrap]
+setup: [install, configuration, initialization]
+deploy: [deployment, install, rollout]
+configure: [configuration, setup, config]
+
+# Search & Retrieval
+search: [find, lookup, query, retrieve, discover]
+find: [search, locate, discover]
+query: [search, find, lookup]
+
+# Security
+security: [secure, safety, protection, hardening]
+vulnerability: [vuln, CVE, security-issue]
+authentication: [auth, login, credentials]
+authorization: [authz, permissions, access-control]
+
+# Performance
+performance: [perf, speed, optimization, efficiency]
+optimize: [optimization, improve, enhance, tune]
+latency: [lag, delay, response-time]
+throughput: [bandwidth, capacity, rate]
+
+# Monitoring & Logging
+monitor: [monitoring, observe, watch, track]
+log: [logging, logs, audit-trail]
+metrics: [telemetry, statistics, measurements]
+alert: [alerting, notification, warning]
+
+# Networking
+network: [networking, connectivity, net]
+endpoint: [URL, address, service-endpoint]
+port: [TCP-port, UDP-port, service-port]
+DNS: [domain-name, hostname, FQDN]
+
+# Storage
+storage: [persist, volume, disk]
+database: [DB, datastore, data-storage]
+cache: [caching, temporary-storage, buffer]
+backup: [snapshot, archive, restore]
+
+# Development
+build: [compile, package, bundle]
+test: [testing, QA, validation]
+debug: [debugging, troubleshoot, diagnose]
+CI: [continuous-integration, pipeline, automation]
+CD: [continuous-deployment, continuous-delivery]
+
+# API & Services
+API: [endpoint, REST, interface]
+REST: [RESTful, HTTP-API]
+gRPC: [RPC, remote-procedure-call]
+webhook: [callback, HTTP-callback]
+
+# Cloud Providers
+AWS: [Amazon-Web-Services, amazon-cloud]
+GCP: [Google-Cloud-Platform, google-cloud]
+Azure: [Microsoft-Azure, azure-cloud]
+
+# Documentation Terms
+guide: [tutorial, how-to, documentation, docs]
+reference: [API-reference, documentation, spec]
+example: [sample, demo, illustration]
+quickstart: [getting-started, quick-start, tutorial]
