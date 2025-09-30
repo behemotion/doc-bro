@@ -1450,7 +1450,18 @@ class DatabaseManager:
         """List boxes, optionally filtered by shelf or type."""
         self._ensure_initialized()
 
-        if shelf_id:
+        # Handle all combinations of filters
+        if shelf_id and box_type:
+            # Both filters: shelf AND type
+            cursor = await self._connection.execute("""
+                SELECT b.*, sb.position, sb.added_at
+                FROM boxes b
+                JOIN shelf_boxes sb ON b.id = sb.box_id
+                WHERE sb.shelf_id = ? AND b.type = ?
+                ORDER BY sb.position, b.created_at DESC
+            """, (shelf_id, box_type))
+        elif shelf_id:
+            # Only shelf filter
             cursor = await self._connection.execute("""
                 SELECT b.*, sb.position, sb.added_at
                 FROM boxes b
@@ -1459,10 +1470,12 @@ class DatabaseManager:
                 ORDER BY sb.position, b.created_at DESC
             """, (shelf_id,))
         elif box_type:
+            # Only type filter
             cursor = await self._connection.execute("""
                 SELECT * FROM boxes WHERE type = ? ORDER BY created_at DESC
             """, (box_type,))
         else:
+            # No filters: all boxes
             cursor = await self._connection.execute("""
                 SELECT * FROM boxes ORDER BY created_at DESC
             """)

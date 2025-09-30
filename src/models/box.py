@@ -109,10 +109,9 @@ class Box(BaseModel):
     @model_validator(mode="after")
     def validate_type_specific_fields(self) -> Self:
         """Validate fields based on box type."""
-        if self.type == BoxType.DRAG:
-            # Drag boxes should have URL for crawling
-            if not self.url:
-                raise BoxValidationError("Drag boxes require a URL")
+        # Note: URL requirement for drag boxes is enforced at fill/crawl operation level,
+        # not at box creation level. This allows the Shelf-Box Rhyme System pattern:
+        # create empty box → fill later with content.
 
         # Update timestamp
         if self.updated_at < self.created_at:
