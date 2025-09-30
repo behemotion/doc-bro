@@ -75,6 +75,16 @@ tests/
 └── performance/        # <30s validation tests (setup, menu responsiveness)
 ```
 
+### Default Shelf Behavior
+
+On first installation/migration, DocBro automatically creates a default shelf named **"common shelf"** with:
+- `is_default = TRUE` - Marked as the default shelf
+- `is_deletable = FALSE` - Cannot be deleted (protection rule)
+- Contains one default box: "new year" (rag type)
+- Location: src/services/database_migrator.py:125-130 (_create_default_shelf_data method)
+
+This ensures users always have at least one shelf available for immediate use.
+
 ## Installation
 
 ```bash
@@ -111,6 +121,8 @@ docbro shelf rename <old_name> <new_name>       # Rename shelf
 docbro shelf delete <name> [--force] [--no-backup]
 
 # NOTE: Creating a shelf automatically creates a default RAG box named "<shelf_name>_box"
+#       This behavior is by design to ensure every shelf has at least one box for content storage
+#       Location: src/services/shelf_service.py:62-67 (create_shelf method)
 
 # Box Management (Documentation Units)
 docbro box create <name> --type <drag|rag|bag> [--shelf <name>] [--box-description "text"]
@@ -364,13 +376,32 @@ DOCBRO_LOG_LEVEL=WARNING|INFO|DEBUG
 #### MCP Testing Requirements
 **IMPORTANT**: MCP endpoints use the MCP protocol format, not standard REST/HTTP.
 
-- **Standard HTTP Requests**: Will return `{"detail": "Invalid method"}`
-- **Testing Requirements**:
-  - Use MCP-compliant client (e.g., Claude Desktop with MCP integration)
-  - Standard curl/HTTP clients are insufficient for endpoint testing
-  - Health endpoint (`GET /mcp/v1/health`) is the only REST-compatible endpoint
-- **Development Testing**: Use Claude Desktop or implement MCP protocol client
-- **Endpoint Discovery**: Source code analysis or OpenAPI schema (if available)
+**Why Standard HTTP Testing Fails:**
+- MCP is a specialized protocol for AI assistant integration
+- Standard HTTP requests (curl, Postman, etc.) return: `{"detail": "Invalid method"}`
+- MCP protocol includes request/response framing, session management, and capability negotiation
+
+**Testing Requirements:**
+- **Required Client**: MCP-compliant client (Claude Desktop, Claude Code, or custom MCP implementation)
+- **Standard Tools**: curl/HTTP clients are insufficient for endpoint testing
+- **Only Exception**: Health endpoint (`GET /mcp/v1/health`) supports standard REST/HTTP
+
+**Development Testing Approaches:**
+1. **Claude Desktop**: Official MCP client with built-in integration
+2. **Claude Code**: Official CLI with dedicated MCP tools and file access
+3. **MCP Protocol Client**: Implement using MCP specification (for advanced testing)
+4. **Health Endpoint Only**: Use curl/HTTP for basic server status checks
+
+**Endpoint Discovery:**
+- Source code analysis (src/logic/mcp/core/)
+- MCP protocol documentation at https://modelcontextprotocol.io
+- Server logs during client connection
+
+**Common Testing Mistakes:**
+- ❌ Using curl to test search/execute endpoints → Always fails
+- ❌ Expecting JSON-RPC format → MCP uses custom protocol
+- ✅ Use health endpoint for HTTP connectivity tests only
+- ✅ Use MCP client for full endpoint validation
 
 ## Universal Arrow Navigation Architecture
 
