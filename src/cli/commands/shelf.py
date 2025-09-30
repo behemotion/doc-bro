@@ -35,9 +35,9 @@ def inspect(name: Optional[str] = None, init: bool = False, verbose: bool = Fals
     """Display shelf information or prompt creation if not found."""
 
     async def _inspect():
+        context_service = ContextService()
+        shelf_service = None
         try:
-            context_service = ContextService()
-
             if not name:
                 # List all shelves
                 shelf_service = ShelfService()
@@ -102,6 +102,10 @@ def inspect(name: Optional[str] = None, init: bool = False, verbose: bool = Fals
         except Exception as e:
             logger.error(f"Error inspecting shelf: {e}")
             console.print(f"[red]Error: {e}[/red]")
+        finally:
+            # Ensure database connections are closed
+            if shelf_service:
+                await shelf_service.db.cleanup()
 
     asyncio.run(_inspect())
 
@@ -152,9 +156,8 @@ def create(name: str, shelf_description: Optional[str] = None, set_current: bool
     """Create a new shelf with optional wizard."""
 
     async def _create():
+        shelf_service = ShelfService()
         try:
-            shelf_service = ShelfService()
-
             shelf = await shelf_service.create_shelf(
                 name=name,
                 description=shelf_description,
@@ -183,6 +186,9 @@ def create(name: str, shelf_description: Optional[str] = None, set_current: bool
         except Exception as e:
             console.print(f"[red]Failed to create shelf: {e}[/red]")
             raise click.Abort()
+        finally:
+            # Ensure database connections are closed
+            await shelf_service.db.cleanup()
 
     asyncio.run(_create())
 
@@ -195,9 +201,8 @@ def list(verbose: bool = False, current_only: bool = False, limit: int = 10):
     """List all shelves."""
 
     async def _list():
+        shelf_service = ShelfService()
         try:
-            shelf_service = ShelfService()
-
             if current_only:
                 current_shelf = await shelf_service.get_current_shelf()
                 if current_shelf:
@@ -260,6 +265,9 @@ def list(verbose: bool = False, current_only: bool = False, limit: int = 10):
         except Exception as e:
             console.print(f"[red]Failed to list shelves: {e}[/red]")
             raise click.Abort()
+        finally:
+            # Ensure database connections are closed
+            await shelf_service.db.cleanup()
 
     asyncio.run(_list())
 
@@ -270,9 +278,8 @@ def current(name: Optional[str] = None):
     """Get or set current shelf."""
 
     async def _current():
+        shelf_service = ShelfService()
         try:
-            shelf_service = ShelfService()
-
             if name:
                 # Set current shelf
                 shelf = await shelf_service.set_current_shelf(name)
@@ -291,6 +298,9 @@ def current(name: Optional[str] = None):
         except Exception as e:
             console.print(f"[red]Failed to get/set current shelf: {e}[/red]")
             raise click.Abort()
+        finally:
+            # Ensure database connections are closed
+            await shelf_service.db.cleanup()
 
     asyncio.run(_current())
 
@@ -302,9 +312,8 @@ def rename(old_name: str, new_name: str):
     """Rename a shelf."""
 
     async def _rename():
+        shelf_service = ShelfService()
         try:
-            shelf_service = ShelfService()
-
             shelf = await shelf_service.rename_shelf(old_name, new_name)
             console.print(f"[green]Renamed shelf '{old_name}' to '{new_name}'[/green]")
 
@@ -320,6 +329,9 @@ def rename(old_name: str, new_name: str):
         except Exception as e:
             console.print(f"[red]Failed to rename shelf: {e}[/red]")
             raise click.Abort()
+        finally:
+            # Ensure database connections are closed
+            await shelf_service.db.cleanup()
 
     asyncio.run(_rename())
 
@@ -332,9 +344,8 @@ def delete(name: str, force: bool = False, no_backup: bool = False):
     """Delete a shelf."""
 
     async def _delete():
+        shelf_service = ShelfService()
         try:
-            shelf_service = ShelfService()
-
             # Get shelf info first
             shelf = await shelf_service.get_shelf_by_name(name)
             if not shelf:
@@ -372,5 +383,8 @@ def delete(name: str, force: bool = False, no_backup: bool = False):
         except Exception as e:
             console.print(f"[red]Failed to delete shelf: {e}[/red]")
             raise click.Abort()
+        finally:
+            # Ensure database connections are closed
+            await shelf_service.db.cleanup()
 
     asyncio.run(_delete())
