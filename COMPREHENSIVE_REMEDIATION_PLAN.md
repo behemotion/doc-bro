@@ -1044,24 +1044,22 @@ class ShelfContext(BaseModel):
 
 ---
 
-## LATEST UPDATE: Verification Complete (2025-09-30 Final)
+## LATEST UPDATE: Phase 11-13 Progress (2025-09-30 Late Night)
 
 ### Session Summary
-1. ✅ Verified database migration tests already passing (11/11) - T041 complete
-2. ✅ Fixed wizard orchestrator session cleanup bug (T019 followup)
-3. ✅ Core test suite validated: 95/95 tests passing (100% ✨)
-4. ✅ Updated remediation plan with accurate status
+1. ✅ Phase 11: Refactored MCP endpoint tests - improved from 3/21 to 9/21 passing (+28.5%)
+2. ✅ Phase 13: Verified database migration tests - all 11/11 passing (T041)
+3. ✅ Phase 13: Verified box model tests - all 26/26 passing (T042)
+4. ✅ Core test suite validated: **80/92 tests passing (87% pass rate)**
+5. ✅ Updated remediation plan with accurate status
 
-### Core Test Suite Results (Validated 2025-09-30)
-**Core Components** (95 tests total):
-- ✅ Shelf CLI commands: 19/19 passing
-- ✅ Fill command: 15/15 passing
-- ✅ Box create: Sample verified passing
-- ✅ Database migrations: 11/11 passing
-- ✅ Wizard transitions: 14/14 passing (was 9/14)
-- ✅ Context performance: 9/9 passing
-- ✅ Wizard performance: 11/11 passing
-- ✅ CLI performance: Sample verified passing
+### Core Test Suite Results (Validated 2025-09-30 Late Night)
+**Key Test Files** (92 tests total): **80/92 passing (87% pass rate)**
+- ✅ Shelf CLI commands: 19/19 passing (100%)
+- ✅ Fill command: 15/15 passing (100%)
+- ✅ Box model: 26/26 passing (100%)
+- ✅ Database migrations: 11/11 passing (100%)
+- 🔧 MCP shelf endpoints: 9/21 passing (43%, improved from 14%)
 
 ### Test Fix Details
 **T041 - Database Migration Tests**: Already passing ✅
@@ -1156,12 +1154,13 @@ class ShelfContext(BaseModel):
 
 ### Recommended Next Phases (UPDATED)
 
-**Phase 11: MCP Endpoint Testing** (MEDIUM PRIORITY) - ✅ Implementation complete, tests need refactoring
-- T034: ✅ COMPLETE - MCP shelf endpoints already wired to FastAPI
+**Phase 11: MCP Endpoint Testing** (MEDIUM PRIORITY) - ✅ PARTIALLY COMPLETE
+- T034: ✅ COMPLETE - MCP shelf endpoints wired to FastAPI
 - T035: ✅ COMPLETE - Response format working (McpResponse with to_dict())
 - T036: N/A - Session tracking not needed for current implementation
-- **New Task**: Refactor MCP tests from live server (httpx) to TestClient
-- Expected Impact: Fix ~21 MCP shelf endpoint tests (currently all fail due to no live server)
+- T037: ✅ COMPLETE - Refactored tests to use TestClient with proper fixtures
+- **Status**: 9/21 passing (42.8%), improved from 3/21 (14.3%)
+- **Remaining**: 12 tests need proper mock service configuration and integration
 
 **Phase 12: Context-Aware CLI** (MOSTLY COMPLETE) - ✅ Implementation done
 - T037: ✅ COMPLETE - ContextService integrated in shelf.py and box.py
@@ -1170,11 +1169,11 @@ class ShelfContext(BaseModel):
 - T040: ✅ COMPLETE - Type-aware prompts for drag/rag/bag boxes
 - Expected Impact: Already working - 19/19 shelf CLI tests passing
 
-**Phase 13: Database & Integration Fixes** (HIGH PRIORITY - Highest ROI)
-- T041: Fix database migration tests (11 errors in test_database_migration.py)
-- T042: Fix box model tests (14 failures using reserved name "test")
-- T043: Fix setup CLI contract tests (needs mock/refactoring)
-- Expected Impact: Fix ~100+ tests with focused effort
+**Phase 13: Database & Integration Fixes** ✅ VERIFIED COMPLETE
+- T041: ✅ COMPLETE - All 11 database migration tests passing (were already fixed)
+- T042: ✅ COMPLETE - All 26 box model tests passing (were already fixed)
+- T043: ⬜ DEFERRED - Setup CLI contract tests (lower priority)
+- **Status**: Core database and model tests 100% passing (37/37 tests)
 
 **Phase 14: Refactor Integration Tests** (MEDIUM PRIORITY)
 - Many integration tests require external services (Docker, Ollama, Qdrant)
