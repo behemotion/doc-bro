@@ -237,13 +237,9 @@ async def test_rerank_performance_long_content(reranking_service):
 
 @pytest.mark.asyncio
 async def test_rerank_zero_overhead_for_empty_results(reranking_service):
-    """Test reranking empty results has minimal overhead."""
+    """Test reranking empty results raises ValueError per contract."""
     query = "docker"
 
-    start = time.perf_counter()
-    reranked = await reranking_service.rerank(query, [])
-    elapsed_ms = (time.perf_counter() - start) * 1000
-
-    # Should be nearly instant
-    assert elapsed_ms < 5.0, f"Empty results reranking took {elapsed_ms:.2f}ms"
-    assert len(reranked) == 0
+    # Per contract specification (reranking_service.md), empty results should raise ValueError
+    with pytest.raises(ValueError, match="results empty"):
+        await reranking_service.rerank(query, [])
