@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "docbro": {
+      "command": "/Users/alexandr/.local/bin/docbro",
+      "args": ["serve", "--port", "9383", "--foreground"],
+      "env": {
+        "DOCBRO_LOG_LEVEL": "WARNING",
+        "DOCBRO_VECTOR_STORE": "sqlite_vec"
+      }
+    },
+    "docbro-admin": {
+      "command": "/Users/alexandr/.local/bin/docbro",
+      "args": ["serve", "--admin", "--port", "9384", "--foreground"],
+      "env": {
+        "DOCBRO_LOG_LEVEL": "WARNING",
+        "DOCBRO_VECTOR_STORE": "sqlite_vec"
+      }
+    }
+  }
+}
