@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -175,7 +175,7 @@ class ProjectManager:
 
         try:
             # Update timestamp
-            project.updated_at = datetime.now(datetime.UTC)
+            project.updated_at = datetime.now(timezone.utc)
 
             # Validate settings for project type
             from .project_factory import ProjectFactory

@@ -4,7 +4,7 @@ import asyncio
 import logging
 import uuid
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -280,7 +280,7 @@ class UploadManager:
             Number of operations cleaned up
         """
         cleanup_count = 0
-        cutoff_time = datetime.now(datetime.UTC).timestamp() - (max_age_hours * 3600)
+        cutoff_time = datetime.now(timezone.utc).timestamp() - (max_age_hours * 3600)
 
         operations_to_remove = []
 

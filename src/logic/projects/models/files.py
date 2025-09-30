@@ -2,7 +2,7 @@
 
 import hashlib
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -179,7 +179,7 @@ class StorageFile(BaseModel):
 
     def record_access(self) -> None:
         """Record file access."""
-        self.last_accessed = datetime.now(datetime.UTC)
+        self.last_accessed = datetime.now(timezone.utc)
         self.access_count += 1
 
     def get_display_size(self) -> str:
@@ -518,7 +518,7 @@ class FileInventory(BaseModel):
             self.content_text = content_text
             self.content_hash = hashlib.sha256(content_text.encode()).hexdigest()
 
-        self.index_date = datetime.now(datetime.UTC)
+        self.index_date = datetime.now(timezone.utc)
 
     def get_searchable_text(self) -> str:
         """Get all searchable text combined."""

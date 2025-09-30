@@ -3,7 +3,7 @@
 import json
 import sqlite3
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -350,7 +350,7 @@ class DatabaseManager:
         self._ensure_initialized()
 
         project_id = str(uuid.uuid4())
-        now = datetime.now(datetime.UTC)
+        now = datetime.now(timezone.utc)
 
         project = Project(
             id=project_id,
@@ -477,7 +477,7 @@ class DatabaseManager:
         """Update project status."""
         self._ensure_initialized()
 
-        now = datetime.now(datetime.UTC)
+        now = datetime.now(timezone.utc)
         await self._connection.execute("""
             UPDATE projects SET status = ?, updated_at = ?
             WHERE id = ?
@@ -547,7 +547,7 @@ class DatabaseManager:
 
         # Always update the updated_at timestamp
         update_fields.append("updated_at = ?")
-        update_params.append(datetime.now(datetime.UTC).isoformat())
+        update_params.append(datetime.now(timezone.utc).isoformat())
         update_params.append(project_id)
 
         sql = f"UPDATE projects SET {', '.join(update_fields)} WHERE id = ?"
@@ -590,7 +590,7 @@ class DatabaseManager:
             successful_pages,
             failed_pages,
             last_crawl_at.isoformat(),
-            datetime.now(datetime.UTC).isoformat(),
+            datetime.now(timezone.utc).isoformat(),
             project_id
         ))
 
@@ -635,7 +635,7 @@ class DatabaseManager:
             raise DatabaseError(f"Project {project_id} not found")
 
         session_id = str(uuid.uuid4())
-        now = datetime.now(datetime.UTC)
+        now = datetime.now(timezone.utc)
 
         session = CrawlSession(
             id=session_id,
@@ -881,7 +881,7 @@ class DatabaseManager:
                 WHERE project_id = ? AND status IN ({})
             """.format(','.join('?' * len(incomplete_statuses))),
             [CrawlStatus.FAILED.value, "Session interrupted - cleaned up for new crawl",
-             datetime.now(datetime.UTC).isoformat(), project_id] + incomplete_statuses)
+             datetime.now(timezone.utc).isoformat(), project_id] + incomplete_statuses)
 
         pages_reset = 0
         if reset_pages:
@@ -900,7 +900,7 @@ class DatabaseManager:
                         outbound_links = NULL, internal_links = NULL, external_links = NULL,
                         updated_at = ?
                     WHERE project_id = ?
-                """, (PageStatus.DISCOVERED.value, datetime.now(datetime.UTC).isoformat(), project_id))
+                """, (PageStatus.DISCOVERED.value, datetime.now(timezone.utc).isoformat(), project_id))
 
         await project_conn.commit()
 
@@ -935,7 +935,7 @@ class DatabaseManager:
             raise DatabaseError(f"Project {project_id} not found")
 
         page_id = str(uuid.uuid4())
-        now = datetime.now(datetime.UTC)
+        now = datetime.now(timezone.utc)
 
         page = Page(
             id=page_id,
@@ -1328,7 +1328,7 @@ class DatabaseManager:
         self._ensure_initialized()
 
         shelf_id = str(uuid.uuid4())
-        now = datetime.now(datetime.UTC).isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         try:
             await self._connection.execute("""
@@ -1402,7 +1402,7 @@ class DatabaseManager:
         self._ensure_initialized()
 
         box_id = str(uuid.uuid4())
-        now = datetime.now(datetime.UTC).isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         try:
             await self._connection.execute("""
@@ -1493,7 +1493,7 @@ class DatabaseManager:
         """Add a box to a shelf."""
         self._ensure_initialized()
 
-        now = datetime.now(datetime.UTC).isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         try:
             await self._connection.execute("""

@@ -1,6 +1,6 @@
 """Basket model (project within a shelf)."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional, ClassVar
 from uuid import uuid4
@@ -192,8 +192,8 @@ class Basket(BaseModel):
     def update_status(self, status: BasketStatus) -> None:
         """Update basket status."""
         self.status = status
-        self.updated_at = datetime.now(datetime.UTC)
-        self.last_operation_at = datetime.now(datetime.UTC)
+        self.updated_at = datetime.now(timezone.utc)
+        self.last_operation_at = datetime.now(timezone.utc)
 
     def update_statistics(
         self,
@@ -212,13 +212,13 @@ class Basket(BaseModel):
         if failed_pages is not None:
             self.failed_pages = failed_pages
 
-        self.updated_at = datetime.now(datetime.UTC)
-        self.last_operation_at = datetime.now(datetime.UTC)
+        self.updated_at = datetime.now(timezone.utc)
+        self.last_operation_at = datetime.now(timezone.utc)
 
     def add_metadata(self, key: str, value: any) -> None:
         """Add or update metadata."""
         self.metadata[key] = value
-        self.updated_at = datetime.now(datetime.UTC)
+        self.updated_at = datetime.now(timezone.utc)
 
     def get_metadata(self, key: str, default: any = None) -> any:
         """Get metadata value."""
@@ -227,7 +227,7 @@ class Basket(BaseModel):
     def add_setting(self, key: str, value: any) -> None:
         """Add or update setting."""
         self.settings[key] = value
-        self.updated_at = datetime.now(datetime.UTC)
+        self.updated_at = datetime.now(timezone.utc)
 
     def get_setting(self, key: str, default: any = None) -> any:
         """Get setting value."""

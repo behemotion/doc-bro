@@ -2,7 +2,7 @@
 
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import uvicorn
@@ -154,7 +154,7 @@ class MCPServer:
             """Health check endpoint."""
             return {
                 "status": "healthy",
-                "timestamp": datetime.now(datetime.UTC).isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "services": {
                     "database": self.db_manager is not None,
                     "vector_store": self.vector_store is not None,
@@ -169,7 +169,7 @@ class MCPServer:
             session_id = str(uuid.uuid4())
             self.sessions[session_id] = {
                 "id": session_id,
-                "created_at": datetime.now(datetime.UTC).isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
                 "data": session_data,
                 "active": True
             }
@@ -181,7 +181,7 @@ class MCPServer:
             return {
                 "session_id": session_id,
                 "status": "connected",
-                "timestamp": datetime.now(datetime.UTC).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
 
         # MCP Projects endpoint
@@ -517,7 +517,7 @@ class MCPServer:
                     "type": "connection",
                     "status": "connected",
                     "session_id": session_id,
-                    "timestamp": datetime.now(datetime.UTC).isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat()
                 })
 
                 # Handle incoming messages
@@ -529,7 +529,7 @@ class MCPServer:
                     if message.get("type") == "ping":
                         await websocket.send_json({
                             "type": "pong",
-                            "timestamp": datetime.now(datetime.UTC).isoformat()
+                            "timestamp": datetime.now(timezone.utc).isoformat()
                         })
                     elif message.get("type") == "search":
                         # Perform search and send results
@@ -540,7 +540,7 @@ class MCPServer:
                                 "type": "search_results",
                                 "query": query,
                                 "results": [],
-                                "timestamp": datetime.now(datetime.UTC).isoformat()
+                                "timestamp": datetime.now(timezone.utc).isoformat()
                             })
 
             except WebSocketDisconnect:

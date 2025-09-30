@@ -2,7 +2,7 @@
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -316,11 +316,11 @@ class UnifiedProjectService:
 
         if metadata:
             project.metadata.update(metadata)
-            project.updated_at = datetime.now(datetime.UTC)
+            project.updated_at = datetime.now(timezone.utc)
 
         if source_url is not None:
             project.source_url = source_url
-            project.updated_at = datetime.now(datetime.UTC)
+            project.updated_at = datetime.now(timezone.utc)
 
         # Store updated project
         await self._store_project(project)

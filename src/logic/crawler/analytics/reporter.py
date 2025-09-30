@@ -3,7 +3,7 @@
 import json
 import logging
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -24,7 +24,7 @@ class ErrorReporter:
         """
         self.project_name = project_name
         self.errors: list[dict[str, Any]] = []
-        self.start_time = datetime.now(datetime.UTC)
+        self.start_time = datetime.now(timezone.utc)
         self.report_id = str(uuid4())
         self._stats = {
             'total_pages': 0,
@@ -58,7 +58,7 @@ class ErrorReporter:
             'error_type': error_type,
             'error_message': error_message[:500],  # Limit message length
             'error_code': error_code,
-            'timestamp': datetime.now(datetime.UTC).isoformat(),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
             'retry_count': retry_count
         }
 
@@ -117,7 +117,7 @@ class ErrorReporter:
         Returns:
             Dictionary containing the full report
         """
-        end_time = datetime.now(datetime.UTC)
+        end_time = datetime.now(timezone.utc)
         duration = (end_time - self.start_time).total_seconds()
 
         # Determine status
@@ -174,7 +174,7 @@ class ErrorReporter:
         report_dir = self.get_report_dir()
 
         # Create timestamp for filenames
-        timestamp = datetime.now(datetime.UTC).strftime('%Y%m%d_%H%M%S')
+        timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
 
         # Save JSON report
         json_path = report_dir / f"report_{timestamp}.json"

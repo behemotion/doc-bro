@@ -2,7 +2,7 @@
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 
 from src.models.box import Box, BoxExistsError, BoxNotFoundError, BoxValidationError
@@ -279,7 +279,7 @@ class BoxService:
             conn = self.db._connection
             await conn.execute(
                 "UPDATE boxes SET name = ?, updated_at = ? WHERE id = ?",
-                (new_name, datetime.now(datetime.UTC).isoformat(), box.id)
+                (new_name, datetime.now(timezone.utc).isoformat(), box.id)
             )
             await conn.commit()
 
@@ -361,7 +361,7 @@ class BoxService:
                 "UPDATE boxes SET settings = ?, updated_at = ? WHERE id = ?",
                 (
                     json.dumps(box.settings) if box.settings else None,
-                    datetime.now(datetime.UTC).isoformat(),
+                    datetime.now(timezone.utc).isoformat(),
                     box.id
                 )
             )

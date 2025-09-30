@@ -234,7 +234,7 @@ class FillService:
             conn = self.box_service.db._connection
             await conn.execute(
                 "UPDATE boxes SET url = ?, updated_at = ? WHERE id = ?",
-                (new_url, __import__('datetime').datetime.now(datetime.UTC).isoformat(), box.id)
+                (new_url, __import__('datetime').datetime.now(timezone.utc).isoformat(), box.id)
             )
             await conn.commit()
             logger.info(f"Updated box '{box.name}' URL to: {new_url}")

@@ -2,7 +2,7 @@
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -140,7 +140,7 @@ class ProjectDatabaseRepository:
                     json.dumps(project.settings.get('allowed_formats', [])),
                     json.dumps({k: v for k, v in project.settings.items()
                                if k not in ['max_file_size', 'allowed_formats']}),
-                    datetime.now(datetime.UTC).isoformat()
+                    datetime.now(timezone.utc).isoformat()
                 ))
 
             await conn.commit()
@@ -218,7 +218,7 @@ class ProjectDatabaseRepository:
                 WHERE name = ?
             """, (
                 status.value if isinstance(status, ProjectStatus) else status,
-                datetime.now(datetime.UTC).isoformat(),
+                datetime.now(timezone.utc).isoformat(),
                 name
             ))
             await conn.commit()
@@ -536,7 +536,7 @@ class ProjectDatabaseRepository:
                 status.value if isinstance(status, UploadStatus) else status,
                 source.type.value if isinstance(source.type, UploadSourceType) else source.type,
                 source.location,
-                datetime.now(datetime.UTC).isoformat(),
+                datetime.now(timezone.utc).isoformat(),
                 json.dumps({})
             ))
             await conn.commit()
@@ -581,7 +581,7 @@ class ProjectDatabaseRepository:
 
         if status in [UploadStatus.COMPLETE, UploadStatus.FAILED, UploadStatus.CANCELLED]:
             updates.append("completed_at = ?")
-            params.append(datetime.now(datetime.UTC).isoformat())
+            params.append(datetime.now(timezone.utc).isoformat())
 
         if not updates:
             return
