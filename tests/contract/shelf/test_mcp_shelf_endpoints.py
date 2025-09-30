@@ -1,13 +1,16 @@
 """Contract tests for MCP shelf/basket endpoints.
 
 Tests the MCP endpoint contracts defined in specs/017-projects-as-collections/contracts/mcp-shelf-endpoints.md.
-These tests will initially FAIL as the shelf-aware MCP endpoints do not exist yet.
+Using FastAPI TestClient for testing without running a live server.
 """
 
 import pytest
-import httpx
 import json
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, patch, MagicMock
+from fastapi.testclient import TestClient
+
+from src.logic.mcp.core.read_only_server import app
+from src.logic.mcp.services.shelf_mcp_service import ShelfMcpService
 
 pytestmark = [pytest.mark.contract, pytest.mark.asyncio]
 
@@ -16,12 +19,31 @@ class TestMcpReadOnlyShelfEndpoints:
     """Contract tests for read-only MCP server shelf endpoints."""
 
     @pytest.fixture
-    def base_url(self) -> str:
-        """Base URL for read-only MCP server."""
-        return "http://0.0.0.0:9383"
+    def mock_shelf_service(self):
+        """Create a mock ShelfMcpService."""
+        service = AsyncMock(spec=ShelfMcpService)
+
+        # Default mock response for list_shelfs
+        service.list_shelfs.return_value = {
+            "shelves": [],
+            "metadata": {
+                "total_shelfs": 0,
+                "current_shelf": None,
+                "total_baskets": 0
+            }
+        }
+
+        return service
+
+    @pytest.fixture
+    def client(self, mock_shelf_service):
+        """Create TestClient with mocked services."""
+        # Patch the shelf_mcp_service at module level
+        with patch('src.logic.mcp.core.read_only_server.shelf_mcp_service', mock_shelf_service):
+            yield TestClient(app)
 
     @pytest.mark.contract
-    async def test_list_shelfs_endpoint_exists(self, base_url: str) -> None:
+    def test_list_shelfs_endpoint_exists(self, client: TestClient) -> None:
         """Test that the list_shelfs endpoint is available."""
         request_data = {
             "method": "list_shelfs",
@@ -31,12 +53,11 @@ class TestMcpReadOnlyShelfEndpoints:
             }
         }
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{base_url}/mcp/v1/list_shelfs",
-                json=request_data,
-                headers={"Content-Type": "application/json"}
-            )
+        response = client.post(
+            "/mcp/v1/list_shelfs",
+            json=request_data,
+            headers={"Content-Type": "application/json"}
+        )
 
         # Should return valid response when implemented
         assert response.status_code == 200
@@ -45,7 +66,7 @@ class TestMcpReadOnlyShelfEndpoints:
         assert isinstance(data["success"], bool)
 
     @pytest.mark.contract
-    async def test_list_shelfs_response_structure(self, base_url: str) -> None:
+    def test_list_shelfs_response_structure(self, client: TestClient) -> None:
         """Test list_shelfs response follows the contract structure."""
         request_data = {
             "method": "list_shelfs",
@@ -56,9 +77,8 @@ class TestMcpReadOnlyShelfEndpoints:
             }
         }
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{base_url}/mcp/v1/list_shelfs",
+        response = client.post(
+                "/mcp/v1/list_shelfs",
                 json=request_data,
                 headers={"Content-Type": "application/json"}
             )
@@ -93,7 +113,7 @@ class TestMcpReadOnlyShelfEndpoints:
                 assert field in metadata
 
     @pytest.mark.contract
-    async def test_list_shelfs_parameters(self, base_url: str) -> None:
+    def test_list_shelfs_parameters(self, client: TestClient) -> None:
         """Test list_shelfs with different parameter combinations."""
         test_cases = [
             # Basic request
@@ -112,19 +132,18 @@ class TestMcpReadOnlyShelfEndpoints:
                 "params": params
             }
 
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    f"{base_url}/mcp/v1/list_shelfs",
-                    json=request_data,
-                    headers={"Content-Type": "application/json"}
-                )
+            response = client.post(
+                "/mcp/v1/list_shelfs",
+                json=request_data,
+                headers={"Content-Type": "application/json"}
+            )
 
             assert response.status_code == 200
             data = response.json()
             assert data["success"] is True
 
     @pytest.mark.contract
-    async def test_get_shelf_structure_endpoint(self, base_url: str) -> None:
+    def test_get_shelf_structure_endpoint(self, client: TestClient) -> None:
         """Test get_shelf_structure endpoint contract."""
         request_data = {
             "method": "get_shelf_structure",
@@ -135,9 +154,8 @@ class TestMcpReadOnlyShelfEndpoints:
             }
         }
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{base_url}/mcp/v1/get_shelf_structure",
+        response = client.post(
+                "/mcp/v1/get_shelf_structure",
                 json=request_data,
                 headers={"Content-Type": "application/json"}
             )
@@ -172,7 +190,7 @@ class TestMcpReadOnlyShelfEndpoints:
                 assert field in summary
 
     @pytest.mark.contract
-    async def test_get_shelf_structure_missing_shelf(self, base_url: str) -> None:
+    def test_get_shelf_structure_missing_shelf(self, client: TestClient) -> None:
         """Test get_shelf_structure with non-existent shelf."""
         request_data = {
             "method": "get_shelf_structure",
@@ -181,9 +199,8 @@ class TestMcpReadOnlyShelfEndpoints:
             }
         }
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{base_url}/mcp/v1/get_shelf_structure",
+        response = client.post(
+                "/mcp/v1/get_shelf_structure",
                 json=request_data,
                 headers={"Content-Type": "application/json"}
             )
@@ -195,7 +212,7 @@ class TestMcpReadOnlyShelfEndpoints:
             assert "shelf_not_found" in data.get("error", "")
 
     @pytest.mark.contract
-    async def test_enhanced_list_projects_with_shelf_filter(self, base_url: str) -> None:
+    def test_enhanced_list_projects_with_shelf_filter(self, client: TestClient) -> None:
         """Test enhanced list_projects endpoint with shelf filtering."""
         request_data = {
             "method": "list_projects",
@@ -207,9 +224,8 @@ class TestMcpReadOnlyShelfEndpoints:
             }
         }
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{base_url}/mcp/v1/list_projects",
+        response = client.post(
+                "/mcp/v1/list_projects",
                 json=request_data,
                 headers={"Content-Type": "application/json"}
             )
@@ -234,7 +250,7 @@ class TestMcpReadOnlyShelfEndpoints:
                     assert field in project
 
     @pytest.mark.contract
-    async def test_enhanced_search_projects_shelf_aware(self, base_url: str) -> None:
+    def test_enhanced_search_projects_shelf_aware(self, client: TestClient) -> None:
         """Test enhanced search_projects with shelf awareness."""
         request_data = {
             "method": "search_projects",
@@ -247,9 +263,8 @@ class TestMcpReadOnlyShelfEndpoints:
             }
         }
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{base_url}/mcp/v1/search_projects",
+        response = client.post(
+                "/mcp/v1/search_projects",
                 json=request_data,
                 headers={"Content-Type": "application/json"}
             )
@@ -280,16 +295,15 @@ class TestMcpReadOnlyShelfEndpoints:
                     assert field in metadata
 
     @pytest.mark.contract
-    async def test_get_current_shelf_endpoint(self, base_url: str) -> None:
+    def test_get_current_shelf_endpoint(self, client: TestClient) -> None:
         """Test get_current_shelf endpoint."""
         request_data = {
             "method": "get_current_shelf",
             "params": {}
         }
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{base_url}/mcp/v1/get_current_shelf",
+        response = client.post(
+                "/mcp/v1/get_current_shelf",
                 json=request_data,
                 headers={"Content-Type": "application/json"}
             )
@@ -323,13 +337,8 @@ class TestMcpReadOnlyShelfEndpoints:
 class TestMcpAdminShelfEndpoints:
     """Contract tests for admin MCP server shelf management endpoints."""
 
-    @pytest.fixture
-    def admin_base_url(self) -> str:
-        """Base URL for admin MCP server (localhost only)."""
-        return "http://127.0.0.1:9384"
-
     @pytest.mark.contract
-    async def test_create_shelf_endpoint(self, admin_base_url: str) -> None:
+    def test_create_shelf_endpoint(self, client: TestClient) -> None:
         """Test create_shelf admin endpoint."""
         request_data = {
             "method": "create_shelf",
@@ -341,9 +350,8 @@ class TestMcpAdminShelfEndpoints:
             }
         }
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{admin_base_url}/mcp/v1/create_shelf",
+        response = client.post(
+                "/mcp/v1/create_shelf",
                 json=request_data,
                 headers={"Content-Type": "application/json"}
             )
@@ -373,7 +381,7 @@ class TestMcpAdminShelfEndpoints:
                     assert field in details
 
     @pytest.mark.contract
-    async def test_create_shelf_with_set_current(self, admin_base_url: str) -> None:
+    def test_create_shelf_with_set_current(self, client: TestClient) -> None:
         """Test create_shelf with set_current flag."""
         request_data = {
             "method": "create_shelf",
@@ -383,9 +391,8 @@ class TestMcpAdminShelfEndpoints:
             }
         }
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{admin_base_url}/mcp/v1/create_shelf",
+        response = client.post(
+                "/mcp/v1/create_shelf",
                 json=request_data,
                 headers={"Content-Type": "application/json"}
             )
@@ -399,7 +406,7 @@ class TestMcpAdminShelfEndpoints:
                 assert op_data["details"].get("is_current") is True
 
     @pytest.mark.contract
-    async def test_delete_shelf_security_restriction(self, admin_base_url: str) -> None:
+    def test_delete_shelf_security_restriction(self, client: TestClient) -> None:
         """Test that delete_shelf is prohibited via MCP admin for security."""
         request_data = {
             "method": "delete_shelf",
@@ -410,9 +417,8 @@ class TestMcpAdminShelfEndpoints:
             }
         }
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{admin_base_url}/mcp/v1/delete_shelf",
+        response = client.post(
+                "/mcp/v1/delete_shelf",
                 json=request_data,
                 headers={"Content-Type": "application/json"}
             )
@@ -430,7 +436,7 @@ class TestMcpAdminShelfEndpoints:
             assert "docbro shelf --remove" in details.get("alternative", "")
 
     @pytest.mark.contract
-    async def test_add_basket_endpoint(self, admin_base_url: str) -> None:
+    def test_add_basket_endpoint(self, client: TestClient) -> None:
         """Test add_basket admin endpoint."""
         request_data = {
             "method": "add_basket",
@@ -443,9 +449,8 @@ class TestMcpAdminShelfEndpoints:
             }
         }
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{admin_base_url}/mcp/v1/add_basket",
+        response = client.post(
+                "/mcp/v1/add_basket",
                 json=request_data,
                 headers={"Content-Type": "application/json"}
             )
@@ -473,7 +478,7 @@ class TestMcpAdminShelfEndpoints:
                     assert field in details
 
     @pytest.mark.contract
-    async def test_add_basket_default_type(self, admin_base_url: str) -> None:
+    def test_add_basket_default_type(self, client: TestClient) -> None:
         """Test add_basket with default type (data)."""
         request_data = {
             "method": "add_basket",
@@ -484,9 +489,8 @@ class TestMcpAdminShelfEndpoints:
             }
         }
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{admin_base_url}/mcp/v1/add_basket",
+        response = client.post(
+                "/mcp/v1/add_basket",
                 json=request_data,
                 headers={"Content-Type": "application/json"}
             )
@@ -500,7 +504,7 @@ class TestMcpAdminShelfEndpoints:
                 assert op_data["details"].get("basket_type") == "data"
 
     @pytest.mark.contract
-    async def test_remove_basket_endpoint(self, admin_base_url: str) -> None:
+    def test_remove_basket_endpoint(self, client: TestClient) -> None:
         """Test remove_basket admin endpoint."""
         request_data = {
             "method": "remove_basket",
@@ -512,9 +516,8 @@ class TestMcpAdminShelfEndpoints:
             }
         }
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{admin_base_url}/mcp/v1/remove_basket",
+        response = client.post(
+                "/mcp/v1/remove_basket",
                 json=request_data,
                 headers={"Content-Type": "application/json"}
             )
@@ -539,7 +542,7 @@ class TestMcpAdminShelfEndpoints:
                 assert isinstance(details["files_deleted"], int)
 
     @pytest.mark.contract
-    async def test_set_current_shelf_endpoint(self, admin_base_url: str) -> None:
+    def test_set_current_shelf_endpoint(self, client: TestClient) -> None:
         """Test set_current_shelf admin endpoint."""
         request_data = {
             "method": "set_current_shelf",
@@ -548,9 +551,8 @@ class TestMcpAdminShelfEndpoints:
             }
         }
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{admin_base_url}/mcp/v1/set_current_shelf",
+        response = client.post(
+                "/mcp/v1/set_current_shelf",
                 json=request_data,
                 headers={"Content-Type": "application/json"}
             )
@@ -577,7 +579,7 @@ class TestMcpAdminShelfEndpoints:
                     assert field in details
 
     @pytest.mark.contract
-    async def test_admin_endpoint_localhost_only(self, admin_base_url: str) -> None:
+    def test_admin_endpoint_localhost_only(self, client: TestClient) -> None:
         """Test that admin endpoints are only accessible from localhost."""
         # This test assumes the server enforces localhost-only access
         # In practice, this might be enforced at the network level
@@ -590,12 +592,11 @@ class TestMcpAdminShelfEndpoints:
         }
 
         # Try to access from localhost - should work
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{admin_base_url}/mcp/v1/create_shelf",
-                json=request_data,
-                headers={"Content-Type": "application/json"}
-            )
+        response = client.post(
+            "/mcp/v1/create_shelf",
+            json=request_data,
+            headers={"Content-Type": "application/json"}
+        )
 
         # Should either succeed or fail gracefully (not return 403/404 for wrong host)
         assert response.status_code in [200, 400, 422, 500]  # Any response means server is accessible
@@ -604,13 +605,8 @@ class TestMcpAdminShelfEndpoints:
 class TestMcpShelfEndpointErrorHandling:
     """Contract tests for error handling across shelf endpoints."""
 
-    @pytest.fixture
-    def base_url(self) -> str:
-        """Base URL for read-only MCP server."""
-        return "http://0.0.0.0:9383"
-
     @pytest.mark.contract
-    async def test_shelf_not_found_error(self, base_url: str) -> None:
+    def test_shelf_not_found_error(self, client: TestClient) -> None:
         """Test shelf_not_found error response format."""
         request_data = {
             "method": "get_shelf_structure",
@@ -619,9 +615,8 @@ class TestMcpShelfEndpointErrorHandling:
             }
         }
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{base_url}/mcp/v1/get_shelf_structure",
+        response = client.post(
+                "/mcp/v1/get_shelf_structure",
                 json=request_data,
                 headers={"Content-Type": "application/json"}
             )
@@ -640,7 +635,7 @@ class TestMcpShelfEndpointErrorHandling:
                 assert details.get("error_code") in ["SHELF_NOT_FOUND", "shelf_not_found"]
 
     @pytest.mark.contract
-    async def test_invalid_request_error(self, base_url: str) -> None:
+    def test_invalid_request_error(self, client: TestClient) -> None:
         """Test validation error for invalid request parameters."""
         request_data = {
             "method": "list_shelfs",
@@ -650,9 +645,8 @@ class TestMcpShelfEndpointErrorHandling:
             }
         }
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{base_url}/mcp/v1/list_shelfs",
+        response = client.post(
+                "/mcp/v1/list_shelfs",
                 json=request_data,
                 headers={"Content-Type": "application/json"}
             )
@@ -666,7 +660,7 @@ class TestMcpShelfEndpointErrorHandling:
             assert "validation" in data.get("error", "").lower()
 
     @pytest.mark.contract
-    async def test_missing_required_parameters(self, base_url: str) -> None:
+    def test_missing_required_parameters(self, client: TestClient) -> None:
         """Test error for missing required parameters."""
         request_data = {
             "method": "get_shelf_structure",
@@ -675,9 +669,8 @@ class TestMcpShelfEndpointErrorHandling:
             }
         }
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{base_url}/mcp/v1/get_shelf_structure",
+        response = client.post(
+                "/mcp/v1/get_shelf_structure",
                 json=request_data,
                 headers={"Content-Type": "application/json"}
             )
@@ -689,13 +682,8 @@ class TestMcpShelfEndpointErrorHandling:
 class TestMcpShelfBackwardCompatibility:
     """Contract tests for backward compatibility with existing MCP endpoints."""
 
-    @pytest.fixture
-    def base_url(self) -> str:
-        """Base URL for read-only MCP server."""
-        return "http://0.0.0.0:9383"
-
     @pytest.mark.contract
-    async def test_legacy_list_projects_still_works(self, base_url: str) -> None:
+    def test_legacy_list_projects_still_works(self, client: TestClient) -> None:
         """Test that legacy list_projects requests work unchanged."""
         # Exact same request format as before shelf implementation
         request_data = {
@@ -706,9 +694,8 @@ class TestMcpShelfBackwardCompatibility:
             }
         }
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{base_url}/mcp/v1/list_projects",
+        response = client.post(
+                "/mcp/v1/list_projects",
                 json=request_data,
                 headers={"Content-Type": "application/json"}
             )
@@ -725,7 +712,7 @@ class TestMcpShelfBackwardCompatibility:
                 assert field in project
 
     @pytest.mark.contract
-    async def test_legacy_search_projects_still_works(self, base_url: str) -> None:
+    def test_legacy_search_projects_still_works(self, client: TestClient) -> None:
         """Test that legacy search_projects requests work unchanged."""
         request_data = {
             "method": "search_projects",
@@ -735,9 +722,8 @@ class TestMcpShelfBackwardCompatibility:
             }
         }
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{base_url}/mcp/v1/search_projects",
+        response = client.post(
+                "/mcp/v1/search_projects",
                 json=request_data,
                 headers={"Content-Type": "application/json"}
             )
