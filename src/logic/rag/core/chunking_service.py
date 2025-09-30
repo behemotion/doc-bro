@@ -7,7 +7,7 @@ from datetime import datetime
 
 from bs4 import BeautifulSoup
 
-from src.lib.lib_logger import get_logger
+from src.core.lib_logger import get_logger
 from src.logic.rag.models.chunk import Chunk
 from src.logic.rag.models.document import Document
 from src.logic.rag.models.strategy_config import ChunkStrategy

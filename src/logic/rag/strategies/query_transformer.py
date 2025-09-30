@@ -10,7 +10,7 @@ from typing import Any
 
 import yaml
 
-from src.lib.lib_logger import get_logger
+from src.core.lib_logger import get_logger
 from src.logic.rag.models.strategy_config import QueryTransformConfig
 
 logger = get_logger(__name__)

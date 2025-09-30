@@ -7,7 +7,7 @@ search strategies, improving recall by 15-25% and providing more robust results.
 import asyncio
 from typing import Any
 
-from src.lib.lib_logger import get_logger
+from src.core.lib_logger import get_logger
 from src.logic.rag.models.search_result import SearchResult
 from src.logic.rag.models.strategy_config import FusionConfig, SearchStrategy
 

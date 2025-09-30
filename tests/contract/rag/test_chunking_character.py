@@ -9,7 +9,7 @@ import pytest
 from src.logic.rag.core.chunking_service import ChunkingService
 from src.logic.rag.models.chunk import Chunk
 from src.logic.rag.models.strategy_config import ChunkStrategy
-from src.models.document import Document
+from src.logic.rag.models.document import Document
 
 
 @pytest.mark.asyncio

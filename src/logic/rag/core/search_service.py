@@ -8,6 +8,8 @@ from typing import Any
 
 from src.core.config import DocBroConfig
 from src.core.lib_logger import get_component_logger
+from src.logic.rag.analytics.rag_metrics import RAGMetrics
+from src.logic.rag.analytics.quality_metrics import RAGQualityMetrics
 from src.logic.rag.core.chunking_service import ChunkingService
 from src.logic.rag.core.reranking_service import RerankingService
 from src.logic.rag.models.chunk import Chunk
@@ -34,8 +36,16 @@ class RAGSearchService:
         vector_store: VectorStoreService,
         embedding_service: EmbeddingService,
         config: DocBroConfig | None = None,
+        enable_metrics: bool = True,
     ):
-        """Initialize enhanced RAG search service."""
+        """Initialize enhanced RAG search service.
+
+        Args:
+            vector_store: Vector store service
+            embedding_service: Embedding service
+            config: DocBro configuration
+            enable_metrics: Enable performance and quality metrics tracking
+        """
         self.vector_store = vector_store
         self.embedding_service = embedding_service
         self.config = config or DocBroConfig()
@@ -46,6 +56,10 @@ class RAGSearchService:
         self.reranking_service = RerankingService()
         self.query_transformer = QueryTransformer()
         self.fusion_retrieval = FusionRetrieval()
+
+        # Initialize metrics (Phase 3)
+        self.metrics = RAGMetrics() if enable_metrics else None
+        self.quality_metrics = RAGQualityMetrics() if enable_metrics else None
 
         # Search configuration
         self.default_limit = 10
@@ -126,6 +140,17 @@ class RAGSearchService:
                     "took_ms": took_ms,
                 },
             )
+
+            # PHASE 3: Record metrics
+            if self.metrics:
+                cache_hit = cache_key in self._query_cache and (datetime.now() - self._query_cache[cache_key][1]).total_seconds() < self._cache_ttl
+                self.metrics.record_search(
+                    strategy=strategy.value,
+                    latency_ms=took_ms,
+                    result_count=len(results),
+                    query=query,
+                    cache_hit=cache_hit
+                )
 
             return results
 
@@ -601,27 +626,89 @@ class RAGSearchService:
                 )
                 all_chunks.extend(chunks)
 
-            # Create embeddings in batches
+            # PHASE 3: Create embeddings with adaptive batching
             processed_docs = []
-            for chunk in all_chunks:
-                embedding = await self.embedding_service.create_embedding(chunk.content)
+            current_batch_size = batch_size
+            success_streak = 0
+            failure_streak = 0
+            min_batch = 10
+            max_batch = 200
 
-                processed_doc = {
-                    "id": chunk.id,
-                    "embedding": embedding,
-                    "metadata": {
-                        "title": chunk.title,
-                        "content": chunk.content,
-                        "url": chunk.url,
-                        "project": chunk.project,
-                        "chunk_index": chunk.chunk_index,
-                        "parent_id": chunk.parent_id,
-                        "context_header": chunk.context_header,
-                    },
-                }
-                processed_docs.append(processed_doc)
+            i = 0
+            while i < len(all_chunks):
+                batch = all_chunks[i : i + current_batch_size]
+                batch_start = datetime.now()
 
-            # Batch insert
+                try:
+                    # Process batch
+                    for chunk in batch:
+                        embedding = await self.embedding_service.create_embedding(
+                            chunk.content
+                        )
+                        processed_doc = {
+                            "id": chunk.id,
+                            "embedding": embedding,
+                            "metadata": {
+                                "title": chunk.title,
+                                "content": chunk.content,
+                                "url": chunk.url,
+                                "project": chunk.project,
+                                "chunk_index": chunk.chunk_index,
+                                "parent_id": chunk.parent_id,
+                                "context_header": chunk.context_header,
+                            },
+                        }
+                        processed_docs.append(processed_doc)
+
+                    # Batch success
+                    batch_time = (datetime.now() - batch_start).total_seconds()
+                    self.logger.debug(
+                        f"Batch processed: size={len(batch)}, time={batch_time:.2f}s"
+                    )
+
+                    success_streak += 1
+                    failure_streak = 0
+
+                    # Increase batch size after 3 consecutive successes
+                    if success_streak >= 3 and current_batch_size < max_batch:
+                        old_size = current_batch_size
+                        current_batch_size = min(
+                            int(current_batch_size * 1.5), max_batch
+                        )
+                        self.logger.debug(
+                            f"Increasing batch size: {old_size} -> {current_batch_size}"
+                        )
+                        success_streak = 0
+
+                    i += len(batch)
+
+                except Exception as e:
+                    # Batch failure - reduce batch size
+                    self.logger.warning(
+                        f"Batch processing failed (size={current_batch_size}): {e}"
+                    )
+                    failure_streak += 1
+                    success_streak = 0
+
+                    # Decrease batch size after 2 consecutive failures
+                    if failure_streak >= 2 and current_batch_size > min_batch:
+                        old_size = current_batch_size
+                        current_batch_size = max(
+                            int(current_batch_size * 0.5), min_batch
+                        )
+                        self.logger.debug(
+                            f"Decreasing batch size: {old_size} -> {current_batch_size}"
+                        )
+                        failure_streak = 0
+
+                    # Retry with smaller batch or skip
+                    if current_batch_size >= min_batch:
+                        continue  # Retry same batch with new size
+                    else:
+                        # Skip this batch and move on
+                        i += len(batch)
+
+            # Batch insert all processed documents
             indexed_count = await self.vector_store.upsert_documents(
                 collection_name, processed_docs
             )
@@ -653,3 +740,36 @@ class RAGSearchService:
         cache_size = len(self._query_cache)
         self._query_cache.clear()
         return cache_size
+
+    def get_metrics_summary(self):
+        """Get performance metrics summary.
+
+        Returns:
+            MetricsSummary if metrics enabled, None otherwise
+        """
+        if self.metrics:
+            return self.metrics.get_summary()
+        return None
+
+    def record_user_feedback(
+        self,
+        query: str,
+        result_ids: list[str],
+        clicked_ids: list[str],
+        user_rating: int | None = None,
+    ) -> None:
+        """Record user feedback for quality metrics.
+
+        Args:
+            query: Search query
+            result_ids: Result IDs returned (in order)
+            clicked_ids: Result IDs clicked by user
+            user_rating: Optional 1-5 rating
+        """
+        if self.quality_metrics:
+            self.quality_metrics.record_user_feedback(
+                query=query,
+                result_ids=result_ids,
+                clicked_ids=clicked_ids,
+                user_rating=user_rating,
+            )
