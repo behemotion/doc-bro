@@ -60,7 +60,7 @@ class RAGSearchService:
             self.logger.warning("Empty query provided")
             return []
 
-        start_time = datetime.utcnow()
+        start_time = datetime.now(datetime.UTC)
 
         try:
             # Check cache
@@ -98,7 +98,7 @@ class RAGSearchService:
                 results = await self._rerank_results(query, results)
 
             # Cache results
-            took_ms = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+            took_ms = int((datetime.now(datetime.UTC) - start_time).total_seconds() * 1000)
             response = QueryResponse(
                 query=query,
                 results=[QueryResult(**result) for result in results],
@@ -463,7 +463,7 @@ class RAGSearchService:
 
     def _is_cache_valid(self, response: QueryResponse) -> bool:
         """Check if cached response is still valid."""
-        age = (datetime.utcnow() - response.timestamp).total_seconds()
+        age = (datetime.now(datetime.UTC) - response.timestamp).total_seconds()
         return age < self._cache_ttl
 
     async def index_documents(

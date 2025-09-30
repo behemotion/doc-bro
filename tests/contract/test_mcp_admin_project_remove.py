@@ -17,7 +17,8 @@ class TestMcpAdminProjectRemove:
         return "http://127.0.0.1:9384"
 
     @pytest.mark.contract
-    def test_project_remove_basic_request(self, base_url: str) -> None:
+    @pytest.mark.asyncio
+    async def test_project_remove_basic_request(self, base_url: str) -> None:
         """Test basic project removal request."""
         request_data = {
             "method": "project_remove",
@@ -54,7 +55,8 @@ class TestMcpAdminProjectRemove:
         assert isinstance(op_data["result"], str)
 
     @pytest.mark.contract
-    def test_project_remove_with_confirm(self, base_url: str) -> None:
+    @pytest.mark.asyncio
+    async def test_project_remove_with_confirm(self, base_url: str) -> None:
         """Test project removal with confirm flag."""
         request_data = {
             "method": "project_remove",
@@ -79,7 +81,8 @@ class TestMcpAdminProjectRemove:
         assert op_data["project_name"] == "test-confirm-remove-project"
 
     @pytest.mark.contract
-    def test_project_remove_with_backup(self, base_url: str) -> None:
+    @pytest.mark.asyncio
+    async def test_project_remove_with_backup(self, base_url: str) -> None:
         """Test project removal with backup flag."""
         request_data = {
             "method": "project_remove",
@@ -104,7 +107,8 @@ class TestMcpAdminProjectRemove:
         assert op_data["project_name"] == "test-backup-remove-project"
 
     @pytest.mark.contract
-    def test_project_remove_with_confirm_and_backup(self, base_url: str) -> None:
+    @pytest.mark.asyncio
+    async def test_project_remove_with_confirm_and_backup(self, base_url: str) -> None:
         """Test project removal with both confirm and backup flags."""
         request_data = {
             "method": "project_remove",
@@ -130,7 +134,8 @@ class TestMcpAdminProjectRemove:
         assert op_data["project_name"] == "test-full-remove-project"
 
     @pytest.mark.contract
-    def test_project_remove_missing_name(self, base_url: str) -> None:
+    @pytest.mark.asyncio
+    async def test_project_remove_missing_name(self, base_url: str) -> None:
         """Test project removal without required name parameter fails."""
         request_data = {
             "method": "project_remove",
@@ -148,7 +153,8 @@ class TestMcpAdminProjectRemove:
         assert response.status_code in [400, 422]
 
     @pytest.mark.contract
-    def test_project_remove_nonexistent_project(self, base_url: str) -> None:
+    @pytest.mark.asyncio
+    async def test_project_remove_nonexistent_project(self, base_url: str) -> None:
         """Test removing non-existent project fails gracefully."""
         request_data = {
             "method": "project_remove",
@@ -179,7 +185,8 @@ class TestMcpAdminProjectRemove:
             assert op_data["project_name"] == "non-existent-project-12345"
 
     @pytest.mark.contract
-    def test_project_remove_confirm_default_false(self, base_url: str) -> None:
+    @pytest.mark.asyncio
+    async def test_project_remove_confirm_default_false(self, base_url: str) -> None:
         """Test that confirm parameter defaults to false."""
         request_data = {
             "method": "project_remove",
@@ -200,7 +207,8 @@ class TestMcpAdminProjectRemove:
         assert response.status_code == 200
 
     @pytest.mark.contract
-    def test_project_remove_backup_default_false(self, base_url: str) -> None:
+    @pytest.mark.asyncio
+    async def test_project_remove_backup_default_false(self, base_url: str) -> None:
         """Test that backup parameter defaults to false."""
         request_data = {
             "method": "project_remove",

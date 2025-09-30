@@ -136,7 +136,7 @@ class UploadSource(BaseModel):
     def record_success(self) -> None:
         """Record successful operation."""
         self.success_count += 1
-        self.last_accessed = datetime.utcnow()
+        self.last_accessed = datetime.now(datetime.UTC)
 
     def record_failure(self) -> None:
         """Record failed operation."""
@@ -249,7 +249,7 @@ class UploadOperation(BaseModel):
         if self.files_processed == 0 or self.status not in [UploadStatus.DOWNLOADING, UploadStatus.PROCESSING]:
             return None
 
-        elapsed = (datetime.utcnow() - self.started_at).total_seconds()
+        elapsed = (datetime.now(datetime.UTC) - self.started_at).total_seconds()
         if elapsed == 0:
             return None
 
@@ -270,7 +270,7 @@ class UploadOperation(BaseModel):
         # Update estimated completion
         remaining_time = self.get_estimated_remaining_time()
         if remaining_time is not None:
-            self.estimated_completion = datetime.utcnow() + timedelta(seconds=remaining_time)
+            self.estimated_completion = datetime.now(datetime.UTC) + timedelta(seconds=remaining_time)
 
     def record_file_success(self, filename: str, file_size: int, metadata: dict[str, Any] | None = None) -> None:
         """Record successful file upload."""
@@ -281,7 +281,7 @@ class UploadOperation(BaseModel):
         file_record = {
             'filename': filename,
             'size': file_size,
-            'uploaded_at': datetime.utcnow().isoformat(),
+            'uploaded_at': datetime.now(datetime.UTC).isoformat(),
             'metadata': metadata or {}
         }
         self.uploaded_files.append(file_record)
@@ -295,7 +295,7 @@ class UploadOperation(BaseModel):
             'filename': filename,
             'error': error,
             'error_code': error_code,
-            'timestamp': datetime.utcnow().isoformat()
+            'timestamp': datetime.now(datetime.UTC).isoformat()
         }
         self.errors.append(error_record)
 
@@ -307,14 +307,14 @@ class UploadOperation(BaseModel):
         warning_record = {
             'filename': filename,
             'reason': reason,
-            'timestamp': datetime.utcnow().isoformat()
+            'timestamp': datetime.now(datetime.UTC).isoformat()
         }
         self.warnings.append(warning_record)
 
     def complete_operation(self, status: UploadStatus) -> None:
         """Mark operation as complete with final status."""
         self.status = status
-        self.completed_at = datetime.utcnow()
+        self.completed_at = datetime.now(datetime.UTC)
         self.current_file = None
 
         # Update source statistics

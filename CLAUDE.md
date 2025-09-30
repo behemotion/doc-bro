@@ -1,18 +1,28 @@
 # DocBro Development Guidelines
 
-**Last Updated:** 2025-09-28
+**Last Updated:** 2025-09-29
 
 **IMPORTANT:** This file must be updated every time new functional changes are implemented. Keep the content under 40,000 characters by removing outdated details when adding new content.
 
 ## Project Overview
 DocBro is a documentation crawler and search tool with RAG capabilities and MCP server integration. Features single-command UV installation with unified setup operations and the new Shelf-Box Rhyme System for intuitive documentation organization.
 
+### Documentation File Rules:
+1. **Documentation files (*.md)** → `./md/` (ONLY create .md files in this directory unless explicitly specified otherwise)
+2. **ALL .md files MUST be created in `./md/` directory** (unless user explicitly specifies a different location or file path is defined in CLAUDE.md)
+3. When user asks to access/read a .md file without a full path:
+   - First look in `./md/` directory
+   - Only search elsewhere if not found in `./md/`
+4. Exception: Root-level files like README.md, CLAUDE.md, constitution.md stay in their designated locations
+
 ## Implementation Status
-✅ **100% Complete** - Installation Process Reorganization + Unified Setup Command + Full Vector Store Support + Shelf-Box Rhyme System
+✅ **100% Complete** - Installation Process Reorganization + Unified Setup Command + Full Vector Store Support + Shelf-Box Rhyme System + Context-Aware Commands
 
 ### Core Components
 - **UV Installation** - Single command: `uv tool install git+https://github.com/behemotion/doc-bro`
 - **Shelf-Box Rhyme System** - Intuitive document organization: Shelves (collections) contain Boxes (drag/rag/bag types)
+- **Context-Aware Commands** - Automatic entity detection with creation prompts and setup wizards (NEW)
+- **Interactive Wizards** - Step-by-step setup for shelves, boxes, and MCP servers via `--init` flag (NEW)
 - **Unified Fill Command** - Type-based routing: drag→crawler, rag→uploader, bag→storage
 - **Unified Setup System** - All operations under `docbro setup` with flag-based routing
 - **Universal Arrow Navigation** - Consistent keyboard navigation across all CLI interfaces
@@ -21,7 +31,7 @@ DocBro is a documentation crawler and search tool with RAG capabilities and MCP 
 - **Setup Orchestration** - Centralized coordinator for all installation operations
 - **Service Detection** - Async detection of Docker, Qdrant, Ollama, Python, UV, Git
 - **Documentation Crawler** - Reorganized under `src/logic/crawler/` with functional grouping
-- **MCP Server** - FastAPI with installation API
+- **MCP Server** - FastAPI with context-aware endpoints and wizard integration (ENHANCED)
 - **Setup Logic** - Reorganized under `src/logic/setup/` with service-oriented architecture
 
 ## Tech Stack
@@ -128,6 +138,131 @@ docbro setup --reset --preserve-data   # Reset keeping projects
 docbro serve [--host 0.0.0.0] [--port 9382] [--foreground]    # Read-only MCP server (default)
 docbro serve --admin [--host 127.0.0.1] [--port 9384]         # Admin MCP server (localhost only)
 docbro health [--system] [--services] [--config] [--projects]
+```
+
+### Context-Aware Command Patterns (NEW)
+
+**Feature**: Commands now detect missing entities and offer creation prompts with optional setup wizards.
+
+#### Context Detection
+All shelf and box commands now include context awareness:
+
+```bash
+# Accessing non-existent shelf prompts creation
+docbro shelf my-docs
+# > Shelf 'my-docs' not found. Create it? (y/n): y
+# > Shelf created! Launch setup wizard? (y/n): y
+
+# Accessing empty box prompts filling (type-aware)
+docbro box web-docs
+# > Box 'web-docs' is empty. Provide website URL to crawl? (y/n): y
+# > Enter URL: https://docs.example.com
+```
+
+#### Setup Wizards
+Use `--init` or `-i` flag to launch interactive setup wizards:
+
+```bash
+# Shelf wizard: description, auto-fill, default box type, tags
+docbro shelf create docs --init
+
+# Box wizard: type confirmation, description, auto-process, file patterns
+docbro box create api-docs --type drag --init
+
+# MCP server wizard: read-only/admin ports, auto-start configuration
+docbro serve --init
+```
+
+#### Standardized Flags
+All commands now support consistent short-form flags:
+
+**Universal Flags**:
+- `--init, -i`: Launch setup wizard
+- `--verbose, -v`: Enable verbose output
+- `--force, -F`: Force operation without prompts
+- `--help, -h`: Show help information
+
+**Type-Specific Flags**:
+- `--type, -t`: Specify box type (drag|rag|bag)
+- `--depth, -d`: Maximum crawl depth (drag boxes)
+- `--recursive, -r`: Process directories recursively (rag/bag)
+- `--rate-limit, -R`: Requests per second limit (drag boxes)
+
+#### Context Service Architecture
+Context detection powered by service layer:
+
+**Services**:
+- `ContextService`: Shelf/box existence checking with 5-minute cache
+- `StatusDisplayService`: Entity status logic with suggestion generation
+- `WizardOrchestrator`: Session management for interactive wizards
+
+**Models**:
+- `CommandContext`: Entity state (exists, is_empty, configuration_state)
+- `WizardState`: Progress tracking (current_step, collected_data)
+- `ConfigurationState`: Setup status (is_configured, has_content)
+
+**Performance Requirements**:
+- Context detection: <500ms
+- Wizard step transitions: <200ms
+- Memory usage: <50MB per wizard session
+
+#### Wizard Integration Examples
+
+```python
+# Shelf wizard flow
+from src.logic.wizard.shelf_wizard import ShelfWizard
+
+wizard = ShelfWizard()
+result = await wizard.run("my-shelf")
+# Collects: description, auto_fill, default_box_type, tags
+
+# Box wizard flow (type-aware)
+from src.logic.wizard.box_wizard import BoxWizard
+
+wizard = BoxWizard()
+result = await wizard.run("my-box", "drag")
+# Collects: description, auto_process, file_patterns, initial_source
+
+# MCP wizard flow
+from src.logic.wizard.mcp_wizard import McpWizard
+
+wizard = McpWizard()
+result = await wizard.run()
+# Collects: enable_read_only, read_only_port, enable_admin, admin_port
+```
+
+#### MCP Context Endpoints
+Enhanced MCP server with context-aware endpoints:
+
+**Read-Only Server (Port 9383)**:
+- `GET /context/shelf/{name}`: Get shelf context with box details
+- `GET /context/box/{name}`: Get box context with suggested actions
+- `GET /wizards/available`: List available setup wizards
+- `GET /flags/definitions`: Get standardized flag mappings
+
+**Admin Server (Port 9384)**:
+- `POST /admin/context/create-shelf`: Create shelf with optional wizard
+- `POST /admin/context/create-box`: Create box with type-aware config
+- `POST /admin/wizards/start`: Start interactive wizard session
+- `POST /admin/wizards/{id}/step`: Submit wizard step response
+
+#### Error Handling Patterns
+Context-aware error responses with actionable suggestions:
+
+```python
+# Missing entity detection
+context = await context_service.check_shelf_exists("my-docs")
+if not context.exists:
+    if await prompt_create_shelf("my-docs"):
+        await shelf_service.create("my-docs")
+        if await prompt_setup_wizard():
+            await wizard_orchestrator.run_shelf_wizard("my-docs")
+
+# Empty entity prompting (type-aware)
+context = await context_service.check_box_status("my-box")
+if context.is_empty and context.box_type == "drag":
+    url = await prompt_website_url()
+    await fill_service.crawl_website("my-box", url)
 ```
 
 ### Testing
@@ -426,7 +561,13 @@ For urgent debugging only, use:
 
 ## Important Instructions
 - ALWAYS check constitution.md before working on any features or making changes
+- ALWAYS reference .specify/memory/constitution.md for core architectural principles
+- ALWAYS reference .specify/memory/dependencies.md for version constraints and justifications
 - Do what has been asked; nothing more, nothing less
 - NEVER create files unless absolutely necessary for achieving your goal
 - ALWAYS prefer editing an existing file to creating a new one
 - NEVER proactively create documentation files (*.md) or README files unless explicitly requested
+
+## Core Reference Documents
+- **Constitution**: `.specify/memory/constitution.md` - Core principles and architectural standards
+- **Dependencies**: `.specify/memory/dependencies.md` - All package versions with justifications

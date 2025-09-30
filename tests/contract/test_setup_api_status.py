@@ -25,7 +25,8 @@ def mock_setup_service():
 class TestSetupStatusApiContract:
     """Contract tests for GET /setup/session/{session_id}/status endpoint."""
 
-    def test_status_endpoint_exists(self, mock_setup_service):
+    @pytest.mark.asyncio
+    async def test_status_endpoint_exists(self, mock_setup_service):
         """Test that the status endpoint is registered."""
         from src.api.setup_endpoints import setup_router
 
@@ -34,7 +35,8 @@ class TestSetupStatusApiContract:
         status_route_exists = any("/setup/session/{session_id}/status" in route for route in routes)
         assert status_route_exists
 
-    def test_get_status_success(self, mock_setup_service):
+    @pytest.mark.asyncio
+    async def test_get_status_success(self, mock_setup_service):
         """Test successful status retrieval."""
         session_id = "550e8400-e29b-41d4-a716-446655440000"
         mock_response = {
@@ -53,7 +55,8 @@ class TestSetupStatusApiContract:
         uuid_obj = UUID(session_id)
         assert str(uuid_obj) == session_id
 
-    def test_get_status_invalid_uuid_400(self, mock_setup_service):
+    @pytest.mark.asyncio
+    async def test_get_status_invalid_uuid_400(self, mock_setup_service):
         """Test invalid UUID format returns 400 error."""
         invalid_session_id = "not-a-uuid"
 
@@ -61,7 +64,8 @@ class TestSetupStatusApiContract:
         with pytest.raises(ValueError):
             UUID(invalid_session_id)
 
-    def test_get_status_session_not_found_404(self, mock_setup_service):
+    @pytest.mark.asyncio
+    async def test_get_status_session_not_found_404(self, mock_setup_service):
         """Test non-existent session returns 404 error."""
         from src.models.setup_types import SessionNotFoundError
 

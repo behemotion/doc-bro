@@ -179,7 +179,7 @@ class StorageFile(BaseModel):
 
     def record_access(self) -> None:
         """Record file access."""
-        self.last_accessed = datetime.utcnow()
+        self.last_accessed = datetime.now(datetime.UTC)
         self.access_count += 1
 
     def get_display_size(self) -> str:
@@ -518,7 +518,7 @@ class FileInventory(BaseModel):
             self.content_text = content_text
             self.content_hash = hashlib.sha256(content_text.encode()).hexdigest()
 
-        self.index_date = datetime.utcnow()
+        self.index_date = datetime.now(datetime.UTC)
 
     def get_searchable_text(self) -> str:
         """Get all searchable text combined."""

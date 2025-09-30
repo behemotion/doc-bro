@@ -72,10 +72,7 @@ class UnifiedProject(BaseModel):
     model_config = ConfigDict(
         use_enum_values=True,
         validate_assignment=True,
-        arbitrary_types_allowed=True,
-        json_encoders={
-            datetime: lambda v: v.isoformat()
-        }
+        arbitrary_types_allowed=True
     )
 
     @field_validator('name')
@@ -175,7 +172,7 @@ class UnifiedProject(BaseModel):
     def update_status(self, status: UnifiedProjectStatus) -> None:
         """Update project status and timestamp."""
         self.status = status
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(datetime.UTC)
 
     def update_settings(self, new_settings: dict[str, Any]) -> None:
         """Update project settings with validation."""
@@ -188,13 +185,13 @@ class UnifiedProject(BaseModel):
 
         # Update if validation passes
         self.settings = merged_settings
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(datetime.UTC)
 
     def update_statistics(self, **stats) -> None:
         """Update project statistics."""
         # Update statistics dictionary
         self.statistics.update(stats)
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(datetime.UTC)
 
     def is_compatible(self) -> bool:
         """Check if project is compatible with current schema."""
@@ -217,7 +214,7 @@ class UnifiedProject(BaseModel):
         if not self.last_crawl_at:
             return True
 
-        age = datetime.utcnow() - self.last_crawl_at
+        age = datetime.now(datetime.UTC) - self.last_crawl_at
         return age.total_seconds() > (max_age_hours * 3600)
 
     def get_project_directory(self) -> str:

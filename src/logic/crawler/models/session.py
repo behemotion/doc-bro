@@ -56,10 +56,7 @@ class CrawlSession(BaseModel):
     archived: bool = Field(default=False, description="Whether session is archived")
 
     model_config = ConfigDict(
-        use_enum_values=True,
-        json_encoders={
-            datetime: lambda v: v.isoformat()
-        }
+        use_enum_values=True
     )
 
     @field_validator('rate_limit')
@@ -76,8 +73,8 @@ class CrawlSession(BaseModel):
             raise ValueError(f"Cannot start session in status: {self.status}")
 
         self.status = CrawlStatus.RUNNING
-        self.started_at = datetime.utcnow()
-        self.updated_at = datetime.utcnow()
+        self.started_at = datetime.now(datetime.UTC)
+        self.updated_at = datetime.now(datetime.UTC)
 
     def pause_session(self) -> None:
         """Pause the crawl session."""
@@ -85,7 +82,7 @@ class CrawlSession(BaseModel):
             raise ValueError(f"Cannot pause session in status: {self.status}")
 
         self.status = CrawlStatus.PAUSED
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(datetime.UTC)
 
     def resume_session(self) -> None:
         """Resume the crawl session."""
@@ -93,7 +90,7 @@ class CrawlSession(BaseModel):
             raise ValueError(f"Cannot resume session in status: {self.status}")
 
         self.status = CrawlStatus.RUNNING
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(datetime.UTC)
 
     def complete_session(self) -> None:
         """Mark session as completed."""
@@ -101,15 +98,15 @@ class CrawlSession(BaseModel):
             raise ValueError(f"Cannot complete session in status: {self.status}")
 
         self.status = CrawlStatus.COMPLETED
-        self.completed_at = datetime.utcnow()
-        self.updated_at = datetime.utcnow()
+        self.completed_at = datetime.now(datetime.UTC)
+        self.updated_at = datetime.now(datetime.UTC)
 
     def fail_session(self, error_message: str) -> None:
         """Mark session as failed."""
         self.status = CrawlStatus.FAILED
         self.error_message = error_message
-        self.completed_at = datetime.utcnow()
-        self.updated_at = datetime.utcnow()
+        self.completed_at = datetime.now(datetime.UTC)
+        self.updated_at = datetime.now(datetime.UTC)
 
     def cancel_session(self) -> None:
         """Cancel the session."""
@@ -117,8 +114,8 @@ class CrawlSession(BaseModel):
             raise ValueError(f"Cannot cancel session in status: {self.status}")
 
         self.status = CrawlStatus.CANCELLED
-        self.completed_at = datetime.utcnow()
-        self.updated_at = datetime.utcnow()
+        self.completed_at = datetime.now(datetime.UTC)
+        self.updated_at = datetime.now(datetime.UTC)
 
     def update_progress(
         self,
@@ -149,12 +146,12 @@ class CrawlSession(BaseModel):
         if queue_size is not None:
             self.queue_size = queue_size
 
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(datetime.UTC)
 
     def increment_error_count(self) -> bool:
         """Increment error count. Returns True if max errors reached."""
         self.error_count += 1
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(datetime.UTC)
         return self.error_count >= self.max_errors
 
     def get_duration(self) -> float | None:
@@ -162,7 +159,7 @@ class CrawlSession(BaseModel):
         if not self.started_at:
             return None
 
-        end_time = self.completed_at or datetime.utcnow()
+        end_time = self.completed_at or datetime.now(datetime.UTC)
         return (end_time - self.started_at).total_seconds()
 
     def get_pages_per_second(self) -> float | None:

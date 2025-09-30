@@ -14,7 +14,7 @@ class HealthReport(BaseModel):
 
     timestamp: datetime = Field(..., description="When the health report was generated")
     overall_status: HealthStatus = Field(..., description="Aggregated status across all checks")
-    checks: list[HealthCheck] = Field(..., min_items=1, description="List of individual health check results")
+    checks: list[HealthCheck] = Field(..., min_length=1, description="List of individual health check results")
     total_execution_time: float = Field(..., le=15.0, description="Total time for all health checks")
     timeout_occurred: bool = Field(..., description="Whether any checks timed out")
     summary: HealthSummary = Field(..., description="Aggregated count statistics")
@@ -113,9 +113,4 @@ class HealthReport(BaseModel):
             "checks": [check.to_dict() for check in self.checks]
         }
 
-    model_config = {
-        "json_encoders": {
-            datetime: lambda v: v.isoformat(),
-            HealthStatus: lambda v: v.value,
-        }
-    }
+    model_config = {}

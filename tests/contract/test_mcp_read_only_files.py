@@ -17,7 +17,8 @@ class TestMcpReadOnlyGetProjectFiles:
         return "http://localhost:9383"
 
     @pytest.mark.contract
-    def test_get_project_files_basic_request(self, base_url: str) -> None:
+    @pytest.mark.asyncio
+    async def test_get_project_files_basic_request(self, base_url: str) -> None:
         """Test basic file listing request for a project."""
         request_data = {
             "method": "get_project_files",
@@ -54,7 +55,8 @@ class TestMcpReadOnlyGetProjectFiles:
         assert metadata["access_level"] in ["metadata", "content"]
 
     @pytest.mark.contract
-    def test_get_project_files_with_specific_file(self, base_url: str) -> None:
+    @pytest.mark.asyncio
+    async def test_get_project_files_with_specific_file(self, base_url: str) -> None:
         """Test requesting a specific file from a project."""
         request_data = {
             "method": "get_project_files",
@@ -80,7 +82,8 @@ class TestMcpReadOnlyGetProjectFiles:
             assert file_info["path"] == "docs/readme.md"
 
     @pytest.mark.contract
-    def test_get_project_files_storage_project_with_content(self, base_url: str) -> None:
+    @pytest.mark.asyncio
+    async def test_get_project_files_storage_project_with_content(self, base_url: str) -> None:
         """Test requesting file content from storage project."""
         request_data = {
             "method": "get_project_files",
@@ -110,7 +113,8 @@ class TestMcpReadOnlyGetProjectFiles:
                     assert isinstance(file_info["content"], str)
 
     @pytest.mark.contract
-    def test_get_project_files_crawling_project_content_restriction(
+    @pytest.mark.asyncio
+    async def test_get_project_files_crawling_project_content_restriction(
         self, base_url: str
     ) -> None:
         """Test that crawling projects only return metadata, not content."""
@@ -141,7 +145,8 @@ class TestMcpReadOnlyGetProjectFiles:
                 assert "content" not in file_info or file_info["content"] is None
 
     @pytest.mark.contract
-    def test_file_info_schema(self, base_url: str) -> None:
+    @pytest.mark.asyncio
+    async def test_file_info_schema(self, base_url: str) -> None:
         """Test that file info matches OpenAPI FileInfo schema."""
         request_data = {
             "method": "get_project_files",
@@ -175,7 +180,8 @@ class TestMcpReadOnlyGetProjectFiles:
             assert isinstance(file_info["content_type"], str)
 
     @pytest.mark.contract
-    def test_get_project_files_missing_project_name(self, base_url: str) -> None:
+    @pytest.mark.asyncio
+    async def test_get_project_files_missing_project_name(self, base_url: str) -> None:
         """Test request without required project_name parameter fails."""
         request_data = {
             "method": "get_project_files",

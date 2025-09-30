@@ -85,13 +85,13 @@ class BatchOperation(BaseModel):
         if self.current_index == 0 or len(self.projects) == 0:
             return
 
-        elapsed = datetime.utcnow() - self.start_time
+        elapsed = datetime.now(datetime.UTC) - self.start_time
         avg_time_per_project = elapsed / self.current_index
         remaining_projects = len(self.projects) - self.current_index
 
         if remaining_projects > 0:
             estimated_remaining = avg_time_per_project * remaining_projects
-            self.estimated_completion = datetime.utcnow() + estimated_remaining
+            self.estimated_completion = datetime.now(datetime.UTC) + estimated_remaining
 
     def is_complete(self) -> bool:
         """Check if batch operation is complete.
@@ -141,7 +141,7 @@ class BatchOperation(BaseModel):
         Returns:
             Duration as timedelta
         """
-        end = self.end_time or datetime.utcnow()
+        end = self.end_time or datetime.now(datetime.UTC)
         return end - self.start_time
 
     def get_duration_seconds(self) -> float:
@@ -154,7 +154,7 @@ class BatchOperation(BaseModel):
 
     def complete(self) -> None:
         """Mark the batch operation as complete."""
-        self.end_time = datetime.utcnow()
+        self.end_time = datetime.now(datetime.UTC)
         self.estimated_completion = None
 
     def get_summary(self) -> dict[str, Any]:
@@ -218,8 +218,4 @@ class BatchOperation(BaseModel):
             self.continue_on_error or len(self.failed) == 0
         )
 
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat()
-        }
-    )
+    model_config = ConfigDict()

@@ -61,9 +61,6 @@ class ShelfBox(BaseModel):
         """Developer representation."""
         return f"ShelfBox(shelf_id='{self.shelf_id}', box_id='{self.box_id}', position={self.position})"
 
-    class Config:
-        """Pydantic configuration."""
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
-        from_attributes = True
+    model_config = {
+        "from_attributes": True
+    }

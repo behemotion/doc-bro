@@ -119,9 +119,6 @@ class Shelf(BaseModel):
         """Developer representation."""
         return f"Shelf(id='{self.id}', name='{self.name}', is_default={self.is_default}, box_count={self.box_count})"
 
-    class Config:
-        """Pydantic configuration."""
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
-        from_attributes = True
+    model_config = {
+        "from_attributes": True
+    }

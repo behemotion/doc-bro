@@ -79,9 +79,9 @@ class SetupConfiguration(BaseModel):
         """Update the status of a detected service."""
         self.services_detected[service] = {
             **info,
-            "last_check": datetime.utcnow().isoformat()
+            "last_check": datetime.now(datetime.UTC).isoformat()
         }
-        self.last_modified = datetime.utcnow()
+        self.last_modified = datetime.now(datetime.UTC)
 
     def is_initialized(self) -> bool:
         """Check if configuration has been initialized."""
@@ -90,8 +90,8 @@ class SetupConfiguration(BaseModel):
     def mark_initialized(self) -> None:
         """Mark configuration as initialized."""
         if not self.installation_timestamp:
-            self.installation_timestamp = datetime.utcnow()
-            self.last_modified = datetime.utcnow()
+            self.installation_timestamp = datetime.now(datetime.UTC)
+            self.last_modified = datetime.now(datetime.UTC)
 
     def to_yaml_dict(self) -> dict:
         """Convert to YAML-serializable dictionary."""
@@ -139,11 +139,6 @@ class SetupConfiguration(BaseModel):
 
         return cls(**data)
 
-    class Config:
-        """Pydantic configuration."""
-
-        use_enum_values = False  # Keep enums as enums
-        json_encoders = {
-            datetime: lambda v: v.isoformat() + "Z",
-            Path: str
-        }
+    model_config = {
+        "use_enum_values": False  # Keep enums as enums
+    }

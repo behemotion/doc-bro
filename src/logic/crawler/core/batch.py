@@ -387,7 +387,7 @@ class BatchCrawler:
                 "project": project,
                 "error": error_msg,
                 "type": "CRAWL_FAILED",
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(datetime.UTC).isoformat()
             })
 
         return errors

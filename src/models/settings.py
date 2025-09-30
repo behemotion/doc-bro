@@ -5,7 +5,7 @@ This module provides compatibility models that wrap the unified DocBroConfig
 from src.core.config to maintain existing test contracts.
 """
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ValidationInfo
 from typing import List, Dict, Any
 
 from src.core.config import DocBroConfig
@@ -79,7 +79,8 @@ class GlobalSettings(BaseModel):
     # Logging configuration
     log_level: str = Field(default="WARNING")
 
-    @validator("mcp_server_configs")
+    @field_validator("mcp_server_configs")
+    @classmethod
     def validate_mcp_server_configs(cls, v: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
         """Validate MCP server configurations."""
         if not isinstance(v, dict):
@@ -117,7 +118,8 @@ class GlobalSettings(BaseModel):
 
         return v
 
-    @validator("mcp_admin_host")
+    @field_validator("mcp_admin_host")
+    @classmethod
     def validate_admin_host(cls, v: str) -> str:
         """Validate that admin host is localhost for security."""
         if v not in ["127.0.0.1", "localhost"]:
@@ -159,19 +161,21 @@ class VectorStoreSettings(BaseModel):
     qdrant_config: Dict[str, Any] | None = None
     sqlite_vec_config: Dict[str, Any] | None = None
 
-    @validator("qdrant_config", pre=True, always=True)
-    def validate_qdrant_config(cls, v, values):
+    @field_validator("qdrant_config", mode="before")
+    @classmethod
+    def validate_qdrant_config(cls, v, info: ValidationInfo):
         """Validate Qdrant config when provider is QDRANT."""
-        provider = values.get("provider")
+        provider = info.data.get("provider") if info.data else None
         if provider == VectorStoreProvider.QDRANT:
             if not v:
                 return {"url": "http://localhost:6333", "api_key": None}
         return v
 
-    @validator("sqlite_vec_config", pre=True, always=True)
-    def validate_sqlite_vec_config(cls, v, values):
+    @field_validator("sqlite_vec_config", mode="before")
+    @classmethod
+    def validate_sqlite_vec_config(cls, v, info: ValidationInfo):
         """Validate SQLite-vec config when provider is SQLITE_VEC."""
-        provider = values.get("provider")
+        provider = info.data.get("provider") if info.data else None
         if provider == VectorStoreProvider.SQLITE_VEC:
             if not v:
                 return {"database_path": "~/.local/share/docbro/vectors.db"}

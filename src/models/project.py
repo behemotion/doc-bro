@@ -47,10 +47,7 @@ class Project(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict(
-        use_enum_values=True,
-        json_encoders={
-            datetime: lambda v: v.isoformat()
-        }
+        use_enum_values=True
     )
 
     @field_validator('name')
@@ -85,14 +82,14 @@ class Project(BaseModel):
     def update_status(self, new_status: ProjectStatus) -> None:
         """Update project status and timestamp."""
         self.status = new_status
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(datetime.UTC)
 
     def update_statistics(self, **stats) -> None:
         """Update project statistics."""
         for key, value in stats.items():
             if hasattr(self, key):
                 setattr(self, key, value)
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(datetime.UTC)
 
     def is_ready_for_search(self) -> bool:
         """Check if project is ready for search operations."""
@@ -103,7 +100,7 @@ class Project(BaseModel):
         if not self.last_crawl_at:
             return True
 
-        age = datetime.utcnow() - self.last_crawl_at
+        age = datetime.now(datetime.UTC) - self.last_crawl_at
         return age.total_seconds() > (max_age_hours * 3600)
 
     def to_dict(self) -> dict[str, Any]:

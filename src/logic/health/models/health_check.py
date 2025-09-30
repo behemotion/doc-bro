@@ -66,10 +66,4 @@ class HealthCheck(BaseModel):
             "execution_time": self.execution_time
         }
 
-    model_config = {
-        "json_encoders": {
-            datetime: lambda v: v.isoformat(),
-            HealthStatus: lambda v: v.value,
-            HealthCategory: lambda v: v.value,
-        }
-    }
+    model_config = {}

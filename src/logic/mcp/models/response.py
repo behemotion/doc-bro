@@ -1,7 +1,7 @@
 """McpResponse model for standardized MCP operation responses."""
 
 from typing import Any, Dict, Optional
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ValidationInfo
 
 
 class McpResponse(BaseModel):
@@ -11,18 +11,21 @@ class McpResponse(BaseModel):
         success: Operation success indicator
         data: Response data (varies by method)
         error: Error message if success is False
+        message: Human-readable message (especially for errors)
         metadata: Additional response metadata
     """
 
     success: bool
     data: Any = Field(default=None)
     error: Optional[str] = Field(default=None)
+    message: Optional[str] = Field(default=None)
     metadata: Optional[Dict[str, Any]] = Field(default=None)
 
-    @validator("error")
-    def validate_error_with_success(cls, v: Optional[str], values: Dict[str, Any]) -> Optional[str]:
+    @field_validator("error")
+    @classmethod
+    def validate_error_with_success(cls, v: Optional[str], info: ValidationInfo) -> Optional[str]:
         """Validate that error is provided when success is False."""
-        success = values.get("success", True)
+        success = info.data.get("success", True) if info.data else True
 
         if not success and not v:
             raise ValueError("Error message must be provided when success is False")
@@ -49,6 +52,7 @@ class McpResponse(BaseModel):
     def error_response(
         cls,
         error: str,
+        message: Optional[str] = None,
         data: Any = None,
         metadata: Optional[Dict[str, Any]] = None
     ) -> "McpResponse":
@@ -56,6 +60,7 @@ class McpResponse(BaseModel):
         return cls(
             success=False,
             error=error,
+            message=message,
             data=data,
             metadata=metadata
         )
@@ -69,6 +74,9 @@ class McpResponse(BaseModel):
 
         if self.error is not None:
             result["error"] = self.error
+
+        if self.message is not None:
+            result["message"] = self.message
 
         if self.metadata is not None:
             result["metadata"] = self.metadata

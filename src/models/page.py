@@ -66,10 +66,7 @@ class Page(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict(
-        use_enum_values=True,
-        json_encoders={
-            datetime: lambda v: v.isoformat()
-        }
+        use_enum_values=True
     )
 
     @field_validator('url')
@@ -119,7 +116,7 @@ class Page(BaseModel):
             self.charset = charset
 
         self.status = PageStatus.PROCESSED
-        self.processed_at = datetime.utcnow()
+        self.processed_at = datetime.now(datetime.UTC)
 
     def mark_crawled(
         self,
@@ -130,7 +127,7 @@ class Page(BaseModel):
         """Mark page as crawled."""
         self.response_code = response_code
         self.response_time_ms = response_time_ms
-        self.crawled_at = datetime.utcnow()
+        self.crawled_at = datetime.now(datetime.UTC)
 
         if error_message:
             self.error_message = error_message
@@ -144,7 +141,7 @@ class Page(BaseModel):
             raise ValueError(f"Cannot index page in status: {self.status}")
 
         self.status = PageStatus.INDEXED
-        self.indexed_at = datetime.utcnow()
+        self.indexed_at = datetime.now(datetime.UTC)
 
     def mark_failed(self, error_message: str) -> None:
         """Mark page as failed."""

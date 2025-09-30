@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 from ..models.compatibility_status import CompatibilityStatus
 from ..models.unified_project import UnifiedProject, UnifiedProjectStatus
@@ -32,7 +32,8 @@ class ProjectCreateRequest(BaseModel):
     settings: Dict[str, Any] = Field(default_factory=dict, description="Project settings")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Project metadata")
 
-    @validator('name')
+    @field_validator('name')
+    @classmethod
     def validate_name(cls, v):
         """Validate project name."""
         if not v.strip():

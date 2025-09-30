@@ -280,7 +280,7 @@ class UploadManager:
             Number of operations cleaned up
         """
         cleanup_count = 0
-        cutoff_time = datetime.utcnow().timestamp() - (max_age_hours * 3600)
+        cutoff_time = datetime.now(datetime.UTC).timestamp() - (max_age_hours * 3600)
 
         operations_to_remove = []
 

@@ -7,8 +7,10 @@ from typing import Dict, Any, Optional, List
 
 from src.logic.mcp.models.response import McpResponse
 from src.logic.mcp.services.read_only import ReadOnlyMcpService
+from src.logic.mcp.services.shelf_mcp_service import ShelfMcpService
 from src.logic.projects.core.project_manager import ProjectManager
 from src.services.rag import RAGSearchService
+from src.models.shelf import ShelfNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -49,11 +51,12 @@ app = FastAPI(
 project_service = None  # Will be injected
 search_service = None   # Will be injected
 read_only_service = None  # Will be injected
+shelf_mcp_service = None  # Will be injected
 
 
 async def initialize_services():
     """Initialize services for the read-only server."""
-    global project_service, search_service, read_only_service
+    global project_service, search_service, read_only_service, shelf_mcp_service
 
     # Initialize services with proper dependencies
     from src.logic.projects.core.project_manager import ProjectManager
@@ -84,6 +87,11 @@ async def initialize_services():
     search_service = RAGSearchService(vector_store, embedding_service, config)
     read_only_service = ReadOnlyMcpService(project_service, search_service)
 
+    # Initialize shelf MCP service
+    shelf_mcp_service = ShelfMcpService()
+    await shelf_mcp_service.initialize()
+    logger.info("ShelfMcpService initialized")
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -107,6 +115,8 @@ async def list_projects(request: Request):
         # Extract parameters
         status_filter = params.get("status_filter")
         limit = params.get("limit")
+        shelf_name = params.get("shelf_name")
+        include_shelf_context = params.get("include_shelf_context", False)
 
         # Validate limit
         if limit is not None and (limit < 1 or limit > 100):
@@ -115,7 +125,9 @@ async def list_projects(request: Request):
         # Call service
         response = await read_only_service.list_projects(
             status_filter=status_filter,
-            limit=limit
+            limit=limit,
+            shelf_name=shelf_name,
+            include_shelf_context=include_shelf_context
         )
 
         return JSONResponse(content=response.to_dict())
@@ -146,6 +158,9 @@ async def search_projects(request: Request):
             raise HTTPException(status_code=422, detail="Query parameter is required")
 
         project_names = params.get("project_names")
+        shelf_names = params.get("shelf_names")
+        basket_types = params.get("basket_types")
+        include_shelf_context = params.get("include_shelf_context", False)
         limit = params.get("limit", 10)
 
         # Validate limit
@@ -156,6 +171,9 @@ async def search_projects(request: Request):
         response = await read_only_service.search_projects(
             query=query,
             project_names=project_names,
+            shelf_names=shelf_names,
+            basket_types=basket_types,
+            include_shelf_context=include_shelf_context,
             limit=limit
         )
 
@@ -202,6 +220,119 @@ async def get_project_files(request: Request):
         raise
     except Exception as e:
         logger.error(f"Error in get_project_files: {e}")
+        error_response = McpResponse.error_response(f"Internal server error: {str(e)}")
+        return JSONResponse(content=error_response.to_dict(), status_code=500)
+
+
+@app.post("/mcp/v1/list_shelfs")
+async def list_shelfs(request: Request):
+    """List all shelves with optional basket details."""
+    try:
+        body = await request.json()
+        method = body.get("method")
+        params = body.get("params", {})
+
+        if method != "list_shelfs":
+            raise HTTPException(status_code=400, detail="Invalid method")
+
+        # Extract parameters with defaults
+        include_baskets = params.get("include_baskets", False)
+        include_empty = params.get("include_empty", True)
+        current_only = params.get("current_only", False)
+        limit = params.get("limit", 50)
+
+        # Validate parameters
+        if not isinstance(include_baskets, bool):
+            raise HTTPException(status_code=422, detail="include_baskets must be boolean")
+        if limit < 1 or limit > 1000:
+            raise HTTPException(status_code=422, detail="Limit must be between 1 and 1000")
+
+        # Call service
+        result = await shelf_mcp_service.list_shelfs(
+            include_baskets=include_baskets,
+            include_empty=include_empty,
+            current_only=current_only,
+            limit=limit
+        )
+
+        response = McpResponse.success_response(
+            data=result.get("shelves", []),
+            metadata=result.get("metadata")
+        )
+        return JSONResponse(content=response.to_dict())
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in list_shelfs: {e}")
+        error_response = McpResponse.error_response(f"Internal server error: {str(e)}")
+        return JSONResponse(content=error_response.to_dict(), status_code=500)
+
+
+@app.post("/mcp/v1/get_shelf_structure")
+async def get_shelf_structure(request: Request):
+    """Get detailed structure of a specific shelf."""
+    try:
+        body = await request.json()
+        method = body.get("method")
+        params = body.get("params", {})
+
+        if method != "get_shelf_structure":
+            raise HTTPException(status_code=400, detail="Invalid method")
+
+        # Extract parameters
+        shelf_name = params.get("shelf_name")
+        if not shelf_name:
+            raise HTTPException(status_code=422, detail="shelf_name parameter is required")
+
+        include_basket_details = params.get("include_basket_details", True)
+        include_file_list = params.get("include_file_list", False)
+
+        # Call service
+        result = await shelf_mcp_service.get_shelf_structure(
+            shelf_name=shelf_name,
+            include_basket_details=include_basket_details,
+            include_file_list=include_file_list
+        )
+
+        response = McpResponse.success_response(data=result)
+        return JSONResponse(content=response.to_dict())
+
+    except ShelfNotFoundError as e:
+        error_response = McpResponse.error_response(
+            error="shelf_not_found",
+            message=str(e),
+            data={"details": {"error_code": "shelf_not_found"}}
+        )
+        return JSONResponse(content=error_response.to_dict(), status_code=404)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in get_shelf_structure: {e}")
+        error_response = McpResponse.error_response(f"Internal server error: {str(e)}")
+        return JSONResponse(content=error_response.to_dict(), status_code=500)
+
+
+@app.post("/mcp/v1/get_current_shelf")
+async def get_current_shelf(request: Request):
+    """Get information about the current active shelf."""
+    try:
+        body = await request.json()
+        method = body.get("method")
+
+        if method != "get_current_shelf":
+            raise HTTPException(status_code=400, detail="Invalid method")
+
+        # Call service
+        result = await shelf_mcp_service.get_current_shelf()
+
+        response = McpResponse.success_response(data=result)
+        return JSONResponse(content=response.to_dict())
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in get_current_shelf: {e}")
         error_response = McpResponse.error_response(f"Internal server error: {str(e)}")
         return JSONResponse(content=error_response.to_dict(), status_code=500)
 

@@ -316,11 +316,11 @@ class UnifiedProjectService:
 
         if metadata:
             project.metadata.update(metadata)
-            project.updated_at = datetime.utcnow()
+            project.updated_at = datetime.now(datetime.UTC)
 
         if source_url is not None:
             project.source_url = source_url
-            project.updated_at = datetime.utcnow()
+            project.updated_at = datetime.now(datetime.UTC)
 
         # Store updated project
         await self._store_project(project)

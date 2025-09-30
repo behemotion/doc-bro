@@ -3,6 +3,7 @@
 import pytest
 from datetime import datetime
 from uuid import UUID
+from pydantic import ValidationError
 
 from src.models.box import Box, BoxValidationError
 from src.models.box_type import BoxType
@@ -47,7 +48,8 @@ class TestBoxModel:
 
     def test_box_creation_custom_values(self):
         """Test box creation with custom values."""
-        now = datetime.utcnow()
+        from datetime import timezone
+        now = datetime.now(timezone.utc)
         settings = {"key": "value"}
 
         box = Box(
@@ -87,16 +89,19 @@ class TestBoxModel:
 
     def test_name_validation_invalid_empty(self):
         """Test that empty names are rejected."""
-        with pytest.raises(BoxValidationError, match="Box name cannot be empty"):
+        # Pydantic's min_length validation triggers first for empty string
+        with pytest.raises(ValidationError, match="at least 1 character"):
             Box(name="", type=BoxType.RAG)
 
+        # Whitespace gets stripped, then caught by our custom validator
         with pytest.raises(BoxValidationError, match="Box name cannot be empty"):
             Box(name="   ", type=BoxType.RAG)  # Only whitespace
 
     def test_name_validation_invalid_length(self):
         """Test that names exceeding max length are rejected."""
         long_name = "a" * 101  # Exceeds MAX_NAME_LENGTH
-        with pytest.raises(BoxValidationError, match="cannot exceed 100 characters"):
+        # Pydantic's max_length validation triggers first
+        with pytest.raises(ValidationError, match="at most 100 characters"):
             Box(name=long_name, type=BoxType.RAG)
 
     def test_name_validation_invalid_characters(self):
@@ -143,7 +148,7 @@ class TestBoxModel:
         ]
 
         for url in valid_urls:
-            box = Box(name="test", type=BoxType.DRAG, url=url)
+            box = Box(name="my-box", type=BoxType.DRAG, url=url)
             assert box.url == url
 
     def test_url_validation_invalid(self):
@@ -157,14 +162,14 @@ class TestBoxModel:
 
         for url in invalid_urls:
             with pytest.raises(BoxValidationError, match="URL must start with http"):
-                Box(name="test", type=BoxType.DRAG, url=url)
+                Box(name="my-box", type=BoxType.DRAG, url=url)
 
     def test_url_validation_empty(self):
         """Test that empty URLs are converted to None."""
-        box = Box(name="test", type=BoxType.RAG, url="")
+        box = Box(name="my-box", type=BoxType.RAG, url="")
         assert box.url is None
 
-        box2 = Box(name="test2", type=BoxType.RAG, url="   ")
+        box2 = Box(name="my-box2", type=BoxType.RAG, url="   ")
         assert box2.url is None
 
     def test_drag_box_requires_url(self):
@@ -187,7 +192,7 @@ class TestBoxModel:
         """Test validation of numeric fields."""
         # Valid values
         box = Box(
-            name="test",
+            name="my-box",
             type=BoxType.DRAG,
             url="https://example.com",
             max_pages=100,
@@ -200,22 +205,22 @@ class TestBoxModel:
 
         # Invalid max_pages (must be >= 1)
         with pytest.raises(ValueError):
-            Box(name="test", type=BoxType.DRAG, url="https://example.com", max_pages=0)
+            Box(name="my-box", type=BoxType.DRAG, url="https://example.com", max_pages=0)
 
         # Invalid rate_limit (must be > 0)
         with pytest.raises(ValueError):
-            Box(name="test", type=BoxType.DRAG, url="https://example.com", rate_limit=0)
+            Box(name="my-box", type=BoxType.DRAG, url="https://example.com", rate_limit=0)
 
         # Invalid crawl_depth (must be >= 1)
         with pytest.raises(ValueError):
-            Box(name="test", type=BoxType.DRAG, url="https://example.com", crawl_depth=0)
+            Box(name="my-box", type=BoxType.DRAG, url="https://example.com", crawl_depth=0)
 
     def test_timestamp_validation(self):
         """Test that updated_at is adjusted if before created_at."""
         earlier = datetime(2023, 1, 1)
         later = datetime(2023, 1, 2)
 
-        box = Box(name="test", type=BoxType.RAG, created_at=later, updated_at=earlier)
+        box = Box(name="my-box", type=BoxType.RAG, created_at=later, updated_at=earlier)
         assert box.updated_at == box.created_at  # Should be adjusted
 
     def test_to_dict_basic(self):
@@ -293,7 +298,7 @@ class TestBoxModel:
 
     def test_get_type_description(self):
         """Test type description retrieval."""
-        box = Box(name="test", type=BoxType.DRAG, url="https://example.com")
+        box = Box(name="my-box", type=BoxType.DRAG, url="https://example.com")
         description = box.get_type_description()
 
         assert isinstance(description, str)
@@ -302,7 +307,7 @@ class TestBoxModel:
 
     def test_settings_management(self):
         """Test settings update and retrieval."""
-        box = Box(name="test", type=BoxType.RAG)
+        box = Box(name="my-box", type=BoxType.RAG)
 
         # Initially empty
         assert box.get_setting("key") is None

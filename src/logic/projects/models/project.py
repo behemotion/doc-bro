@@ -128,7 +128,7 @@ class Project(BaseModel):
     def update_status(self, status: ProjectStatus) -> None:
         """Update project status and timestamp."""
         self.status = status
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(datetime.UTC)
 
     def update_settings(self, new_settings: dict[str, Any]) -> None:
         """Update project settings with validation."""
@@ -140,7 +140,7 @@ class Project(BaseModel):
 
         # Update if validation passes
         self.settings = merged_settings
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(datetime.UTC)
 
     def get_project_directory(self) -> str:
         """Get project-specific directory path."""

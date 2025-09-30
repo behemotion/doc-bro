@@ -2,7 +2,7 @@
 
 from enum import Enum
 from typing import Optional
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class FileAccessType(str, Enum):
@@ -34,7 +34,8 @@ class FileAccessRequest(BaseModel):
     file_path: Optional[str] = Field(default=None)
     access_type: FileAccessType = Field(default=FileAccessType.METADATA)
 
-    @validator("file_path")
+    @field_validator("file_path")
+    @classmethod
     def validate_file_path_security(cls, v: Optional[str]) -> Optional[str]:
         """Validate file path for security (prevent directory traversal)."""
         if v is None:

@@ -192,8 +192,8 @@ class Basket(BaseModel):
     def update_status(self, status: BasketStatus) -> None:
         """Update basket status."""
         self.status = status
-        self.updated_at = datetime.utcnow()
-        self.last_operation_at = datetime.utcnow()
+        self.updated_at = datetime.now(datetime.UTC)
+        self.last_operation_at = datetime.now(datetime.UTC)
 
     def update_statistics(
         self,
@@ -212,13 +212,13 @@ class Basket(BaseModel):
         if failed_pages is not None:
             self.failed_pages = failed_pages
 
-        self.updated_at = datetime.utcnow()
-        self.last_operation_at = datetime.utcnow()
+        self.updated_at = datetime.now(datetime.UTC)
+        self.last_operation_at = datetime.now(datetime.UTC)
 
     def add_metadata(self, key: str, value: any) -> None:
         """Add or update metadata."""
         self.metadata[key] = value
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(datetime.UTC)
 
     def get_metadata(self, key: str, default: any = None) -> any:
         """Get metadata value."""
@@ -227,7 +227,7 @@ class Basket(BaseModel):
     def add_setting(self, key: str, value: any) -> None:
         """Add or update setting."""
         self.settings[key] = value
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(datetime.UTC)
 
     def get_setting(self, key: str, default: any = None) -> any:
         """Get setting value."""

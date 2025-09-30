@@ -574,7 +574,7 @@ class ProjectRepository:
                 WHERE id = ?
             """, (
                 new_status.value,
-                datetime.utcnow().isoformat(),
+                datetime.now(datetime.UTC).isoformat(),
                 project_id
             ))
 

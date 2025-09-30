@@ -170,3 +170,9 @@ env = [
     "DOCBRO_EMBEDDING_MODEL = mxbai-embed-large",
     "UV_CACHE_DIR = /tmp/uv-test-cache",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+]

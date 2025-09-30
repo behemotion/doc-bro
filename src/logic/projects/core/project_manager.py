@@ -175,7 +175,7 @@ class ProjectManager:
 
         try:
             # Update timestamp
-            project.updated_at = datetime.utcnow()
+            project.updated_at = datetime.now(datetime.UTC)
 
             # Validate settings for project type
             from .project_factory import ProjectFactory

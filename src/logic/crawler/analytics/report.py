@@ -130,8 +130,4 @@ class CrawlReport(BaseModel):
             "error_summary": self.get_error_summary()
         }
 
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat()
-        }
-    )
+    model_config = ConfigDict()
