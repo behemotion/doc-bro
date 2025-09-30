@@ -31,6 +31,9 @@ class DatabaseError(Exception):
 class DatabaseManager:
     """Manages SQLite database operations for DocBro."""
 
+    # Class-level cache to avoid repeated migration checks
+    _migrations_checked: dict[str, bool] = {}
+
     def __init__(self, config: DocBroConfig | None = None):
         """Initialize database manager."""
         self.config = config or DocBroConfig()
@@ -51,10 +54,13 @@ class DatabaseManager:
             # Ensure database directory exists
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Run synchronous migrations first
-            from src.services.database_migrator import DatabaseMigrator
-            migrator = DatabaseMigrator(self.config)
-            migrator.run_migrations()
+            # Run synchronous migrations first (but only once per database path)
+            db_path_str = str(self.db_path)
+            if db_path_str not in DatabaseManager._migrations_checked:
+                from src.services.database_migrator import DatabaseMigrator
+                migrator = DatabaseMigrator(self.config)
+                migrator.run_migrations()
+                DatabaseManager._migrations_checked[db_path_str] = True
 
             # Create connection
             self._connection = await aiosqlite.connect(str(self.db_path))

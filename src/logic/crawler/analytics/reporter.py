@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from platformdirs import user_data_dir
+from src.lib.paths import get_docbro_data_dir
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +106,7 @@ class ErrorReporter:
         Returns:
             Path to report directory
         """
-        data_dir = Path(user_data_dir("docbro"))
+        data_dir = get_docbro_data_dir()
         report_dir = data_dir / "projects" / self.project_name / "reports"
         report_dir.mkdir(parents=True, exist_ok=True)
         return report_dir

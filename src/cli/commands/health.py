@@ -33,6 +33,7 @@ def run_async(coro):
 @click.option("--format", "-f", "format_type", default="table",
               type=click.Choice(["table", "json", "yaml"], case_sensitive=False),
               help="Output format")
+@click.option("--json", "-j", is_flag=True, help="Output in JSON format (shortcut for --format json)")
 @click.option("--verbose", "-v", is_flag=True, help="Include detailed diagnostic information")
 @click.option("--quiet", "-q", is_flag=True, help="Suppress progress indicators, show only results")
 @click.option("--timeout", "-t", default=15, type=click.IntRange(1, 60),
@@ -41,7 +42,7 @@ def run_async(coro):
               help="Maximum parallel health checks")
 @click.pass_context
 def health(ctx: click.Context, system: bool, services: bool, config: bool, projects: bool,
-           format_type: str, verbose: bool, quiet: bool, timeout: int, parallel: int):
+           format_type: str, json: bool, verbose: bool, quiet: bool, timeout: int, parallel: int):
     """Check health status of DocBro components with comprehensive validation.
 
     Verify that your DocBro installation is working correctly by checking
@@ -98,6 +99,9 @@ def health(ctx: click.Context, system: bool, services: bool, config: bool, proje
             # Initialize components
             router = HealthCommandRouter()
 
+            # Handle --json shortcut flag
+            effective_format = "json" if json else format_type
+
             # Parse and validate flags
             try:
                 categories, options = router.parse_flags(
@@ -105,7 +109,7 @@ def health(ctx: click.Context, system: bool, services: bool, config: bool, proje
                     services=services,
                     config=config,
                     projects=projects,
-                    format_type=format_type,
+                    format_type=effective_format,
                     verbose=verbose,
                     quiet=quiet,
                     timeout=timeout,

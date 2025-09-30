@@ -104,14 +104,16 @@ docbro health             # System health checks
 ### Core Commands
 ```bash
 # Shelf Management (Collections)
-docbro shelf create <name> [--description "text"] [--set-current]
+docbro shelf create <name> [--shelf-description "text"] [--set-current]
 docbro shelf list [--verbose] [--current-only] [--limit 10]
 docbro shelf current [<name>]                   # Get or set current shelf
 docbro shelf rename <old_name> <new_name>       # Rename shelf
 docbro shelf delete <name> [--force] [--no-backup]
 
+# NOTE: Creating a shelf automatically creates a default RAG box named "<shelf_name>_box"
+
 # Box Management (Documentation Units)
-docbro box create <name> --type <drag|rag|bag> [--shelf <name>] [--description "text"]
+docbro box create <name> --type <drag|rag|bag> [--shelf <name>] [--box-description "text"]
 docbro box list [--shelf <name>] [--type <type>] [--verbose] [--limit 10]
 docbro box add <box_name> --to-shelf <shelf_name>    # Add box to shelf
 docbro box remove <box_name> --from-shelf <shelf_name>    # Remove box from shelf
@@ -358,6 +360,17 @@ DOCBRO_LOG_LEVEL=WARNING|INFO|DEBUG
 - **Claude Code Integration**: Official CLI with dedicated MCP tools
 - **Universal Compatibility**: Works with any MCP-compliant AI assistant
 - **Concurrent Operations**: Both servers can run simultaneously on different ports
+
+#### MCP Testing Requirements
+**IMPORTANT**: MCP endpoints use the MCP protocol format, not standard REST/HTTP.
+
+- **Standard HTTP Requests**: Will return `{"detail": "Invalid method"}`
+- **Testing Requirements**:
+  - Use MCP-compliant client (e.g., Claude Desktop with MCP integration)
+  - Standard curl/HTTP clients are insufficient for endpoint testing
+  - Health endpoint (`GET /mcp/v1/health`) is the only REST-compatible endpoint
+- **Development Testing**: Use Claude Desktop or implement MCP protocol client
+- **Endpoint Discovery**: Source code analysis or OpenAPI schema (if available)
 
 ## Universal Arrow Navigation Architecture
 
