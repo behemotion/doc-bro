@@ -106,9 +106,6 @@ class BoxService:
 
         box_data = await self.db.get_box(name=name)
         if box_data:
-            # Convert type string to BoxType enum
-            if 'type' in box_data and isinstance(box_data['type'], str):
-                box_data['type'] = BoxType.from_string(box_data['type'])
             return Box.model_validate(box_data)
 
         return None
@@ -127,9 +124,6 @@ class BoxService:
 
         box_data = await self.db.get_box(box_id=box_id)
         if box_data:
-            # Convert type string to BoxType enum
-            if 'type' in box_data and isinstance(box_data['type'], str):
-                box_data['type'] = BoxType.from_string(box_data['type'])
             return Box.model_validate(box_data)
 
         return None
@@ -169,9 +163,6 @@ class BoxService:
         boxes = []
 
         for box_data in boxes_data:
-            # Convert type string to BoxType enum
-            if 'type' in box_data and isinstance(box_data['type'], str):
-                box_data['type'] = BoxType.from_string(box_data['type'])
             boxes.append(Box.model_validate(box_data))
 
         return boxes
